@@ -1,0 +1,44 @@
+command: mkdir
+description: Create directories
+parameters:
+  
+  - name: use_sudo
+    type: boolean
+    flag: "sudo"
+    description: Run the command with elevated privileges (sudo)
+    default: false
+  
+  - name: parents
+    type: boolean
+    flag: "-p"
+    description: Create parent directories if they don't exist
+    default: false
+  
+  - name: mode
+    type: options
+    flag: "-m"
+    description: Set directory permissions
+    options:
+      - value: "755"
+        description: Standard executable directory (owner full, group/others read/execute)
+      - value: "700"
+        description: Private directory (owner only)
+      - value: "777"
+        description: Fully open permissions (not recommended)
+    
+  - name: verbose
+    type: boolean
+    flag: "-v"
+    description: Print information about created directories
+    default: false
+
+  - name: path
+    type: filepath
+    mode: directory
+    required: true
+    description: Path where directory will be created
+    example: "/home/user/newdirectory"  
+
+help_text: |
+  mkdir allows you to create new directories in the file system.
+  Supports creating nested directories and setting custom permissions.

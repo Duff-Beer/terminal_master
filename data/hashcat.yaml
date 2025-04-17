@@ -1,0 +1,124 @@
+command: hashcat
+description: Advanced password recovery utility
+parameters:
+  - name: use_sudo
+    type: boolean
+    flag: "sudo"
+    description: Run the command with elevated privileges
+    default: false
+    order: 0
+  - name: hash_file
+    type: filepath
+    mode: file
+    required: true
+    description: Path to the hash file to crack
+    example: "/path/to/hashfile.txt"
+    order: 1
+  - name: hash_type
+    type: options
+    flag: "-m"
+    description: Specify the hash type
+    options:
+      - value: "0"
+        description: MD5
+      - value: "1000"
+        description: NTLM
+      - value: "1800"
+        description: SHA-512
+      - value: "2100"
+        description: MS-CHAPv2
+    required: true
+    order: 2
+  - name: attack_mode
+    type: options
+    flag: "-a"
+    description: Specify the attack mode
+    options:
+      - value: "0"
+        description: Dictionary attack
+      - value: "1"
+        description: Combination attack
+      - value: "3"
+        description: Mask attack
+      - value: "6"
+        description: Hybrid Wordlist + Mask
+      - value: "7"
+        description: Hybrid Mask + Wordlist
+    required: true
+    order: 3
+  - name: wordlist
+    type: filepath
+    mode: file
+    description: Path to the wordlist for cracking (required for dictionary-based attacks)
+    example: "/path/to/wordlist.txt"
+    order: 4
+  - name: predefined_mask
+    type: options
+    flag: ""
+    description: Select a predefined mask (for mask-based attacks)
+    options:
+      - value: "?l?l?l?l?l"
+        description: Lowercase letters, 5 characters
+      - value: "?u?u?u?u?u"
+        description: Uppercase letters, 5 characters
+      - value: "?d?d?d?d"
+        description: Digits, 4 characters
+      - value: "?l?u?d?d?d"
+        description: Mixed case + digits, 5 characters
+      - value: "?a?a?a?a?a?a"
+        description: All character types, 6 characters
+    required: false
+    order: 5
+  - name: output_file
+    type: filepath
+    mode: file
+    description: Specify the output file for results
+    example: "/path/to/output.txt"
+    flag: "-o"
+    order: 6
+  - name: session
+    type: text
+    description: Resume or specify a session name
+    example: "my_session"
+    flag: "--session"
+    order: 7
+  - name: rules_file
+    type: filepath
+    mode: file
+    description: Specify a rules file for advanced cracking
+    example: "/path/to/rules.txt"
+    flag: "-r"
+    order: 8
+  - name: verbose
+    type: boolean
+    flag: "--verbose"
+    description: Enable verbose output
+    default: false
+    order: 9
+  - name: show_cracked
+    type: boolean
+    flag: "--show"
+    description: Display cracked hashes and exit
+    default: false
+    order: 10
+  - name: speed
+    type: options
+    flag: "-w"
+    description: Set the workload profile (speed vs. resources)
+    options:
+      - value: "1"
+        description: Slow (low resources)
+      - value: "2"
+        description: Default (balanced)
+      - value: "3"
+        description: Fast (high resources)
+    default: "2"
+    order: 11
+help_text: |
+  Hashcat is a fast and flexible password recovery tool. Use it to crack a variety of hash types using different attack modes.
+  Common use cases:
+  - Cracking MD5 hashes with a dictionary: `hashcat -m 0 -a 0 hashfile.txt wordlist.txt`
+  - Using a predefined mask for brute-force: `hashcat -m 1000 -a 3 hashfile.txt ?l?l?l?l?l`
+  - Saving results to an output file: `hashcat -o cracked.txt`
+
+  Always ensure you have proper authorization before using Hashcat on any system or data.

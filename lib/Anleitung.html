@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YAML File Creation Guide</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            margin: 20px;
+        }
+        h1, h2, h3 {
+            color: #333;
+        }
+        code {
+            background-color: #f4f4f4;
+            padding: 2px 4px;
+            border-radius: 4px;
+            font-size: 0.9em;
+            font-family: monospace;
+        }
+        pre {
+            background-color: #f9f9f9;
+            border: 1px solid #ddd;
+            padding: 10px;
+            overflow-x: auto;
+            border-radius: 4px;
+        }
+        .example {
+            background-color: #f4f4f4;
+            padding: 10px;
+            border-left: 4px solid #007BFF;
+            margin: 10px 0;
+        }
+        ul {
+            margin: 10px 0;
+        }
+        li {
+            margin-bottom: 5px;
+        }
+    </style>
+</head>
+<body>
+    <h1>YAML File Creation Guide</h1>
+
+    <p>This guide explains how to create YAML files for the <code>CommandGeneratorPage</code> in a Flutter application. These YAML files define the structure, parameters, and behaviors of commands.</p>
+
+    <h2>1. Basic Structure</h2>
+    <p>Each YAML file consists of the following main elements:</p>
+    <ul>
+        <li><code>command</code>: The name of the command (e.g., <code>nmap</code>, <code>mkdir</code>).</li>
+        <li><code>description</code>: A short description of the command.</li>
+        <li><code>parameters</code>: A list of parameters supported by the command.</li>
+    </ul>
+    <pre>
+command: nmap
+description: Network mapping and port scanning tool
+parameters:
+  - name: target
+    type: text
+    required: true
+    description: Target host(s) or network(s) to scan
+    example: "192.168.1.1"
+    order: 1
+    </pre>
+
+    <h2>2. Field Definitions</h2>
+    <h3><code>command</code></h3>
+    <p><strong>Description:</strong> The main command to execute.</p>
+    <pre>
+command: mkdir
+    </pre>
+
+    <h3><code>description</code></h3>
+    <p><strong>Description:</strong> A short explanation of the command.</p>
+    <pre>
+description: Create directories
+    </pre>
+
+    <h3><code>parameters</code></h3>
+    <p><strong>Description:</strong> A list of parameters that define the command’s behavior.</p>
+
+    <h3>Parameter Fields</h3>
+    <ul>
+        <li><strong><code>name</code></strong>: The internal name of the parameter.</li>
+        <li><strong><code>type</code></strong>: Defines the parameter type. Possible values:
+            <ul>
+                <li><code>text</code>: Free text input.</li>
+                <li><code>boolean</code>: A toggle (true/false).</li>
+                <li><code>options</code>: A selection from predefined options.</li>
+                <li><code>filepath</code>: A file or directory picker.</li>
+            </ul>
+        </li>
+        <li><strong><code>flag</code></strong>: The flag to add before the value in the command.</li>
+        <li><strong><code>description</code></strong>: A short explanation of the parameter.</li>
+        <li><strong><code>required</code></strong>: Indicates if the parameter is mandatory.</li>
+        <li><strong><code>order</code></strong>: Specifies the order of the parameter in the command. Use <code>0</code> to place it before the command.</li>
+        <li><strong><code>prefix</code></strong> and <strong><code>suffix</code></strong>: Optional; text to add before or after the parameter value.</li>
+        <li><strong><code>options</code></strong>: A list of predefined values (for <code>type: options</code>).</li>
+        <li><strong><code>example</code></strong>: An example value for the parameter.</li>
+    </ul>
+
+    <h2>3. Example YAML File</h2>
+    <pre>
+command: mkdir
+description: Create directories
+parameters:
+  - name: use_sudo
+    type: boolean
+    flag: "sudo"
+    description: Run the command with elevated privileges
+    default: false
+    order: 0
+
+  - name: path
+    type: filepath
+    mode: directory
+    required: true
+    description: Path where the directory will be created
+    example: "/home/user/newdirectory"
+    order: 1
+
+  - name: parents
+    type: boolean
+    flag: "-p"
+    description: Create parent directories if they don’t exist
+    default: false
+    order: 2
+
+  - name: verbose
+    type: boolean
+    flag: "-v"
+    description: Print information about created directories
+    default: false
+    order: 3
+    </pre>
+
+    <h2>4. Tips for Creating YAML Files</h2>
+    <ul>
+        <li><strong>Indentation:</strong> YAML is indentation-sensitive. Use 2 spaces for each level.</li>
+        <li><strong>Order:</strong> Use the <code>order</code> field to control the order of parameters.</li>
+        <li><strong>Testing:</strong> Test the YAML file in the <code>CommandGeneratorPage</code> to ensure it behaves as expected.</li>
+    </ul>
+
+    <h2>5. Example Command Output</h2>
+    <p>Using the example YAML configuration, the generated command could look like this:</p>
+    <div class="example">
+        <code>sudo mkdir -p -v /home/user/newdirectory</code>
+    </div>
+</body>
+</html>

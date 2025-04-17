@@ -1,0 +1,93 @@
+command: dd
+description: A low-level utility for copying and converting data
+parameters:
+  - name: use_sudo
+    type: boolean
+    flag: "sudo"
+    description: Run the command with elevated privileges
+    default: false
+    order: 0
+  - name: "list_files"
+    type: "button"
+    label: "Liste Dateien"
+    executable: "ls"
+    args: "-la"
+    order: 1
+  - name: input_file
+    type: filepath
+    mode: file
+    required: true
+    description: Specify the input file or device
+    flag: "if="
+    example: "/dev/sda"
+    order: 2
+  - name: output_file
+    type: filepath
+    mode: file
+    required: true
+    description: Specify the output file or device
+    flag: "of="
+    example: "/dev/sdb"
+    order: 3
+  - name: block_size
+    type: text
+    description: Specify the block size for data transfer (e.g., 512, 4k, 1M)
+    flag: "bs="
+    example: "4M"
+    order: 4
+  - name: count
+    type: text
+    description: Number of blocks to copy
+    flag: "count="
+    example: "100"
+    order: 5
+  - name: skip
+    type: text
+    description: Number of blocks to skip in the input file
+    flag: "skip="
+    example: "10"
+    order: 6
+  - name: seek
+    type: text
+    description: Number of blocks to skip in the output file
+    flag: "seek="
+    example: "10"
+    order: 7
+  - name: conv
+    type: options
+    flag: "conv="
+    description: Specify conversion options
+    options:
+      - value: "noerror"
+        description: Continue after read errors
+      - value: "sync"
+        description: Pad blocks with zeros
+      - value: "notrunc"
+        description: Do not truncate the output file
+      - value: "fdatasync"
+        description: Physically write output file data before finishing
+      - value: "fsync"
+        description: Physically write output file data and metadata
+    order: 8
+  - name: status
+    type: options
+    flag: "status="
+    description: Specify the level of information to display during execution
+    options:
+      - value: "none"
+        description: Do not display any information
+      - value: "noxfer"
+        description: Display all information except the final transfer statistics
+      - value: "progress"
+        description: Display transfer progress during execution
+    default: "progress"
+    order: 9
+help_text: |
+  `dd` is a low-level utility used for copying and converting data. It works directly with files and devices, allowing precise control over data transfers.
+
+  Common use cases:
+  - Creating a disk image: `dd if=/dev/sda of=/path/to/image.img bs=4M`
+  - Writing a disk image to a device: `dd if=/path/to/image.img of=/dev/sdb bs=4M status=progress`
+  - Cloning a disk: `dd if=/dev/sda of=/dev/sdb bs=4M conv=noerror,sync`
+
+  **Note:** Use `dd` with caution. Incorrect usage can result in data loss.

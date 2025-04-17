@@ -1,0 +1,61 @@
+command: pishrink
+description: A utility to shrink Raspberry Pi image files
+parameters:
+  - name: use_sudo
+    type: boolean
+    flag: "sudo"
+    description: Run the command with elevated privileges
+    default: true
+    order: 0
+  - name: input_file
+    type: filepath
+    mode: file
+    required: true
+    description: Path to the Raspberry Pi image file to shrink
+    example: "/path/to/image.img"
+    order: 1
+  - name: output_file
+    type: filepath
+    mode: file
+    description: Specify a custom output file for the shrunken image
+    flag: "--output"
+    example: "/path/to/output.img"
+    depends_on:
+      - input_file
+    must_differ: true # Ensures output_file is not the same as input_file
+    order: 2
+  - name: force
+    type: boolean
+    flag: "-f"
+    description: Force shrinking without confirmation prompts
+    default: false
+    order: 3
+  - name: preserve_original
+    type: boolean
+    flag: "-p"
+    description: Preserve the original image instead of overwriting it
+    default: false
+    conflicts_with:
+      - output_file
+    order: 4
+  - name: preserve_original
+    type: boolean
+    flag: "-p"
+    description: Preserve the original image instead of overwriting it
+    default: false
+    order: 5
+  - name: verbose
+    type: boolean
+    flag: "-v"
+    description: Enable verbose output for detailed information
+    default: false
+    order: 6
+help_text: |
+  PiShrink is a utility designed to reduce the size of Raspberry Pi image files. It removes unused space and optimizes the image for distribution.
+
+  Common use cases:
+  - Shrinking an image file: `sudo pishrink /path/to/image.img`
+  - Shrinking and preserving the original file: `sudo pishrink -p /path/to/image.img`
+  - Specifying an output file: `sudo pishrink /path/to/image.img --output /path/to/output.img`
+
+  Always ensure you have backups of your image files before using PiShrink to prevent data loss.

@@ -1,0 +1,105 @@
+command: nmap
+description: Network mapping and port scanning tool
+parameters:
+  - name: use_sudo
+    type: boolean
+    flag: "sudo"
+    description: Run the command with elevated privileges (sudo)
+    default: false
+    order: 0
+  - name: scan_type
+    type: options
+    flag: ""
+    description: Specify the type of scan to perform
+    order: 1
+    options:
+      - value: "-sS"
+        description: SYN scan (default, stealthy and fast)
+      - value: "-sT"
+        description: TCP connect scan (full connection)
+      - value: "-sU"
+        description: UDP scan (for open UDP ports)
+      - value: "-sP"
+        description: Ping scan (host discovery only)
+      - value: "-sV"
+        description: Service/version detection
+  - name: host_discovery
+    type: options
+    flag: ""
+    description: Host discovery options
+    options:
+      - value: "-sL"
+        description: List Scan - simply list targets to scan
+      - value: "-sn"
+        description: Ping Scan - disable port scan
+      - value: "-Pn"
+        description: Treat all hosts as online -- skip host discovery
+      - value: "-PS"
+        description: TCP SYN discovery to given ports
+      - value: "-PA"
+        description: TCP ACK discovery to given ports
+      - value: "-PU"
+        description: UDP discovery to given ports
+      - value: "-PY"
+        description: SCTP discovery to given ports
+      - value: "-PE"
+        description: ICMP echo request discovery probes
+      - value: "-PP"
+        description: ICMP timestamp request discovery probes
+      - value: "-PM"
+        description: ICMP netmask request discovery probes
+      - value: "-PO"
+        description: IP Protocol Ping
+      - value: "-n"
+        description: Never do DNS resolution
+      - value: "-R"
+        description: Always resolve
+      - value: "--dns-servers"
+        description: Specify custom DNS servers
+      - value: "--system-dns"
+        description: Use OS's DNS resolver
+      - value: "--traceroute"
+        description: Trace hop path to each host
+    order: 2
+  - name: output_format
+    type: options
+    flag: ""
+    description: Specify the output format
+    order: 7
+    options:
+      - value: "-oN"
+        description: Normal output
+      - value: "-oX"
+        description: XML output
+      - value: "-oG"
+        description: Grepable output
+      - value: "-oA"
+        description: All formats
+  - name: target
+    type: options
+    flag: ""
+    order: 9
+    required: true
+    description: Target host(s) or network(s) to scan
+    options:
+      - value: "192.168.0.0/24"
+        description: "IP-Range"
+      - value: "192.168.10.0/24"
+        description: "IP-Range"
+    prefix: "- "
+    note: "Accepts single IPs, ranges, or CIDR notation."
+  - name: filter_up
+    type: boolean
+    order: 10
+    flag: "| grep 'Up'"
+    description: Filter the output to show only hosts that are up
+    default: false
+help_text: |
+  nmap is a powerful network scanning tool. Use it to discover hosts and services on a network.
+  Common use cases include:
+  - Scanning a target for open ports: `nmap -sS -p 80,443 target`
+  - Detecting operating systems: `nmap -O target`
+  - Aggressive scan with additional information: `nmap -A target`
+  - Filtering results to show only hosts that are up: `nmap -sP target | grep "Up"`
+
+  Be cautious when scanning networks you do not own or have explicit permission to scan.
