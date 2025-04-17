@@ -1,0 +1,40 @@
+command: rm
+description: Remove files or directories
+parameters:
+  
+  - name: use_sudo
+    type: boolean
+    flag: "sudo"
+    description: Run the command with elevated privileges (sudo)
+    default: false
+  
+  - name: recursive
+    type: boolean
+    flag: "-r"
+    description: Remove directories and their contents recursively
+    default: false
+
+  - name: force
+    type: boolean
+    flag: "-f"
+    description: Ignore nonexistent files and never prompt for confirmation
+    default: false
+
+  - name: verbose
+    type: boolean
+    flag: "-v"
+    description: Print details about each removal
+    default: false
+
+  - name: path
+    type: filepath
+    mode: directory
+    required: true
+    description: Path of the file or directory to be removed
+    example: "/home/user/oldfile"
+
+help_text: |
+  rm is used to delete files or directories.
+  Use the -r flag to delete directories and their contents recursively.
+  Use the -f flag to suppress warnings and confirmations.
+  Be cautious when using rm, especially with the recursive and force options.

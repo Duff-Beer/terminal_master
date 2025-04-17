@@ -1,0 +1,81 @@
+command: flutter
+description: Flutter command-line interface for app development
+parameters:
+  - name: use_sudo
+    type: boolean
+    flag: "sudo"
+    description: Run the command with elevated privileges (sudo, if necessary)
+    default: false
+    order: 0
+  - name: action
+    type: options
+    flag: ""
+    description: Specify the Flutter action to perform
+    order: 1
+    options:
+      - value: "doctor"
+        description: Check your Flutter environment and dependencies
+      - value: "clean"
+        description: Delete build/ and .dart_tool/ directories
+      - value: "pub get"
+        description: Get the dependencies for the current project
+      - value: "pub upgrade"
+        description: Upgrade all dependencies to their latest versions
+      - value: "run"
+        description: Run your Flutter app on an emulator or device
+      - value: "build apk"
+        description: Build an APK file for the app
+      - value: "build ios"
+        description: Build an iOS bundle for the app
+      - value: "test"
+        description: Run all tests in the project
+      - value: "analyze"
+        description: Analyze the project's Dart code for issues
+  - name: target
+    type: text
+    flag: "--target"
+    description: Specify the main entry-point file (for `flutter run` or `flutter build`)
+    example: "lib/main.dart"
+    required: false
+    order: 2
+  - name: device_id
+    type: text
+    flag: "-d"
+    description: Specify the target device by its ID (for `flutter run` or `flutter build`)
+    example: "emulator-5554"
+    required: false
+    order: 3
+  - name: flavor
+    type: text
+    flag: "--flavor"
+    description: Specify the build flavor (e.g., staging, production)
+    example: "production"
+    required: false
+    order: 4
+  - name: release_mode
+    type: options
+    flag: ""
+    description: Specify the build mode (for `flutter build` or `flutter run`)
+    options:
+      - value: "--debug"
+        description: Build or run the app in debug mode
+      - value: "--profile"
+        description: Build or run the app in profile mode
+      - value: "--release"
+        description: Build or run the app in release mode
+    required: false
+    order: 5
+  - name: verbose
+    type: boolean
+    flag: "--verbose"
+    description: Enable verbose output for debugging
+    default: false
+    order: 6
+help_text: |
+  Flutter CLI is a powerful tool to manage your Flutter projects, build apps, and perform tests.
+  Common use cases:
+  - Check Flutter environment: `flutter doctor`
+  - Run the app on a device: `flutter run -d emulator-5554`
+  - Build an APK for production: `flutter build apk --release --flavor production`
+
+  For more options and details, visit: https://flutter.dev/docs
