@@ -1,0 +1,45 @@
+# git_pull.yaml
+command: git_pull
+description: Holt und merged Änderungen vom Remote in den aktuellen Branch
+parameters:
+  - name: use_sudo
+    type: boolean
+    flag: "sudo"
+    description: Mit Root‑Rechten ausführen
+    default: false
+    order: 0
+
+  - name: remote
+    type: text
+    flag: ""
+    description: Name des Remotes (z. B. origin)
+    example: "origin"
+    required: false
+    order: 1
+
+  - name: branch
+    type: text
+    flag: ""
+    description: Branch‑Name zum Pullen
+    example: "main"
+    required: false
+    order: 2
+
+  - name: rebase
+    type: boolean
+    flag: "--rebase"
+    description: Rebase statt Merge verwenden
+    default: false
+    order: 3
+
+  - name: verbose
+    type: boolean
+    flag: "-v"
+    description: Ausführliche Ausgabe
+    default: false
+    order: 4
+
+help_text: |
+  Standard‑Anwendung:
+  - Einfaches Pullen: `git pull`
+  - Von origin/main pull & rebase: `git pull --rebase origin main`

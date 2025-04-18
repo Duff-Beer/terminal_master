@@ -226,7 +226,8 @@ class _CommandGeneratorPageState extends State<CommandGeneratorPage> {
       return '';
     }
 
-    String command = commandConfig!['command'];
+    final raw = commandConfig!['command'].toString();
+    String command = raw.replaceAll('_', ' ');
     // Sortiere Parameter nach der Reihenfolge
     List<dynamic> sortedParameters = List.from(commandConfig!['parameters']);
     sortedParameters

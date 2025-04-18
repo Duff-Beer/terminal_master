@@ -1,0 +1,48 @@
+# git_clone.yaml
+command: git_clone
+description: Klont ein Remote‑Repository lokal
+parameters:
+  - name: use_sudo
+    type: boolean
+    flag: "sudo"
+    description: Mit Root‑Rechten ausführen
+    default: false
+    order: 0
+
+  - name: repository
+    type: text
+    flag: ""
+    description: URL des zu klonenden Repositories
+    example: "https://github.com/user/repo.git"
+    required: true
+    order: 1
+
+  - name: directory
+    type: filepath
+    mode: directory
+    flag: ""
+    description: Zielverzeichnis (wird neu erstellt)
+    example: "mein-projekt"
+    required: false
+    order: 2
+
+  - name: depth
+    type: text
+    flag: "--depth"
+    description: Tiefe für einen „shallow“ Clone (Anzahl der Commits)
+    example: "1"
+    required: false
+    order: 3
+
+  - name: verbose
+    type: boolean
+    flag: "-v"
+    description: Ausführliche Ausgabe
+    default: false
+    order: 4
+
+help_text: |
+  Standard‑Anwendung:
+  - Vollständiges Klonen: `git clone https://github.com/user/repo.git`
+  - Klonen in spezielles Verzeichnis: `git clone https://... mein-projekt`
+  - Nur letzten Commit klonen: `git clone --depth 1 https://...`
