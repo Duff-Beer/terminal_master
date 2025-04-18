@@ -1,0 +1,29 @@
+# git_status.yaml
+command: git_status
+description: Zeigt den Arbeitsverzeichnis‑Status an
+parameters:
+  - name: use_sudo
+    type: boolean
+    flag: "sudo"
+    description: Mit Root‑Rechten ausführen
+    default: false
+    order: 0
+
+  - name: short
+    type: boolean
+    flag: "--short"
+    description: Kompakte Ausgabe
+    default: false
+    order: 1
+
+  - name: branch
+    type: boolean
+    flag: "--branch"
+    description: Zeige auch Branch‑Informationen
+    default: false
+    order: 2
+
+help_text: |
+  Standard‑Anwendung:
+  - Status anzeigen: `git status`
+  - Kurzformat: `git status --short --branch`

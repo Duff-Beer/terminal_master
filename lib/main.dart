@@ -22,7 +22,9 @@ void main() async {
   }
 
   runApp(MyApp(
-      configDirectoryPath: terminalMasterDir.path, displayPath: displayPath));
+    configDirectoryPath: terminalMasterDir.path,
+    displayPath: displayPath,
+  ));
 }
 
 class MyApp extends StatelessWidget {
@@ -36,13 +38,11 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Erstellen eines dunklen Themes mit grünen Akzenten
     final theme = ThemeData(
       brightness: Brightness.dark,
-      // Entfernen Sie primaryColor, wenn Sie colorScheme verwenden
       scaffoldBackgroundColor: Colors.black,
       canvasColor: Colors.black,
-      fontFamily: 'Courier', // Monospaced Font
+      fontFamily: 'Courier',
       iconTheme: const IconThemeData(color: Colors.green),
       appBarTheme: const AppBarTheme(
         backgroundColor: Colors.black,
@@ -59,25 +59,23 @@ class MyApp extends StatelessWidget {
         bodyLarge: TextStyle(color: Colors.green, fontFamily: 'Courier'),
         titleMedium: TextStyle(color: Colors.green, fontFamily: 'Courier'),
       ),
-      inputDecorationTheme: InputDecorationTheme(
+      inputDecorationTheme: const InputDecorationTheme(
         fillColor: Colors.black,
         filled: true,
-        hintStyle: const TextStyle(color: Colors.green),
-        enabledBorder: const OutlineInputBorder(
+        hintStyle: TextStyle(color: Colors.green),
+        enabledBorder: OutlineInputBorder(
           borderSide: BorderSide(color: Colors.green),
         ),
-        focusedBorder: const OutlineInputBorder(
+        focusedBorder: OutlineInputBorder(
           borderSide: BorderSide(color: Colors.green, width: 2),
         ),
       ),
       colorScheme: const ColorScheme.dark(
         primary: Colors.green,
         secondary: Colors.green,
-        background: Colors.black,
         surface: Colors.black,
         onPrimary: Colors.black,
         onSecondary: Colors.black,
-        onBackground: Colors.green,
         onSurface: Colors.green,
       ),
     );
@@ -85,7 +83,9 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       theme: theme,
       home: MainPage(
-          configDirectoryPath: configDirectoryPath, displayPath: displayPath),
+        configDirectoryPath: configDirectoryPath,
+        displayPath: displayPath,
+      ),
     );
   }
 }
@@ -95,20 +95,22 @@ class ConfigItem {
   final String description;
   final String filePath;
 
-  ConfigItem(
-      {required this.command,
-      required this.description,
-      required this.filePath});
+  ConfigItem({
+    required this.command,
+    required this.description,
+    required this.filePath,
+  });
 }
 
 class MainPage extends StatefulWidget {
   final String configDirectoryPath;
   final String displayPath;
 
-  const MainPage(
-      {super.key,
-      required this.configDirectoryPath,
-      required this.displayPath});
+  const MainPage({
+    super.key,
+    required this.configDirectoryPath,
+    required this.displayPath,
+  });
 
   @override
   State<MainPage> createState() => _MainPageState();
@@ -118,7 +120,6 @@ class _MainPageState extends State<MainPage> {
   List<ConfigItem> _configItems = [];
   List<ConfigItem> _filteredItems = [];
   String _searchQuery = '';
-
   final TextEditingController _searchController = TextEditingController();
 
   @override
@@ -165,7 +166,8 @@ class _MainPageState extends State<MainPage> {
       }
 
       final files = directory.listSync().where(
-          (file) => file.path.endsWith('.yaml') || file.path.endsWith('.yml'));
+            (file) => file.path.endsWith('.yaml') || file.path.endsWith('.yml'),
+          );
 
       List<ConfigItem> tempList = [];
       for (var file in files) {
@@ -182,17 +184,18 @@ class _MainPageState extends State<MainPage> {
           final description =
               config['description']?.toString() ?? 'No description available';
 
-          tempList.add(ConfigItem(
-            command: command,
-            description: description,
-            filePath: file.path,
-          ));
+          tempList.add(
+            ConfigItem(
+              command: command,
+              description: description,
+              filePath: file.path,
+            ),
+          );
         } catch (e) {
-          print('Invalid config file: ${file.path}, Error: $e');
+          debugPrint('Invalid config file: \${file.path}, Error: \$e');
         }
       }
 
-      // Alphabetisch sortieren
       tempList.sort((a, b) => a.command.compareTo(b.command));
 
       setState(() {
@@ -200,16 +203,15 @@ class _MainPageState extends State<MainPage> {
         _filterItems();
       });
     } catch (e) {
-      print('Error reading directory: $e');
+      debugPrint('Error reading directory: \$e');
       setState(() {
         _configItems = [];
         _filteredItems = [];
       });
-
       WidgetsBinding.instance.addPostFrameCallback((_) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Fehler beim Zugriff auf das Verzeichnis: $e'),
+            content: Text('Fehler beim Zugriff auf das Verzeichnis: \$e'),
           ),
         );
       });
@@ -227,15 +229,66 @@ class _MainPageState extends State<MainPage> {
     }
   }
 
+  Widget _buildConfigTile(ConfigItem item) {
+    return ListTile(
+      title: Text(item.command),
+      subtitle: Text(item.description),
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) =>
+                CommandGeneratorPage(configPath: item.filePath),
+          ),
+        );
+      },
+    );
+  }
+
+  List<Widget> _buildMenuItems() {
+    final Map<String, List<ConfigItem>> prefixGroups = {};
+    final List<ConfigItem> ungrouped = [];
+
+    for (var item in _filteredItems) {
+      if (item.command.contains('_')) {
+        final prefix = item.command.split('_').first;
+        prefixGroups.putIfAbsent(prefix, () => []).add(item);
+      } else {
+        ungrouped.add(item);
+      }
+    }
+
+    final Map<String, List<ConfigItem>> groups = {};
+    prefixGroups.forEach((prefix, list) {
+      if (list.length > 1) {
+        groups[prefix] = list;
+      } else {
+        ungrouped.addAll(list);
+      }
+    });
+
+    final List<Widget> widgets = [];
+    for (var item in ungrouped) {
+      widgets.add(_buildConfigTile(item));
+    }
+    for (var prefix in groups.keys.toList()..sort()) {
+      final items = groups[prefix]!;
+      widgets.add(
+        ExpansionTile(
+          title: Text(prefix.toUpperCase()),
+          children: items.map(_buildConfigTile).toList(),
+        ),
+      );
+    }
+    return widgets;
+  }
+
   @override
   Widget build(BuildContext context) {
-    // Hintergrundanpassung und Gesamtästhetik einer "Hacker-Konsole"
     return Scaffold(
       appBar: AppBar(
         title: const Text('Terminal Command Generator'),
-        // Suchfeld in der AppBar
         actions: [
-          // Suchen...
           Container(
             width: 200,
             padding: const EdgeInsets.symmetric(horizontal: 8),
@@ -243,9 +296,9 @@ class _MainPageState extends State<MainPage> {
               controller: _searchController,
               style: const TextStyle(color: Colors.green),
               cursorColor: Colors.green,
-              decoration: InputDecoration(
+              decoration: const InputDecoration(
                 hintText: 'Suchen...',
-                hintStyle: const TextStyle(color: Colors.green),
+                hintStyle: TextStyle(color: Colors.green),
                 isDense: true,
                 border: InputBorder.none,
               ),
@@ -272,25 +325,8 @@ class _MainPageState extends State<MainPage> {
           Expanded(
             child: _filteredItems.isEmpty
                 ? const Center(child: Text('No config files found'))
-                : ListView.builder(
-                    itemCount: _filteredItems.length,
-                    itemBuilder: (context, index) {
-                      final item = _filteredItems[index];
-                      return ListTile(
-                        title: Text(item.command),
-                        subtitle: Text(item.description),
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => CommandGeneratorPage(
-                                configPath: item.filePath,
-                              ),
-                            ),
-                          );
-                        },
-                      );
-                    },
+                : ListView(
+                    children: _buildMenuItems(),
                   ),
           ),
         ],
