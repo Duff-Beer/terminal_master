@@ -9,7 +9,7 @@ class InitData {
 
 Future<InitData> initializeApp() async {
   final appSupportDir = await getApplicationSupportDirectory();
-  final terminalMasterDir = Directory('${appSupportDir.path}/terminal-master');
+  final terminalMasterDir = Directory(appSupportDir.path);
 
   if (!terminalMasterDir.existsSync()) {
     terminalMasterDir.createSync(recursive: true);

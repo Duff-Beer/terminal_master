@@ -49,6 +49,7 @@ class _BatchCommandPageState extends State<BatchCommandPage> {
         try {
           await CommandExecutor.executeInTerminal(cmd, true);
         } catch (e) {
+          if (!mounted) return;
           showOutputDialog(
               context, 'Fehler bei Befehl ${_commands[i]['title']}: $e');
         }
