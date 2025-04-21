@@ -9,8 +9,7 @@ import '../widgets/output_dialog.dart';
 class CommandGeneratorPage extends StatefulWidget {
   final String configPath;
 
-  const CommandGeneratorPage({Key? key, required this.configPath})
-      : super(key: key);
+  const CommandGeneratorPage({super.key, required this.configPath});
 
   @override
   State<CommandGeneratorPage> createState() => _CommandGeneratorPageState();

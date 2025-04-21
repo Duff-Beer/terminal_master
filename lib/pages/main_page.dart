@@ -4,6 +4,7 @@ import '../models/config_item.dart';
 import '../utils/config_loader.dart';
 import '../widgets/config_tile.dart';
 import 'command_generator_page.dart';
+import 'batch_command_page.dart';
 
 class MainPage extends StatefulWidget {
   final String configDirectoryPath;
@@ -98,9 +99,9 @@ class _MainPageState extends State<MainPage> {
       ),
       body: Column(
         children: [
-          const Padding(
-            padding: EdgeInsets.all(8.0),
-            child: Text('Config Directory: \${widget.displayPath}'),
+          Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: Text('Config Directory: ${widget.displayPath}'),
           ),
           Expanded(
             child: _filtered.isEmpty
@@ -142,12 +143,22 @@ class _MainPageState extends State<MainPage> {
         ConfigTile(
           item: item,
           onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => CommandGeneratorPage(configPath: item.filePath),
-              ),
-            );
+            if (item.isBatch) {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => BatchCommandPage(filePath: item.filePath),
+                ),
+              );
+            } else {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) =>
+                      CommandGeneratorPage(configPath: item.filePath),
+                ),
+              );
+            }
           },
         ),
       );
@@ -161,13 +172,22 @@ class _MainPageState extends State<MainPage> {
             return ConfigTile(
               item: item,
               onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) =>
-                        CommandGeneratorPage(configPath: item.filePath),
-                  ),
-                );
+                if (item.isBatch) {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => BatchCommandPage(filePath: item.filePath),
+                    ),
+                  );
+                } else {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) =>
+                          CommandGeneratorPage(configPath: item.filePath),
+                    ),
+                  );
+                }
               },
             );
           }).toList(),
