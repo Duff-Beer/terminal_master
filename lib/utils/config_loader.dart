@@ -4,27 +4,41 @@ import '../models/config_item.dart';
 import '../models/command_config.dart';
 
 class ConfigLoader {
-  // Lädt alle ConfigItems für die Übersicht
   static List<ConfigItem> loadConfigs(String dirPath) {
     final directory = Directory(dirPath);
     if (!directory.existsSync()) return [];
 
-    final files = directory
-        .listSync()
-        .where((f) => f.path.endsWith('.yaml') || f.path.endsWith('.yml'));
+    final files = directory.listSync().where((f) {
+      final path = f.path;
+      return path.endsWith('.yaml') || path.endsWith('.yml');
+    });
 
     final items = <ConfigItem>[];
     for (var f in files) {
       try {
+        final name = f.uri.pathSegments.last;
+        final isBatch = name.startsWith('-');
         final yamlString = File(f.path).readAsStringSync();
         final doc = loadYaml(yamlString);
-        if (doc == null || doc['command'] == null) continue;
 
-        items.add(ConfigItem(
-          command: doc['command'].toString(),
-          description: doc['description']?.toString() ?? 'No description',
-          filePath: f.path,
-        ));
+        if (!isBatch) {
+          if (doc == null || doc['command'] == null) continue;
+          items.add(ConfigItem(
+            command: doc['command'].toString(),
+            description: doc['description']?.toString() ?? 'No description',
+            filePath: f.path,
+          ));
+        } else {
+          final commands = doc['commands'] as YamlList?;
+          if (commands == null) continue;
+
+          items.add(ConfigItem(
+            command: 'Batch: ${name.replaceFirst('-', '')}',
+            description: '${commands.length} Befehle in dieser Datei',
+            filePath: f.path,
+            isBatch: true,
+          ));
+        }
       } catch (_) {}
     }
 
@@ -32,7 +46,6 @@ class ConfigLoader {
     return items;
   }
 
-  // Lädt eine einzelne CommandConfig
   static CommandConfig? loadConfig(String filePath) {
     final file = File(filePath);
     if (!file.existsSync()) return null;

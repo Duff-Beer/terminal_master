@@ -1,0 +1,21 @@
+# -demo.yaml
+commands:
+  - title: Zeige aktuelles Verzeichnis
+    description: Führt `pwd` aus und zeigt den aktuellen Pfad.
+    command: pwd
+
+  - title: Zeige Inhalt des Verzeichnisses
+    description: Listet Dateien im aktuellen Verzeichnis mit Details.
+    command: ls -la
+
+  - title: Zeige Datum und Uhrzeit
+    description: Gibt das aktuelle Datum und die Uhrzeit aus.
+    command: date
+
+  - title: Zeige Netzwerk-Konfiguration
+    description: Gibt IP- und Netzwerkdetails aus.
+    command: ifconfig
+
+  - title: Umgebungsvariablen anzeigen
+    description: Druckt alle Umgebungsvariablen.
+    command: env
