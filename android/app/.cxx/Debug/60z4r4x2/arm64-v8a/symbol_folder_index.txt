@@ -1,0 +1,1 @@
+/Volumes/Daten4TB/Arbeitsverzeichnis/Flutter/TerminalMaster/terminal_master/build/app/intermediates/cxx/Debug/60z4r4x2/obj/arm64-v8a

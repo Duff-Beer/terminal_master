@@ -1,0 +1,2 @@
+/Volumes/Daten4TB/Arbeitsverzeichnis/Flutter/TerminalMaster/terminal_master/android/app/.cxx/Debug/60z4r4x2/x86/CMakeFiles/edit_cache.dir
+/Volumes/Daten4TB/Arbeitsverzeichnis/Flutter/TerminalMaster/terminal_master/android/app/.cxx/Debug/60z4r4x2/x86/CMakeFiles/rebuild_cache.dir
