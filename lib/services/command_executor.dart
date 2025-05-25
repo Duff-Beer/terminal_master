@@ -10,13 +10,7 @@ class CommandExecutor {
     } else if (Platform.isLinux) {
       // Linux ⇒ Liste gängiger Emulatoren
       const terminals = [
-        'gnome-terminal-server',
         'gnome-terminal',
-        'konsole',
-        'xfce4-terminal',
-        'tilix',
-        'xterm',
-        'terminator',
       ];
       for (final term in terminals) {
         final res = await Process.run('pgrep', ['-x', term]);
@@ -49,29 +43,13 @@ class CommandExecutor {
           : 'tell application "Terminal" to do script "$command"';
       await Process.run('osascript', ['-e', script]);
     } else if (Platform.isLinux) {
-      // Linux ⇒ nimm den ersten verfügbaren Emulator
-      final candidates = <MapEntry<String, List<String>>>[
-        MapEntry('gnome-terminal', ['--', 'bash', '-lc', command]),
-        MapEntry('konsole', ['-e', 'bash', '-lc', command]),
-        MapEntry('xfce4-terminal', ['-e', 'bash', '-lc', command]),
-        MapEntry('tilix', ['-e', 'bash', '-lc', command]),
-        MapEntry('xterm', ['-e', 'bash', '-lc', command]),
-        MapEntry('terminator', ['-e', 'bash', '-lc', command]),
-      ];
-
-      for (final entry in candidates) {
-        final exists = Process.runSync('which', [entry.key]).exitCode == 0;
-        if (exists) {
-          await Process.start(entry.key, entry.value);
-          return;
-        }
-      }
-
-      // Nichts gefunden ⇒ klarer Fehler-Hinweis
-      throw UnsupportedError(
-        'Kein unterstützter Terminal-Emulator gefunden.\n'
-        'Installiere z. B. gnome-terminal, konsole oder xterm.',
-      );
+      final terminalRunning = await isTerminalRunning();
+      // Argument für neues Fenster oder neuen Tab
+      final modeFlag =
+          (!alwaysOpenNew && terminalRunning) ? '--tab' : '--window';
+      // Aufbau: gnome-terminal --window|--tab -- bash -c "meinBefehl; exec bash"
+      final args = [modeFlag, '--', 'bash', '-c', '$command; exec bash'];
+      await Process.start('gnome-terminal', args);
     } else if (Platform.isWindows) {
       // Windows ⇒ neues CMD-Fenster
       await Process.start('cmd.exe', ['/C', 'start', 'cmd.exe', '/K', command]);
