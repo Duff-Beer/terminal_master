@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import '../utils/settings_loader.dart';
 import '../models/config_item.dart';
 import '../utils/config_loader.dart';
 import '../widgets/config_tile.dart';
@@ -50,7 +51,7 @@ class _MainPageState extends State<MainPage> {
   void _openDirectory() async {
     final directory = Directory(widget.configDirectoryPath);
     if (directory.existsSync()) {
-      await Process.run('open', [directory.path]);
+      await Process.run(SettingsLoader.fileManagerCommand, [directory.path]);
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Verzeichnis nicht gefunden.')),
