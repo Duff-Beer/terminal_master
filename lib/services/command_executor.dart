@@ -1,35 +1,22 @@
 import 'dart:io';
+import '../utils/settings_loader.dart';
 
 class CommandExecutor {
   /// Prüft, ob ein Terminal-Prozess auf dem System läuft.
   static Future<bool> isTerminalRunning() async {
     if (Platform.isMacOS) {
-      // Auf macOS prüfen wir nach "Terminal"
-      final res = await Process.run('pgrep', ['-x', 'Terminal']);
+      // Auf macOS prüfen wir nach dem konfigurierten Terminal
+      final res = await Process.run('pgrep', ['-x', SettingsLoader.terminalCommand]);
       return res.exitCode == 0;
     } else if (Platform.isLinux) {
-      // Unter Linux prüfen wir eine Liste gängiger Terminal-Emulatoren
-      const terminals = [
-        'gnome-terminal-server', // neuere GNOME
-        'gnome-terminal', // ältere GNOME
-        'konsole', // KDE
-        'xfce4-terminal',
-        'xterm',
-        'terminator',
-      ];
-      for (var term in terminals) {
-        final res = await Process.run('pgrep', ['-x', term]);
-        if (res.exitCode == 0) return true;
-      }
-      return false;
+      // Unter Linux prüfen wir nach dem konfigurierten Terminal
+      final res = await Process.run('pgrep', ['-x', SettingsLoader.terminalCommand]);
+      return res.exitCode == 0;
     } else if (Platform.isWindows) {
-      // Unter Windows prüfen wir nach "cmd.exe" und "powershell.exe"
-      final cmdRes =
-          await Process.run('tasklist', ['/FI', 'IMAGENAME eq cmd.exe', '/NH']);
-      final psRes = await Process.run(
-          'tasklist', ['/FI', 'IMAGENAME eq powershell.exe', '/NH']);
-      return cmdRes.stdout.toString().trim().isNotEmpty ||
-          psRes.stdout.toString().trim().isNotEmpty;
+      // Unter Windows prüfen wir nach dem konfigurierten Terminal
+      final res = await Process.run(
+          'tasklist', ['/FI', "IMAGENAME eq ${SettingsLoader.terminalCommand}", '/NH']);
+      return res.stdout.toString().trim().isNotEmpty;
     } else {
       throw UnsupportedError(
           'Terminal-Erkennung nicht unterstützt auf dieser Plattform');
@@ -43,18 +30,24 @@ class CommandExecutor {
       String command, bool alwaysOpenNew) async {
     if (Platform.isMacOS) {
       final terminalRunning = await isTerminalRunning();
+      final app = SettingsLoader.terminalCommand;
       final appleScript = (!alwaysOpenNew && terminalRunning)
-          ? 'tell application "Terminal" to do script "$command" in front window'
-          : 'tell application "Terminal" to do script "$command"';
+          ? 'tell application "$app" to do script "$command" in front window'
+          : 'tell application "$app" to do script "$command"';
       await Process.run('osascript', ['-e', appleScript]);
     } else if (Platform.isLinux) {
-      // Unter Linux: wenn Terminal offen & alwaysOpenNew==false,
-      // könntest du hier weitere Logik ergänzen (z.B. wmctrl),
-      // wir öffnen aber standardmäßig immer neu:
-      await Process.start('gnome-terminal', ['--', 'bash', '-lc', command]);
+      // Unter Linux verwenden wir das konfigurierte Terminal
+      await Process.start(
+          SettingsLoader.terminalCommand, ['--', 'bash', '-lc', command]);
     } else if (Platform.isWindows) {
-      // Unter Windows immer neues CMD-Fenster öffnen
-      await Process.start('cmd.exe', ['/C', 'start', 'cmd.exe', '/K', command]);
+      // Unter Windows immer neues Terminal-Fenster öffnen
+      await Process.start('cmd.exe', [
+        '/C',
+        'start',
+        SettingsLoader.terminalCommand,
+        '/K',
+        command
+      ]);
     } else {
       throw UnsupportedError(
           'Terminal execution not supported on this platform');

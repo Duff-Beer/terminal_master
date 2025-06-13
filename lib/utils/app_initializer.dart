@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:path_provider/path_provider.dart';
+import 'settings_loader.dart';
 
 class InitData {
   final String configPath;
@@ -14,6 +15,8 @@ Future<InitData> initializeApp() async {
   if (!terminalMasterDir.existsSync()) {
     terminalMasterDir.createSync(recursive: true);
   }
+
+  SettingsLoader.initialize(terminalMasterDir.path);
 
   String displayPath = terminalMasterDir.path;
   final homeDir = Platform.environment['HOME'];
