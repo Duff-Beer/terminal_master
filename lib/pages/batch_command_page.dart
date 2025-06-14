@@ -17,7 +17,10 @@ class BatchCommandPage extends StatefulWidget {
 class _BatchCommandPageState extends State<BatchCommandPage> {
   List<Map<String, String>> _commands = [];
   final Set<int> _selectedIndexes = {};
+
   String _previewCommand = '';
+  bool _runInSameTerminal = false;
+ 
 
   @override
   void initState() {
@@ -45,15 +48,31 @@ class _BatchCommandPageState extends State<BatchCommandPage> {
   }
 
   Future<void> _executeSelected() async {
-    for (var i in _selectedIndexes) {
-      final cmd = _commands[i]['command'] ?? '';
-      if (cmd.isNotEmpty) {
-        try {
-          await CommandExecutor.executeInTerminal(cmd, true);
-        } catch (e) {
-          if (!mounted) return;
-          showOutputDialog(
-              context, 'Fehler bei Befehl ${_commands[i]['title']}: $e');
+    if (_runInSameTerminal) {
+      final indexes = _selectedIndexes.toList()..sort();
+      final parts = indexes
+          .map((i) => _commands[i]['command'] ?? '')
+          .where((c) => c.isNotEmpty)
+          .toList();
+      if (parts.isEmpty) return;
+      final joined = parts.join(' && ');
+      try {
+        await CommandExecutor.executeInTerminal(joined, false);
+      } catch (e) {
+        if (!mounted) return;
+        showOutputDialog(context, 'Fehler beim Ausführen: $e');
+      }
+    } else {
+      for (var i in _selectedIndexes) {
+        final cmd = _commands[i]['command'] ?? '';
+        if (cmd.isNotEmpty) {
+          try {
+            await CommandExecutor.executeInTerminal(cmd, true);
+          } catch (e) {
+            if (!mounted) return;
+            showOutputDialog(
+                context, 'Fehler bei Befehl ${_commands[i]['title']}: $e');
+          }
         }
       }
     }
@@ -65,6 +84,7 @@ class _BatchCommandPageState extends State<BatchCommandPage> {
       appBar: AppBar(title: const Text('Batch Commands')),
       body: _commands.isEmpty
           ? const Center(child: Text('Keine Befehle gefunden.'))
+
           : Column(
               children: [
                 Expanded(
@@ -99,6 +119,45 @@ class _BatchCommandPageState extends State<BatchCommandPage> {
                             );
                           },
                         ),
+          : ListView.builder(
+              padding: const EdgeInsets.all(16),
+              itemCount: _commands.length + 1,
+              itemBuilder: (context, index) {
+                if (index == _commands.length) {
+                  return SwitchListTile(
+                    title: const Text('Im selben Terminal ausführen'),
+                    value: _runInSameTerminal,
+                    onChanged: (val) =>
+                        setState(() => _runInSameTerminal = val),
+                    contentPadding:
+                        const EdgeInsets.symmetric(horizontal: 28),
+                  );
+                }
+
+                final command = _commands[index];
+                return CheckboxListTile(
+                  title: Text(command['title'] ?? 'Unbenannt'),
+                  subtitle: Text(command['description'] ?? ''),
+                  value: _selectedIndexes.contains(index),
+                  onChanged: (bool? selected) {
+                    setState(() {
+                      if (selected == true) {
+                        _selectedIndexes.add(index);
+                      } else {
+                        _selectedIndexes.remove(index);
+                      }
+                    });
+                  },
+                  secondary: IconButton(
+                    icon: const Icon(Icons.copy),
+                    tooltip: 'Befehl kopieren',
+                    onPressed: () {
+                      Clipboard.setData(
+                          ClipboardData(text: command['command'] ?? ''));
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                            content:
+                                Text('Befehl in die Zwischenablage kopiert')),
                       );
                     },
                   ),
