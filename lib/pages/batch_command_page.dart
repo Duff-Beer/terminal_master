@@ -79,54 +79,53 @@ class _BatchCommandPageState extends State<BatchCommandPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Batch Commands')),
-      body: Column(
-        children: [
-          Expanded(
-            child: _commands.isEmpty
-                ? const Center(child: Text('Keine Befehle gefunden.'))
-                : ListView.builder(
-                    itemCount: _commands.length,
-                    itemBuilder: (context, index) {
-                      final command = _commands[index];
-                      return CheckboxListTile(
-                        title: Text(command['title'] ?? 'Unbenannt'),
-                        subtitle: Text(command['description'] ?? ''),
-                        value: _selectedIndexes.contains(index),
-                        onChanged: (bool? selected) {
-                          setState(() {
-                            if (selected == true) {
-                              _selectedIndexes.add(index);
-                            } else {
-                              _selectedIndexes.remove(index);
-                            }
-                          });
-                        },
-                        secondary: IconButton(
-                          icon: const Icon(Icons.copy),
-                          tooltip: 'Befehl kopieren',
-                          onPressed: () {
-                            Clipboard.setData(
-                                ClipboardData(text: command['command'] ?? ''));
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                  content: Text(
-                                      'Befehl in die Zwischenablage kopiert')),
-                            );
-                          },
-                        ),
+      body: _commands.isEmpty
+          ? const Center(child: Text('Keine Befehle gefunden.'))
+          : ListView.builder(
+              padding: const EdgeInsets.all(16),
+              itemCount: _commands.length + 1,
+              itemBuilder: (context, index) {
+                if (index == _commands.length) {
+                  return SwitchListTile(
+                    title: const Text('Im selben Terminal ausführen'),
+                    value: _runInSameTerminal,
+                    onChanged: (val) =>
+                        setState(() => _runInSameTerminal = val),
+                    contentPadding:
+                        const EdgeInsets.symmetric(horizontal: 28),
+                  );
+                }
+
+                final command = _commands[index];
+                return CheckboxListTile(
+                  title: Text(command['title'] ?? 'Unbenannt'),
+                  subtitle: Text(command['description'] ?? ''),
+                  value: _selectedIndexes.contains(index),
+                  onChanged: (bool? selected) {
+                    setState(() {
+                      if (selected == true) {
+                        _selectedIndexes.add(index);
+                      } else {
+                        _selectedIndexes.remove(index);
+                      }
+                    });
+                  },
+                  secondary: IconButton(
+                    icon: const Icon(Icons.copy),
+                    tooltip: 'Befehl kopieren',
+                    onPressed: () {
+                      Clipboard.setData(
+                          ClipboardData(text: command['command'] ?? ''));
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                            content:
+                                Text('Befehl in die Zwischenablage kopiert')),
                       );
                     },
                   ),
-          ),
-          SwitchListTile(
-            title: const Text('Im selben Terminal ausführen'),
-            value: _runInSameTerminal,
-            onChanged: (val) => setState(() => _runInSameTerminal = val),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16),
-          ),
-          const SizedBox(height: 8),
-        ],
-      ),
+                );
+              },
+            ),
       floatingActionButton: FloatingActionButton.extended(
         icon: const Icon(Icons.play_arrow),
         label: const Text('Ausführen'),
