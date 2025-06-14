@@ -17,8 +17,8 @@ class CommandExecutor {
       var res = await Process.run('pgrep', ['-x', cmd]);
       if (res.exitCode == 0) return true;
 
-      if (cmd == 'gnome-terminal') {
-        res = await Process.run('pgrep', ['-x', 'gnome-terminal-server']);
+          ? ["-e", "bash", "-c", "$command; exec bash"]
+          : ["--", "bash", "-lc", command];
         if (res.exitCode == 0) return true;
       }
 
