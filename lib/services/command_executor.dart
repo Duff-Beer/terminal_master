@@ -40,8 +40,11 @@ class CommandExecutor {
       await Process.run('osascript', ['-e', appleScript]);
     } else if (Platform.isLinux) {
       // Unter Linux verwenden wir das konfigurierte Terminal
+      // 'exec bash' anhängen, damit das Terminal nach Ausführung offen bleibt
       await Process.start(
-          SettingsLoader.terminalCommand, ['--', 'bash', '-lc', command]);
+        SettingsLoader.terminalCommand,
+        ['--', 'bash', '-ic', '$command; exec bash'],
+      );
     } else if (Platform.isWindows) {
       // Unter Windows immer neues Terminal-Fenster öffnen
       await Process.start('cmd.exe', [
