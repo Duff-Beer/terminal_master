@@ -39,12 +39,17 @@ class CommandExecutor {
           : 'tell application "$app" to do script "$escaped"';
       await Process.run('osascript', ['-e', appleScript]);
     } else if (Platform.isLinux) {
-      // Unter Linux verwenden wir das konfigurierte Terminal
-      // 'exec bash' anhängen, damit das Terminal nach Ausführung offen bleibt
-      await Process.start(
-        SettingsLoader.terminalCommand,
-        ['--', 'bash', '-ic', '$command; exec bash'],
-      );
+      // Unter Linux soll optional das bereits laufende Terminal verwendet werden.
+      final terminalRunning = await isTerminalRunning();
+      final args = <String>[
+        if (!alwaysOpenNew && terminalRunning) '--tab' else '--window',
+        '--',
+        'bash',
+        '-ic',
+        '$command; exec bash',
+      ];
+
+      await Process.start(SettingsLoader.terminalCommand, args);
     } else if (Platform.isWindows) {
       // Unter Windows immer neues Terminal-Fenster öffnen
       await Process.start('cmd.exe', [
