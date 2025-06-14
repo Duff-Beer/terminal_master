@@ -9,9 +9,19 @@ class CommandExecutor {
       final res = await Process.run('pgrep', ['-x', SettingsLoader.terminalCommand]);
       return res.exitCode == 0;
     } else if (Platform.isLinux) {
-      // Unter Linux prüfen wir nach dem konfigurierten Terminal
-      final res = await Process.run('pgrep', ['-x', SettingsLoader.terminalCommand]);
-      return res.exitCode == 0;
+      // Unter Linux prüfen wir nach dem konfigurierten Terminal. Bei
+      // gnome-terminal heißt der eigentliche Prozess allerdings
+      // "gnome-terminal-server".
+      final cmd = SettingsLoader.terminalCommand;
+      var res = await Process.run('pgrep', ['-x', cmd]);
+      if (res.exitCode == 0) return true;
+
+      if (cmd == 'gnome-terminal') {
+        res = await Process.run('pgrep', ['-x', 'gnome-terminal-server']);
+        if (res.exitCode == 0) return true;
+      }
+
+      return false;
     } else if (Platform.isWindows) {
       // Unter Windows prüfen wir nach dem konfigurierten Terminal
       final res = await Process.run(
