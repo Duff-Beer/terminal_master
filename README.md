@@ -14,3 +14,10 @@ A few resources to get you started if this is your first Flutter project:
 For help getting started with Flutter development, view the
 [online documentation](https://docs.flutter.dev/), which offers tutorials,
 samples, guidance on mobile development, and a full API reference.
+
+
+Linux build deb
+
+run: flutter_distributor release --name=dev --jobs=release-dev-linux-deb
+
+config: /home/daniel/flutter/terminal_master/linux/packaging/deb/make_config.yaml 
