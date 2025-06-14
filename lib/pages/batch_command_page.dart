@@ -84,13 +84,24 @@ class _BatchCommandPageState extends State<BatchCommandPage> {
       appBar: AppBar(title: const Text('Batch Commands')),
       body: _commands.isEmpty
           ? const Center(child: Text('Keine Befehle gefunden.'))
-
           : Column(
               children: [
                 Expanded(
                   child: ListView.builder(
-                    itemCount: _commands.length,
+                    padding: const EdgeInsets.all(16),
+                    itemCount: _commands.length + 1,
                     itemBuilder: (context, index) {
+                      if (index == _commands.length) {
+                        return SwitchListTile(
+                          title: const Text('Im selben Terminal ausführen'),
+                          value: _runInSameTerminal,
+                          onChanged: (val) =>
+                              setState(() => _runInSameTerminal = val),
+                          contentPadding:
+                              const EdgeInsets.symmetric(horizontal: 28),
+                        );
+                      }
+
                       final command = _commands[index];
                       return CheckboxListTile(
                         title: Text(command['title'] ?? 'Unbenannt'),
@@ -119,45 +130,6 @@ class _BatchCommandPageState extends State<BatchCommandPage> {
                             );
                           },
                         ),
-          : ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: _commands.length + 1,
-              itemBuilder: (context, index) {
-                if (index == _commands.length) {
-                  return SwitchListTile(
-                    title: const Text('Im selben Terminal ausführen'),
-                    value: _runInSameTerminal,
-                    onChanged: (val) =>
-                        setState(() => _runInSameTerminal = val),
-                    contentPadding:
-                        const EdgeInsets.symmetric(horizontal: 28),
-                  );
-                }
-
-                final command = _commands[index];
-                return CheckboxListTile(
-                  title: Text(command['title'] ?? 'Unbenannt'),
-                  subtitle: Text(command['description'] ?? ''),
-                  value: _selectedIndexes.contains(index),
-                  onChanged: (bool? selected) {
-                    setState(() {
-                      if (selected == true) {
-                        _selectedIndexes.add(index);
-                      } else {
-                        _selectedIndexes.remove(index);
-                      }
-                    });
-                  },
-                  secondary: IconButton(
-                    icon: const Icon(Icons.copy),
-                    tooltip: 'Befehl kopieren',
-                    onPressed: () {
-                      Clipboard.setData(
-                          ClipboardData(text: command['command'] ?? ''));
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                            content:
-                                Text('Befehl in die Zwischenablage kopiert')),
                       );
                     },
                   ),
