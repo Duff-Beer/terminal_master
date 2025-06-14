@@ -29,7 +29,9 @@ class SettingsLoader {
     } else if (Platform.isMacOS) {
       return {'terminal': 'Terminal', 'file_manager': 'open'};
     } else {
-      return {'terminal': 'gnome-terminal', 'file_manager': 'xdg-open'};
+      final res = Process.runSync('which', ['terminator']);
+      final term = res.exitCode == 0 ? 'terminator' : 'gnome-terminal';
+      return {'terminal': term, 'file_manager': 'xdg-open'};
     }
   }
 }
