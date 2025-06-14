@@ -6,16 +6,27 @@ class CommandExecutor {
   static Future<bool> isTerminalRunning() async {
     if (Platform.isMacOS) {
       // Auf macOS prüfen wir nach dem konfigurierten Terminal
-      final res = await Process.run('pgrep', ['-x', SettingsLoader.terminalCommand]);
+      final res =
+          await Process.run('pgrep', ['-x', SettingsLoader.terminalCommand]);
       return res.exitCode == 0;
     } else if (Platform.isLinux) {
-      // Unter Linux prüfen wir nach dem konfigurierten Terminal
-      final res = await Process.run('pgrep', ['-x', SettingsLoader.terminalCommand]);
-      return res.exitCode == 0;
+      // Unter Linux prüfen wir nach dem konfigurierten Terminal. Bei
+      // gnome-terminal heißt der eigentliche Prozess allerdings
+      // "gnome-terminal-server".
+      final cmd = SettingsLoader.terminalCommand;
+      var res = await Process.run('pgrep', ['-x', cmd]);
+      if (res.exitCode == 0) return true;
+
+      if (cmd == 'gnome-terminal') {
+        res = await Process.run('pgrep', ['-x', 'gnome-terminal-server']);
+        if (res.exitCode == 0) return true;
+      }
+
+      return false;
     } else if (Platform.isWindows) {
       // Unter Windows prüfen wir nach dem konfigurierten Terminal
-      final res = await Process.run(
-          'tasklist', ['/FI', "IMAGENAME eq ${SettingsLoader.terminalCommand}", '/NH']);
+      final res = await Process.run('tasklist',
+          ['/FI', "IMAGENAME eq ${SettingsLoader.terminalCommand}", '/NH']);
       return res.stdout.toString().trim().isNotEmpty;
     } else {
       throw UnsupportedError(
@@ -31,30 +42,27 @@ class CommandExecutor {
     if (Platform.isMacOS) {
       final terminalRunning = await isTerminalRunning();
       final app = SettingsLoader.terminalCommand;
-      final escaped = command
-          .replaceAll('\\', '\\\\')
-          .replaceAll('"', '\\"');
+      final escaped = command.replaceAll('\\', '\\\\').replaceAll('"', '\\"');
       final appleScript = (!alwaysOpenNew && terminalRunning)
           ? 'tell application "$app" to do script "$escaped" in front window'
           : 'tell application "$app" to do script "$escaped"';
       await Process.run('osascript', ['-e', appleScript]);
     } else if (Platform.isLinux) {
-      // Unter Linux verwenden wir das konfigurierte Terminal
-      final terminal = SettingsLoader.terminalCommand;
-      final args = terminal.split('/').last == 'terminator'
-          ? ['-x', 'bash', '-lc', command]
-          : ['--', 'bash', '-lc', command];
-      await Process.start(terminal, args);
+      // Unter Linux soll optional das bereits laufende Terminal verwendet werden.
+      final terminalRunning = await isTerminalRunning();
+      final args = <String>[
+        if (!alwaysOpenNew && terminalRunning) '--tab' else '--window',
+        '--',
+        'bash',
+        '-ic',
+        '$command; exec bash',
+      ];
+
+      await Process.start(SettingsLoader.terminalCommand, args);
     } else if (Platform.isWindows) {
       // Unter Windows immer neues Terminal-Fenster öffnen
-      await Process.start('cmd.exe', [
-        '/C',
-        'start',
-        '',
-        SettingsLoader.terminalCommand,
-        '/K',
-        command
-      ]);
+      await Process.start('cmd.exe',
+          ['/C', 'start', '', SettingsLoader.terminalCommand, '/K', command]);
     } else {
       throw UnsupportedError(
           'Terminal execution not supported on this platform');
