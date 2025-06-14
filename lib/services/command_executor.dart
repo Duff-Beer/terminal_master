@@ -31,9 +31,12 @@ class CommandExecutor {
     if (Platform.isMacOS) {
       final terminalRunning = await isTerminalRunning();
       final app = SettingsLoader.terminalCommand;
+      final escaped = command
+          .replaceAll('\\', '\\\\')
+          .replaceAll('"', '\\"');
       final appleScript = (!alwaysOpenNew && terminalRunning)
-          ? 'tell application "$app" to do script "$command" in front window'
-          : 'tell application "$app" to do script "$command"';
+          ? 'tell application "$app" to do script "$escaped" in front window'
+          : 'tell application "$app" to do script "$escaped"';
       await Process.run('osascript', ['-e', appleScript]);
     } else if (Platform.isLinux) {
       // Unter Linux verwenden wir das konfigurierte Terminal
@@ -44,6 +47,7 @@ class CommandExecutor {
       await Process.start('cmd.exe', [
         '/C',
         'start',
+        '',
         SettingsLoader.terminalCommand,
         '/K',
         command
