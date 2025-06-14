@@ -2,7 +2,7 @@ import 'dart:io';
 import '../utils/settings_loader.dart';
 
 class CommandExecutor {
-  /// Prüft, ob ein Terminal-Prozess auf dem System läuft.
+  /// Prüft, ob bereits ein Terminal-Prozess läuft.
   static Future<bool> isTerminalRunning() async {
     if (Platform.isMacOS) {
       // Auf macOS prüfen wir nach dem konfigurierten Terminal
@@ -24,8 +24,8 @@ class CommandExecutor {
   }
 
   /// Öffnet ein Terminal und führt den Befehl aus.
-  /// Wenn alwaysOpenNew false und bereits ein Terminal läuft,
-  /// wird der Befehl in das existierende Fenster geschickt.
+  /// Läuft bereits ein Terminal und [alwaysOpenNew] ist *false*,
+  /// wird (nur auf macOS) das vorhandene Fenster verwendet.
   static Future<void> executeInTerminal(
       String command, bool alwaysOpenNew) async {
     if (Platform.isMacOS) {

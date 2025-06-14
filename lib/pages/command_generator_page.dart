@@ -152,7 +152,7 @@ class _CommandGeneratorPageState extends State<CommandGeneratorPage> {
                   await CommandExecutor.executeInTerminal(cmd, false);
                 }
               } catch (e) {
-                showOutputDialog(context, 'Fehler beim Ausführen: \$e');
+                showOutputDialog(context, 'Fehler beim Ausführen: $e');
               }
             },
             child: const Text('Execute Command'),

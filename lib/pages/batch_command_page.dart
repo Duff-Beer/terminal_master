@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:yaml/yaml.dart';
 import '../services/command_executor.dart';
 import '../widgets/output_dialog.dart';
+import 'package:flutter/services.dart';
 
 class BatchCommandPage extends StatefulWidget {
   final String filePath;
@@ -49,6 +50,7 @@ class _BatchCommandPageState extends State<BatchCommandPage> {
         try {
           await CommandExecutor.executeInTerminal(cmd, true);
         } catch (e) {
+          if (!mounted) return;
           showOutputDialog(
               context, 'Fehler bei Befehl ${_commands[i]['title']}: $e');
         }
@@ -79,6 +81,19 @@ class _BatchCommandPageState extends State<BatchCommandPage> {
                       }
                     });
                   },
+                  secondary: IconButton(
+                    icon: const Icon(Icons.copy),
+                    tooltip: 'Befehl kopieren',
+                    onPressed: () {
+                      Clipboard.setData(
+                          ClipboardData(text: command['command'] ?? ''));
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                            content:
+                                Text('Befehl in die Zwischenablage kopiert')),
+                      );
+                    },
+                  ),
                 );
               },
             ),

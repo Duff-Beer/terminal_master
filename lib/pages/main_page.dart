@@ -6,6 +6,7 @@ import '../utils/config_loader.dart';
 import '../widgets/config_tile.dart';
 import 'command_generator_page.dart';
 import 'batch_command_page.dart';
+import 'package:flutter/services.dart';
 
 class MainPage extends StatefulWidget {
   final String configDirectoryPath;
@@ -56,6 +57,25 @@ class _MainPageState extends State<MainPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Verzeichnis nicht gefunden.')),
       );
+      return;
+    }
+
+    try {
+      if (Platform.isMacOS) {
+        await Process.run('open', [directory.path]);
+      } else if (Platform.isWindows) {
+        await Process.run('explorer', [directory.path]);
+      } else if (Platform.isLinux) {
+        await Process.run('xdg-open', [directory.path]);
+      } else {
+        throw UnsupportedError(
+            'Öffnen des Verzeichnisses auf dieser Plattform nicht unterstützt');
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Fehler beim Öffnen des Verzeichnisses: $e')),
+      );
     }
   }
 
@@ -102,7 +122,19 @@ class _MainPageState extends State<MainPage> {
         children: [
           Padding(
             padding: const EdgeInsets.all(8.0),
-            child: Text('Config Directory: ${widget.displayPath}'),
+            child: InkWell(
+              onTap: () {
+                Clipboard.setData(ClipboardData(text: widget.displayPath));
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                      content: Text('Pfad in die Zwischenablage kopiert')),
+                );
+              },
+              child: Text(
+                'Config Directory: ${widget.displayPath}',
+                style: const TextStyle(decoration: TextDecoration.underline),
+              ),
+            ),
           ),
           Expanded(
             child: _filtered.isEmpty
