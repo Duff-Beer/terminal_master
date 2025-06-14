@@ -17,6 +17,7 @@ class BatchCommandPage extends StatefulWidget {
 class _BatchCommandPageState extends State<BatchCommandPage> {
   List<Map<String, String>> _commands = [];
   final Set<int> _selectedIndexes = {};
+  bool _runInSameTerminal = false;
 
   @override
   void initState() {
@@ -44,15 +45,31 @@ class _BatchCommandPageState extends State<BatchCommandPage> {
   }
 
   Future<void> _executeSelected() async {
-    for (var i in _selectedIndexes) {
-      final cmd = _commands[i]['command'] ?? '';
-      if (cmd.isNotEmpty) {
-        try {
-          await CommandExecutor.executeInTerminal(cmd, true);
-        } catch (e) {
-          if (!mounted) return;
-          showOutputDialog(
-              context, 'Fehler bei Befehl ${_commands[i]['title']}: $e');
+    if (_runInSameTerminal) {
+      final indexes = _selectedIndexes.toList()..sort();
+      final parts = indexes
+          .map((i) => _commands[i]['command'] ?? '')
+          .where((c) => c.isNotEmpty)
+          .toList();
+      if (parts.isEmpty) return;
+      final joined = parts.join(' && ');
+      try {
+        await CommandExecutor.executeInTerminal(joined, false);
+      } catch (e) {
+        if (!mounted) return;
+        showOutputDialog(context, 'Fehler beim Ausführen: $e');
+      }
+    } else {
+      for (var i in _selectedIndexes) {
+        final cmd = _commands[i]['command'] ?? '';
+        if (cmd.isNotEmpty) {
+          try {
+            await CommandExecutor.executeInTerminal(cmd, true);
+          } catch (e) {
+            if (!mounted) return;
+            showOutputDialog(
+                context, 'Fehler bei Befehl ${_commands[i]['title']}: $e');
+          }
         }
       }
     }
@@ -62,41 +79,54 @@ class _BatchCommandPageState extends State<BatchCommandPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Batch Commands')),
-      body: _commands.isEmpty
-          ? const Center(child: Text('Keine Befehle gefunden.'))
-          : ListView.builder(
-              itemCount: _commands.length,
-              itemBuilder: (context, index) {
-                final command = _commands[index];
-                return CheckboxListTile(
-                  title: Text(command['title'] ?? 'Unbenannt'),
-                  subtitle: Text(command['description'] ?? ''),
-                  value: _selectedIndexes.contains(index),
-                  onChanged: (bool? selected) {
-                    setState(() {
-                      if (selected == true) {
-                        _selectedIndexes.add(index);
-                      } else {
-                        _selectedIndexes.remove(index);
-                      }
-                    });
-                  },
-                  secondary: IconButton(
-                    icon: const Icon(Icons.copy),
-                    tooltip: 'Befehl kopieren',
-                    onPressed: () {
-                      Clipboard.setData(
-                          ClipboardData(text: command['command'] ?? ''));
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                            content:
-                                Text('Befehl in die Zwischenablage kopiert')),
+      body: Column(
+        children: [
+          Expanded(
+            child: _commands.isEmpty
+                ? const Center(child: Text('Keine Befehle gefunden.'))
+                : ListView.builder(
+                    itemCount: _commands.length,
+                    itemBuilder: (context, index) {
+                      final command = _commands[index];
+                      return CheckboxListTile(
+                        title: Text(command['title'] ?? 'Unbenannt'),
+                        subtitle: Text(command['description'] ?? ''),
+                        value: _selectedIndexes.contains(index),
+                        onChanged: (bool? selected) {
+                          setState(() {
+                            if (selected == true) {
+                              _selectedIndexes.add(index);
+                            } else {
+                              _selectedIndexes.remove(index);
+                            }
+                          });
+                        },
+                        secondary: IconButton(
+                          icon: const Icon(Icons.copy),
+                          tooltip: 'Befehl kopieren',
+                          onPressed: () {
+                            Clipboard.setData(
+                                ClipboardData(text: command['command'] ?? ''));
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                  content: Text(
+                                      'Befehl in die Zwischenablage kopiert')),
+                            );
+                          },
+                        ),
                       );
                     },
                   ),
-                );
-              },
-            ),
+          ),
+          SwitchListTile(
+            title: const Text('Im selben Terminal ausführen'),
+            value: _runInSameTerminal,
+            onChanged: (val) => setState(() => _runInSameTerminal = val),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+          ),
+          const SizedBox(height: 8),
+        ],
+      ),
       floatingActionButton: FloatingActionButton.extended(
         icon: const Icon(Icons.play_arrow),
         label: const Text('Ausführen'),
