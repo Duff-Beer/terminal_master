@@ -57,25 +57,6 @@ class _MainPageState extends State<MainPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Verzeichnis nicht gefunden.')),
       );
-      return;
-    }
-
-    try {
-      if (Platform.isMacOS) {
-        await Process.run('open', [directory.path]);
-      } else if (Platform.isWindows) {
-        await Process.run('explorer', [directory.path]);
-      } else if (Platform.isLinux) {
-        await Process.run('xdg-open', [directory.path]);
-      } else {
-        throw UnsupportedError(
-            'Öffnen des Verzeichnisses auf dieser Plattform nicht unterstützt');
-      }
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Fehler beim Öffnen des Verzeichnisses: $e')),
-      );
     }
   }
 
