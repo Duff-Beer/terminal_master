@@ -17,6 +17,7 @@ class BatchCommandPage extends StatefulWidget {
 class _BatchCommandPageState extends State<BatchCommandPage> {
   List<Map<String, String>> _commands = [];
   final Set<int> _selectedIndexes = {};
+  String _previewCommand = '';
 
   @override
   void initState() {
@@ -64,38 +65,55 @@ class _BatchCommandPageState extends State<BatchCommandPage> {
       appBar: AppBar(title: const Text('Batch Commands')),
       body: _commands.isEmpty
           ? const Center(child: Text('Keine Befehle gefunden.'))
-          : ListView.builder(
-              itemCount: _commands.length,
-              itemBuilder: (context, index) {
-                final command = _commands[index];
-                return CheckboxListTile(
-                  title: Text(command['title'] ?? 'Unbenannt'),
-                  subtitle: Text(command['description'] ?? ''),
-                  value: _selectedIndexes.contains(index),
-                  onChanged: (bool? selected) {
-                    setState(() {
-                      if (selected == true) {
-                        _selectedIndexes.add(index);
-                      } else {
-                        _selectedIndexes.remove(index);
-                      }
-                    });
-                  },
-                  secondary: IconButton(
-                    icon: const Icon(Icons.copy),
-                    tooltip: 'Befehl kopieren',
-                    onPressed: () {
-                      Clipboard.setData(
-                          ClipboardData(text: command['command'] ?? ''));
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                            content:
-                                Text('Befehl in die Zwischenablage kopiert')),
+          : Column(
+              children: [
+                Expanded(
+                  child: ListView.builder(
+                    itemCount: _commands.length,
+                    itemBuilder: (context, index) {
+                      final command = _commands[index];
+                      return CheckboxListTile(
+                        title: Text(command['title'] ?? 'Unbenannt'),
+                        subtitle: Text(command['description'] ?? ''),
+                        value: _selectedIndexes.contains(index),
+                        onChanged: (bool? selected) {
+                          setState(() {
+                            _previewCommand = command['command'] ?? '';
+                            if (selected == true) {
+                              _selectedIndexes.add(index);
+                            } else {
+                              _selectedIndexes.remove(index);
+                            }
+                          });
+                        },
+                        secondary: IconButton(
+                          icon: const Icon(Icons.copy),
+                          tooltip: 'Befehl kopieren',
+                          onPressed: () {
+                            Clipboard.setData(
+                                ClipboardData(text: command['command'] ?? ''));
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                  content: Text(
+                                      'Befehl in die Zwischenablage kopiert')),
+                            );
+                          },
+                        ),
                       );
                     },
                   ),
-                );
-              },
+                ),
+                if (_previewCommand.isNotEmpty)
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(8),
+                    color: Theme.of(context).colorScheme.surfaceVariant,
+                    child: Text(
+                      'Vorschau: $_previewCommand',
+                      style: const TextStyle(fontFamily: 'monospace'),
+                    ),
+                  ),
+              ],
             ),
       floatingActionButton: FloatingActionButton.extended(
         icon: const Icon(Icons.play_arrow),
