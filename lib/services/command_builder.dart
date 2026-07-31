@@ -40,7 +40,10 @@ class CommandBuilder {
     final pipelines = <List<String>>[];
 
     for (final parameter in parameters) {
-      if (parameter.type == CommandParameterType.button) continue;
+      if (parameter.type == CommandParameterType.button ||
+          !config.isParameterVisible(parameter, values)) {
+        continue;
+      }
       final value = values[parameter.name];
       if (!_isActive(value)) continue;
 
@@ -89,10 +92,13 @@ class CommandBuilder {
 
   void _validate() {
     for (final parameter in config.parameters) {
-      if (parameter.type == CommandParameterType.button) continue;
+      if (parameter.type == CommandParameterType.button ||
+          !config.isParameterVisible(parameter, values)) {
+        continue;
+      }
       final value = values[parameter.name];
       final active = _isActive(value);
-      if (parameter.required && !active) {
+      if (config.isParameterRequired(parameter, values) && !active) {
         throw CommandBuildException(
           'Erforderlicher Parameter "${parameter.name}" fehlt.',
         );
@@ -100,14 +106,22 @@ class CommandBuilder {
       if (!active) continue;
 
       for (final dependency in parameter.dependsOn) {
-        if (!_isActive(values[dependency])) {
+        final dependencyParameter = config.parameters.singleWhere(
+          (candidate) => candidate.name == dependency,
+        );
+        if (!config.isParameterVisible(dependencyParameter, values) ||
+            !_isActive(values[dependency])) {
           throw CommandBuildException(
             'Parameter "${parameter.name}" erfordert "$dependency".',
           );
         }
       }
       for (final conflict in parameter.conflictsWith) {
-        if (_isActive(values[conflict])) {
+        final conflictParameter = config.parameters.singleWhere(
+          (candidate) => candidate.name == conflict,
+        );
+        if (config.isParameterVisible(conflictParameter, values) &&
+            _isActive(values[conflict])) {
           throw CommandBuildException(
             'Parameter "${parameter.name}" kann nicht mit "$conflict" verwendet werden.',
           );
@@ -156,10 +170,13 @@ class CommandBuilder {
       return _configuredTokens(parameter.flag);
     }
 
-    final rawValue = value.toString();
-    final valueTokens = parameter.type == CommandParameterType.options
-        ? _configuredTokens(rawValue)
-        : ['${parameter.prefix ?? ''}$rawValue${parameter.suffix ?? ''}'];
+    final valueTokens = switch (parameter.type) {
+      CommandParameterType.options => _configuredTokens(value.toString()),
+      CommandParameterType.textList => _textListTokens(parameter, value),
+      _ => [
+        '${parameter.prefix ?? ''}${value.toString()}${parameter.suffix ?? ''}',
+      ],
+    };
     final flag = parameter.flag;
     if (flag == null || flag.isEmpty) return valueTokens;
 
@@ -201,6 +218,21 @@ class CommandBuilder {
     }
   }
 
+  List<String> _textListTokens(CommandParameter parameter, Object? value) {
+    if (value is! Iterable) {
+      throw CommandBuildException(
+        'Parameter "${parameter.name}" muss eine Liste enthalten.',
+      );
+    }
+    return value
+        .map((entry) => entry.toString().trim())
+        .where((entry) => entry.isNotEmpty)
+        .map(
+          (entry) => '${parameter.prefix ?? ''}$entry${parameter.suffix ?? ''}',
+        )
+        .toList();
+  }
+
   String _render(List<String> tokens) => tokens.map(_quote).join(' ');
 
   String _quote(String value) {
@@ -238,11 +270,7 @@ class CommandBuilder {
     return '"$value"';
   }
 
-  bool _isActive(Object? value) {
-    if (value is bool) return value;
-    if (value is String) return value.trim().isNotEmpty;
-    return value != null;
-  }
+  bool _isActive(Object? value) => isCommandValueActive(value);
 
   String _normalized(Object? value) => value?.toString().trim() ?? '';
 

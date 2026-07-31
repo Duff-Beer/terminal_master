@@ -16,7 +16,7 @@ void main() {
       ),
     );
 
-    expect(find.text('Terminal Command Generator'), findsOneWidget);
+    expect(find.text('Terminal Master'), findsOneWidget);
     expect(find.text('No config files found'), findsOneWidget);
   });
 }

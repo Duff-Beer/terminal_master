@@ -1,16 +1,40 @@
-# terminal_master
+# Terminal Master
 
-A new Flutter project.
+Terminal Master is a Flutter desktop application for building validated terminal
+commands from reusable YAML definitions. It keeps command options discoverable,
+checks conditional input requirements, and asks for explicit confirmation before
+returning commands marked as risky.
 
-## Getting Started
+<img src="assets/branding/terminal_master.png" alt="Terminal Master icon" width="180">
 
-This project is a starting point for a Flutter application.
+## Development
 
-A few resources to get you started if this is your first Flutter project:
+Terminal Master requires the Flutter stable channel.
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+```sh
+flutter pub get
+flutter analyze
+flutter test
+flutter run -d macos
+```
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+Replace `macos` with `windows` or `linux` when developing on those platforms.
+
+## Command Definitions
+
+YAML definitions are stored in `data/`. The application copies its bundled
+definitions to the platform application-support directory, where they can be
+extended or replaced without rebuilding the application.
+
+## Desktop Releases
+
+The release workflow creates these unsigned artifacts:
+
+- macOS: DMG and ZIP
+- Windows: Inno Setup installer and ZIP
+- Linux: DEB, AppImage, and tarball
+- Linux package manifests: Arch `PKGBUILD` and Nix `flake.nix`
+
+Push a tag matching the semantic version in `pubspec.yaml`, for example `v1.0.0`,
+or run the Release workflow manually. The workflow creates a draft GitHub release
+so its artifacts can be checked before publication.

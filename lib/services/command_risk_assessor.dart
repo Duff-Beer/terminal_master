@@ -41,6 +41,7 @@ class CommandRiskAssessor {
     }
 
     for (final parameter in config.parameters) {
+      if (!config.isParameterVisible(parameter, values)) continue;
       if (values[parameter.name] != true) continue;
       if (parameter.name == 'force' ||
           parameter.flag == '--force' ||

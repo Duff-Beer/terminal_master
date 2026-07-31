@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-labelledby="title desc">
+  <title id="title">Terminal Master</title>
+  <desc id="desc">A command prompt on a layered dark terminal window.</desc>
+  <defs>
+    <linearGradient id="shell" x1="128" y1="96" x2="896" y2="928" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#17283f"/>
+      <stop offset="1" stop-color="#07111e"/>
+    </linearGradient>
+    <linearGradient id="screen" x1="270" y1="292" x2="774" y2="796" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#10263a"/>
+      <stop offset="1" stop-color="#091622"/>
+    </linearGradient>
+    <linearGradient id="prompt" x1="339" y1="442" x2="676" y2="672" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#54f1b5"/>
+      <stop offset="1" stop-color="#24b985"/>
+    </linearGradient>
+    <filter id="shadow" x="64" y="48" width="896" height="928" filterUnits="userSpaceOnUse">
+      <feDropShadow dx="0" dy="34" stdDeviation="34" flood-color="#020712" flood-opacity=".48"/>
+    </filter>
+  </defs>
+  <rect x="96" y="80" width="832" height="832" rx="210" fill="url(#shell)" filter="url(#shadow)"/>
+  <path d="M217 262c0-49 40-89 89-89h412c49 0 89 40 89 89v71H217v-71Z" fill="#213852"/>
+  <circle cx="294" cy="253" r="22" fill="#ff6b6b"/>
+  <circle cx="359" cy="253" r="22" fill="#ffc857"/>
+  <circle cx="424" cy="253" r="22" fill="#54f1b5"/>
+  <rect x="217" y="315" width="590" height="532" rx="72" fill="url(#screen)" stroke="#31506d" stroke-width="12"/>
+  <path d="m340 458 117 104-117 104" fill="none" stroke="url(#prompt)" stroke-linecap="round" stroke-linejoin="round" stroke-width="58"/>
+  <path d="M513 678h171" fill="none" stroke="#dceaf4" stroke-linecap="round" stroke-width="55"/>
+  <path d="M716 173h2c49 0 89 40 89 89v493" fill="none" stroke="#44627f" stroke-linecap="round" stroke-width="9" opacity=".75"/>
+</svg>

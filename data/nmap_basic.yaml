@@ -1,0 +1,187 @@
+schema_version: 1
+command: nmap
+display_name: Nmap Basic
+description: Einfache Nmap-Scans mit sicheren Standardoptionen und vordefinierten Zielen
+parameters:
+  - name: use_sudo
+    type: boolean
+    flag: sudo
+    description: Mit erhöhten Rechten ausführen, etwa für SYN- oder OS-Scans
+    default: false
+    order: 0
+
+  - name: host_discovery_only
+    type: boolean
+    flag: -sn
+    description: Nur erreichbare Hosts suchen und keinen Portscan durchführen
+    default: false
+    order: 9
+
+  - name: scan_type
+    type: options
+    flag: ""
+    description: Scanart; ohne Auswahl verwendet Nmap den passenden Standard
+    visible_when:
+      parameter: host_discovery_only
+      active: false
+    order: 10
+    options:
+      - value: -sS
+        description: Schneller TCP-SYN-Scan, benötigt meist erhöhte Rechte
+      - value: -sT
+        description: TCP-Connect-Scan ohne Raw-Socket-Rechte
+      - value: -sU
+        description: UDP-Scan, benötigt meist erhöhte Rechte
+      - value: -A
+        description: Betriebssystem, Dienste, Standardskripte und Traceroute
+
+  - name: port_preset
+    type: options
+    flag: -p
+    description: Häufig verwendete Portauswahl
+    visible_when:
+      parameter: host_discovery_only
+      active: false
+    order: 20
+    options:
+      - value: "22"
+        description: SSH
+      - value: 80,443
+        description: HTTP und HTTPS
+      - value: 22,80,443
+        description: SSH und Webdienste
+      - value: 1-1024
+        description: Bekannte Systemports
+      - value: 1-65535
+        description: Alle TCP-Ports
+  - name: custom_ports
+    type: text
+    flag: -p
+    description: Eigene Ports oder Bereiche statt der Port-Vorauswahl
+    conflicts_with: [port_preset]
+    visible_when:
+      parameter: host_discovery_only
+      active: false
+    example: 21-25,80,443,8080
+    order: 21
+
+  - name: version_detection
+    type: boolean
+    flag: -sV
+    description: Dienste und Versionen auf offenen Ports erkennen
+    visible_when:
+      parameter: host_discovery_only
+      active: false
+    default: false
+    order: 30
+
+  - name: os_detection
+    type: boolean
+    flag: -O
+    description: Betriebssystem des Ziels erkennen, benötigt meist erhöhte Rechte
+    visible_when:
+      parameter: host_discovery_only
+      active: false
+    default: false
+    order: 31
+
+  - name: default_scripts
+    type: boolean
+    flag: -sC
+    description: Nmap-Standardskripte ausführen
+    visible_when:
+      parameter: host_discovery_only
+      active: false
+    default: false
+    order: 32
+
+  - name: timing
+    type: options
+    flag: ""
+    description: Geschwindigkeit des Scans
+    default: -T3
+    order: 40
+    options:
+      - value: -T2
+        description: Langsam und netzwerkschonend
+      - value: -T3
+        description: Normal
+      - value: -T4
+        description: Schnell für zuverlässige lokale Netzwerke
+
+  - name: no_dns
+    type: boolean
+    flag: -n
+    description: Keine DNS-Namensauflösung durchführen
+    default: false
+    order: 50
+
+  - name: traceroute
+    type: boolean
+    flag: --traceroute
+    description: Netzwerkpfad zum Ziel anzeigen
+    default: false
+    order: 51
+
+  - name: open_only
+    type: boolean
+    flag: --open
+    description: Nur offene oder möglicherweise offene Ports anzeigen
+    visible_when:
+      parameter: host_discovery_only
+      active: false
+    default: false
+    order: 52
+
+  - name: verbosity
+    type: options
+    flag: ""
+    description: Ausführlichkeit der Ausgabe
+    order: 60
+    options:
+      - value: -v
+        description: Ausführlich
+      - value: -vv
+        description: Sehr ausführlich
+
+  - name: output_normal
+    type: text
+    flag: -oN
+    description: Normale Ausgabe zusätzlich in diese Datei schreiben
+    example: nmap-scan.txt
+    order: 70
+
+  - name: target
+    type: options
+    flag: ""
+    description: Vordefiniertes Ziel; nur Netzwerke scannen, für die eine Erlaubnis vorliegt
+    required: true
+    default: 127.0.0.1
+    order: 1000
+    options:
+      - value: 127.0.0.1
+        description: Dieser Computer
+      - value: scanme.nmap.org
+        description: Öffentliches, von Nmap ausdrücklich erlaubtes Testziel
+      - value: 192.168.0.0/24
+        description: Häufiges privates Heimnetz
+      - value: 192.168.1.0/24
+        description: Häufiges privates Heimnetz
+      - value: 192.168.178.0/24
+        description: Häufiges FRITZ!Box-Heimnetz
+      - value: 10.0.0.0/24
+        description: Privates 10er-Netz
+      - value: 172.16.0.0/24
+        description: Privates 172.16er-Netz
+
+help_text: |
+  Diese vereinfachte Konfiguration enthält nur häufig benötigte Nmap-Funktionen.
+  Für freie Ziele, NSE-Argumente, Timing-Details, Spoofing und spezielle
+  Scanverfahren steht die Konfiguration "Nmap Advanced" bereit.
+
+  Beispiele:
+  - Hosts im Heimnetz finden: `nmap -sn -T3 192.168.1.0/24`
+  - Webdienste prüfen: `nmap -sT -p 80,443 -sV -T3 --open 192.168.1.0/24`
+  - Erlaubtes Testziel: `nmap -sT -sV -T3 scanme.nmap.org`
+
+  Nur eigene Systeme und ausdrücklich freigegebene Netzwerke scannen.

@@ -115,7 +115,7 @@ class _CommandGeneratorPageState extends State<CommandGeneratorPage> {
 
     final config = _config!;
     return Scaffold(
-      appBar: AppBar(title: Text(config.command.toUpperCase())),
+      appBar: AppBar(title: Text(config.displayName)),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
@@ -124,20 +124,27 @@ class _CommandGeneratorPageState extends State<CommandGeneratorPage> {
             style: Theme.of(context).textTheme.titleMedium,
           ),
           const SizedBox(height: 16),
-          ...config.parameters.map(
-            (parameter) => Padding(
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              child: ParameterInput(
-                param: parameter,
-                value: _values[parameter.name],
-                onChanged: (value) =>
-                    _onParameterChanged(parameter.name, value),
-                onAction: parameter.type == CommandParameterType.button
-                    ? () => _executeAction(parameter)
-                    : null,
+          ...config.parameters
+              .where(
+                (parameter) => config.isParameterVisible(parameter, _values),
+              )
+              .map(
+                (parameter) => Padding(
+                  key: ValueKey(parameter.name),
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  child: ParameterInput(
+                    key: ValueKey('parameter-${parameter.name}'),
+                    param: parameter,
+                    value: _values[parameter.name],
+                    onChanged: (value) =>
+                        _onParameterChanged(parameter.name, value),
+                    onAction: parameter.type == CommandParameterType.button
+                        ? () => _executeAction(parameter)
+                        : null,
+                    required: config.isParameterRequired(parameter, _values),
+                  ),
+                ),
               ),
-            ),
-          ),
           const SizedBox(height: 16),
           ElevatedButton(
             onPressed: () async {
