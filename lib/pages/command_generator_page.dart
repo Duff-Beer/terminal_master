@@ -7,15 +7,22 @@ import '../models/command_config.dart';
 import '../services/command_builder.dart';
 import '../services/command_executor.dart';
 import '../services/command_risk_assessor.dart';
+import '../services/terminal_backend.dart';
 import '../utils/config_loader.dart';
 import '../widgets/command_confirmation_dialog.dart';
 import '../widgets/output_dialog.dart';
 import '../widgets/parameter_input.dart';
+import 'integrated_terminal_page.dart';
 
 class CommandGeneratorPage extends StatefulWidget {
   final String configPath;
+  final TerminalBackendFactory terminalBackendFactory;
 
-  const CommandGeneratorPage({super.key, required this.configPath});
+  const CommandGeneratorPage({
+    super.key,
+    required this.configPath,
+    this.terminalBackendFactory = unavailableTerminalBackendFactory,
+  });
 
   @override
   State<CommandGeneratorPage> createState() => _CommandGeneratorPageState();
@@ -23,6 +30,7 @@ class CommandGeneratorPage extends StatefulWidget {
 
 class _CommandGeneratorPageState extends State<CommandGeneratorPage> {
   bool _openInNewTerminal = true;
+  bool _useIntegratedTerminal = true;
   bool _isExecuting = false;
   CommandConfig? _config;
   String? _loadError;
@@ -73,7 +81,19 @@ class _CommandGeneratorPageState extends State<CommandGeneratorPage> {
         assessment: assessment,
       );
       if (!mounted || !approved) return;
-      await CommandExecutor.executeInTerminal(command, alwaysOpenNew);
+      if (_useIntegratedTerminal) {
+        await Navigator.push<void>(
+          context,
+          MaterialPageRoute(
+            builder: (_) => IntegratedTerminalPage(
+              initialCommands: [command],
+              backendFactory: widget.terminalBackendFactory,
+            ),
+          ),
+        );
+      } else {
+        await CommandExecutor.executeInTerminal(command, alwaysOpenNew);
+      }
     } on Object catch (error) {
       if (!mounted) return;
       showOutputDialog(context, 'Fehler beim Ausführen: $error');
@@ -182,13 +202,28 @@ class _CommandGeneratorPageState extends State<CommandGeneratorPage> {
             ),
           ),
           SwitchListTile(
-            title: const Text('Neues Terminal'),
-            value: _openInNewTerminal,
+            key: const Key('integrated-terminal-toggle'),
+            title: const Text('Integriertes Terminal'),
+            subtitle: Text(
+              _useIntegratedTerminal
+                  ? 'Befehl direkt in Terminal Master ausführen'
+                  : 'Konfigurierte externe Terminal-App verwenden',
+            ),
+            value: _useIntegratedTerminal,
             onChanged: _isExecuting
                 ? null
-                : (value) => setState(() => _openInNewTerminal = value),
+                : (value) => setState(() => _useIntegratedTerminal = value),
             contentPadding: const EdgeInsets.symmetric(horizontal: 28),
           ),
+          if (!_useIntegratedTerminal)
+            SwitchListTile(
+              title: const Text('Neues externes Terminal'),
+              value: _openInNewTerminal,
+              onChanged: _isExecuting
+                  ? null
+                  : (value) => setState(() => _openInNewTerminal = value),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 28),
+            ),
           const SizedBox(height: 16),
           if (config.helpText != null)
             Text(

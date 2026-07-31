@@ -2,21 +2,25 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import '../utils/settings_loader.dart';
 import '../models/config_item.dart';
+import '../services/terminal_backend.dart';
 import '../utils/config_loader.dart';
 import '../widgets/config_tile.dart';
 import '../widgets/output_dialog.dart';
 import 'command_generator_page.dart';
 import 'batch_command_page.dart';
+import 'integrated_terminal_page.dart';
 import 'package:flutter/services.dart';
 
 class MainPage extends StatefulWidget {
   final String configDirectoryPath;
   final String displayPath;
+  final TerminalBackendFactory terminalBackendFactory;
 
   const MainPage({
     super.key,
     required this.configDirectoryPath,
     required this.displayPath,
+    this.terminalBackendFactory = unavailableTerminalBackendFactory,
   });
 
   @override
@@ -70,8 +74,14 @@ class _MainPageState extends State<MainPage> {
       context,
       MaterialPageRoute(
         builder: (_) => item.isBatch
-            ? BatchCommandPage(filePath: item.filePath)
-            : CommandGeneratorPage(configPath: item.filePath),
+            ? BatchCommandPage(
+                filePath: item.filePath,
+                terminalBackendFactory: widget.terminalBackendFactory,
+              )
+            : CommandGeneratorPage(
+                configPath: item.filePath,
+                terminalBackendFactory: widget.terminalBackendFactory,
+              ),
       ),
     );
   }
@@ -104,6 +114,18 @@ class _MainPageState extends State<MainPage> {
             ),
           ),
           IconButton(
+            icon: const Icon(Icons.terminal),
+            tooltip: 'Integriertes Terminal öffnen',
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => IntegratedTerminalPage(
+                  backendFactory: widget.terminalBackendFactory,
+                ),
+              ),
+            ),
+          ),
+          IconButton(
             icon: const Icon(Icons.folder),
             tooltip: 'Im Finder anzeigen',
             onPressed: _openDirectory,
@@ -124,7 +146,8 @@ class _MainPageState extends State<MainPage> {
                 Clipboard.setData(ClipboardData(text: widget.displayPath));
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
-                      content: Text('Pfad in die Zwischenablage kopiert')),
+                    content: Text('Pfad in die Zwischenablage kopiert'),
+                  ),
                 );
               },
               child: Text(
@@ -136,9 +159,7 @@ class _MainPageState extends State<MainPage> {
           Expanded(
             child: _filtered.isEmpty
                 ? const Center(child: Text('No config files found'))
-                : ListView(
-                    children: _buildMenuItems(),
-                  ),
+                : ListView(children: _buildMenuItems()),
           ),
         ],
       ),
@@ -169,12 +190,7 @@ class _MainPageState extends State<MainPage> {
 
     final List<Widget> widgets = [];
     for (var item in ungrouped) {
-      widgets.add(
-        ConfigTile(
-          item: item,
-          onTap: () => _openItem(item),
-        ),
-      );
+      widgets.add(ConfigTile(item: item, onTap: () => _openItem(item)));
     }
     for (var prefix in groups.keys.toList()..sort()) {
       final items = groups[prefix]!;
@@ -182,10 +198,7 @@ class _MainPageState extends State<MainPage> {
         ExpansionTile(
           title: Text(prefix.toUpperCase()),
           children: items.map((item) {
-            return ConfigTile(
-              item: item,
-              onTap: () => _openItem(item),
-            );
+            return ConfigTile(item: item, onTap: () => _openItem(item));
           }).toList(),
         ),
       );

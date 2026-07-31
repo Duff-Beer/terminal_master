@@ -5,6 +5,10 @@ commands from reusable YAML definitions. It keeps command options discoverable,
 checks conditional input requirements, and asks for explicit confirmation before
 returning commands marked as risky.
 
+Commands can run in an embedded `xterm` terminal backed by a native pseudo
+terminal (`flutter_pty`). The configured external terminal remains available as
+a fallback.
+
 <img src="assets/branding/terminal_master.png" alt="Terminal Master icon" width="180">
 
 ## Development
@@ -19,6 +23,12 @@ flutter run -d macos
 ```
 
 Replace `macos` with `windows` or `linux` when developing on those platforms.
+
+The native PTY smoke test can be run on a desktop target with:
+
+```sh
+flutter test integration_test/terminal_pty_test.dart -d macos
+```
 
 ## Command Definitions
 

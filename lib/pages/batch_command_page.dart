@@ -1,16 +1,25 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import '../models/batch_command.dart';
 import '../services/command_executor.dart';
 import '../services/command_risk_assessor.dart';
+import '../services/terminal_backend.dart';
 import '../utils/config_loader.dart';
 import '../widgets/command_confirmation_dialog.dart';
 import '../widgets/output_dialog.dart';
+import 'integrated_terminal_page.dart';
 import 'package:flutter/services.dart';
 
 class BatchCommandPage extends StatefulWidget {
   final String filePath;
+  final TerminalBackendFactory terminalBackendFactory;
 
-  const BatchCommandPage({super.key, required this.filePath});
+  const BatchCommandPage({
+    super.key,
+    required this.filePath,
+    this.terminalBackendFactory = unavailableTerminalBackendFactory,
+  });
 
   @override
   State<BatchCommandPage> createState() => _BatchCommandPageState();
@@ -20,6 +29,7 @@ class _BatchCommandPageState extends State<BatchCommandPage> {
   List<BatchCommand> _commands = [];
   final Set<int> _selectedIndexes = {};
   bool _runInSameTerminal = false;
+  bool _useIntegratedTerminal = true;
   bool _isExecuting = false;
   String? _loadError;
 
@@ -55,9 +65,21 @@ class _BatchCommandPageState extends State<BatchCommandPage> {
       );
       if (!mounted || !approved) return;
 
-      if (_runInSameTerminal) {
-        final joined = commands.join(' && ');
-        await CommandExecutor.executeInTerminal(joined, false);
+      if (_useIntegratedTerminal) {
+        final terminalCommands = _runInSameTerminal
+            ? [commands.join(' && ')]
+            : commands;
+        await Navigator.push<void>(
+          context,
+          MaterialPageRoute(
+            builder: (_) => IntegratedTerminalPage(
+              initialCommands: terminalCommands,
+              backendFactory: widget.terminalBackendFactory,
+            ),
+          ),
+        );
+      } else if (_runInSameTerminal) {
+        await CommandExecutor.executeInTerminal(commands.join(' && '), false);
       } else {
         for (final index in indexes) {
           final command = _commands[index].command;
@@ -94,15 +116,41 @@ class _BatchCommandPageState extends State<BatchCommandPage> {
           ? const Center(child: Text('Keine Befehle gefunden.'))
           : ListView.builder(
               padding: const EdgeInsets.all(16),
-              itemCount: _commands.length + 1,
+              itemCount: _commands.length + 2,
               itemBuilder: (context, index) {
                 if (index == _commands.length) {
                   return SwitchListTile(
                     title: const Text('Im selben Terminal ausführen'),
+                    subtitle: Text(
+                      _runInSameTerminal
+                          ? 'Mit && verknüpfen und beim ersten Fehler stoppen'
+                          : _useIntegratedTerminal
+                          ? Platform.isWindows
+                                ? 'In getrennten Tabs; Start beim ersten Öffnen'
+                                : 'Parallel in getrennten Terminal-Tabs starten'
+                          : 'In getrennten externen Terminalfenstern starten',
+                    ),
                     value: _runInSameTerminal,
                     onChanged: _isExecuting
                         ? null
                         : (val) => setState(() => _runInSameTerminal = val),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 28),
+                  );
+                }
+                if (index == _commands.length + 1) {
+                  return SwitchListTile(
+                    key: const Key('integrated-terminal-toggle'),
+                    title: const Text('Integriertes Terminal'),
+                    subtitle: Text(
+                      _useIntegratedTerminal
+                          ? 'Befehle in Terminal Master ausführen'
+                          : 'Konfigurierte externe Terminal-App verwenden',
+                    ),
+                    value: _useIntegratedTerminal,
+                    onChanged: _isExecuting
+                        ? null
+                        : (value) =>
+                              setState(() => _useIntegratedTerminal = value),
                     contentPadding: const EdgeInsets.symmetric(horizontal: 28),
                   );
                 }

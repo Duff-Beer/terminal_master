@@ -41,9 +41,16 @@ dependencies:
   path: ^1.9.1
   path_provider: ^2.1.5
   process_run: ^1.2.2+1
+  xterm: ^4.0.0
+  flutter_pty:
+    git:
+      url: https://github.com/LarryHsiao/flutter_pty.git
+      ref: c7c9deb79660038937ca5deb301cc736ed21d34d
 
 dev_dependencies:
   flutter_test:
+    sdk: flutter
+  integration_test:
     sdk: flutter
 
   # The "flutter_lints" package below contains a set of recommended lints to
