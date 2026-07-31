@@ -1,4 +1,5 @@
 # git_status.yaml
+schema_version: 1
 command: git_status
 description: Zeigt den Arbeitsverzeichnis‑Status an
 parameters:

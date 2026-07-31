@@ -1,4 +1,5 @@
 # git_push.yaml
+schema_version: 1
 command: git_push
 description: Überträgt lokale Commits in ein Remote‑Repository
 parameters:

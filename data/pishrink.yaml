@@ -1,3 +1,4 @@
+schema_version: 1
 command: pishrink
 description: A utility to shrink Raspberry Pi image files
 parameters:
@@ -38,18 +39,12 @@ parameters:
     conflicts_with:
       - output_file
     order: 4
-  - name: preserve_original
-    type: boolean
-    flag: "-p"
-    description: Preserve the original image instead of overwriting it
-    default: false
-    order: 5
   - name: verbose
     type: boolean
     flag: "-v"
     description: Enable verbose output for detailed information
     default: false
-    order: 6
+    order: 5
 help_text: |
   PiShrink is a utility designed to reduce the size of Raspberry Pi image files. It removes unused space and optimizes the image for distribution.
 

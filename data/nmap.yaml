@@ -1,3 +1,4 @@
+schema_version: 1
 command: nmap
 description: Network mapping and port scanning tool
 parameters:
@@ -86,12 +87,12 @@ parameters:
         description: "IP-Range"
       - value: "192.168.10.0/24"
         description: "IP-Range"
-    prefix: "- "
     note: "Accepts single IPs, ranges, or CIDR notation."
   - name: filter_up
     type: boolean
     order: 10
-    flag: "| grep 'Up'"
+    placement: pipeline
+    flag: "grep Up"
     description: Filter the output to show only hosts that are up
     default: false
 help_text: |

@@ -1,4 +1,5 @@
 # -demo.yaml
+schema_version: 1
 commands:
   - title: Zeige aktuelles Verzeichnis
     description: Führt `pwd` aus und zeigt den aktuellen Pfad.

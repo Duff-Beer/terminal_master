@@ -1,4 +1,5 @@
 # git_fetch.yaml
+schema_version: 1
 command: git_fetch
 description: Holt Änderungen von einem Remote‑Repository
 parameters:

@@ -4,6 +4,7 @@ import '../utils/settings_loader.dart';
 import '../models/config_item.dart';
 import '../utils/config_loader.dart';
 import '../widgets/config_tile.dart';
+import '../widgets/output_dialog.dart';
 import 'command_generator_page.dart';
 import 'batch_command_page.dart';
 import 'package:flutter/services.dart';
@@ -58,6 +59,21 @@ class _MainPageState extends State<MainPage> {
         const SnackBar(content: Text('Verzeichnis nicht gefunden.')),
       );
     }
+  }
+
+  void _openItem(ConfigItem item) {
+    if (item.error != null) {
+      showOutputDialog(context, item.error!);
+      return;
+    }
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => item.isBatch
+            ? BatchCommandPage(filePath: item.filePath)
+            : CommandGeneratorPage(configPath: item.filePath),
+      ),
+    );
   }
 
   @override
@@ -156,24 +172,7 @@ class _MainPageState extends State<MainPage> {
       widgets.add(
         ConfigTile(
           item: item,
-          onTap: () {
-            if (item.isBatch) {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => BatchCommandPage(filePath: item.filePath),
-                ),
-              );
-            } else {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) =>
-                      CommandGeneratorPage(configPath: item.filePath),
-                ),
-              );
-            }
-          },
+          onTap: () => _openItem(item),
         ),
       );
     }
@@ -185,24 +184,7 @@ class _MainPageState extends State<MainPage> {
           children: items.map((item) {
             return ConfigTile(
               item: item,
-              onTap: () {
-                if (item.isBatch) {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => BatchCommandPage(filePath: item.filePath),
-                    ),
-                  );
-                } else {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) =>
-                          CommandGeneratorPage(configPath: item.filePath),
-                    ),
-                  );
-                }
-              },
+              onTap: () => _openItem(item),
             );
           }).toList(),
         ),
