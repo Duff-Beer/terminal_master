@@ -14,6 +14,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      title: 'Terminal Master',
       theme: buildDarkTheme(),
       home: MainPage(
         configDirectoryPath: configDirectoryPath,

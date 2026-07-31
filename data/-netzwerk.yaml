@@ -1,0 +1,5 @@
+schema_version: 1
+commands:
+  - title: Aktive Geräte im Netzwerk finden
+    description: Schneller ARP-Scan von 192.168.0.0/24; zeigt ausschließlich die IP-Adressen erreichbarer Geräte.
+    command: "sudo nmap -sn -n -PR -T5 --min-rate 1000 --max-retries 1 --host-timeout 3s -oG - 192.168.0.0/24 | awk '/Status: Up/{print $2}'"

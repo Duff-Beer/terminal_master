@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Terminal Master
+Comment=Build validated terminal commands from YAML definitions
+Exec=terminal_master
+Icon=terminal_master
+Terminal=false
+Categories=Development;Utility;
+Keywords=Terminal;Command;CLI;YAML;

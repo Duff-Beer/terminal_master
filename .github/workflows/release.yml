@@ -1,0 +1,186 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version; blank uses pubspec.yaml"
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+env:
+  FLUTTER_VERSION: 3.38.9
+
+jobs:
+  metadata:
+    name: Resolve version
+    runs-on: ubuntu-22.04
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: version
+        name: Validate release version
+        shell: bash
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          pubspec_version="$(awk '/^version:/ { sub(/\+.*/, "", $2); print $2 }' pubspec.yaml)"
+          if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
+            version="${GITHUB_REF_NAME#v}"
+          elif [[ -n "$INPUT_VERSION" ]]; then
+            version="${INPUT_VERSION#v}"
+          else
+            version="$pubspec_version"
+          fi
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Invalid release version: $version" >&2
+            exit 1
+          fi
+          if [[ "$version" != "$pubspec_version" ]]; then
+            echo "Release version $version does not match pubspec version $pubspec_version" >&2
+            exit 1
+          fi
+          if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]] && \
+             git rev-parse --verify --quiet "refs/tags/v$version" >/dev/null; then
+            tag_commit="$(git rev-list -n 1 "v$version")"
+            if [[ "$tag_commit" != "$GITHUB_SHA" ]]; then
+              echo "Tag v$version already points to $tag_commit, not $GITHUB_SHA" >&2
+              exit 1
+            fi
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+  quality:
+    name: Analyze and test
+    needs: metadata
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - run: flutter analyze
+      - run: flutter test
+
+  macos:
+    name: Package macOS
+    needs: [metadata, quality]
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - run: flutter build macos --release
+      - name: Create DMG and ZIP
+        env:
+          VERSION: ${{ needs.metadata.outputs.version }}
+        run: |
+          mkdir -p dist
+          app="build/macos/Build/Products/Release/Terminal Master.app"
+          ditto -c -k --sequesterRsrc --keepParent "$app" \
+            "dist/terminal-master-$VERSION-macos.zip"
+          hdiutil create -volname "Terminal Master" -srcfolder "$app" \
+            -ov -format UDZO "dist/terminal-master-$VERSION-macos.dmg"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-macos
+          path: dist/*
+          if-no-files-found: error
+
+  windows:
+    name: Package Windows
+    needs: [metadata, quality]
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - run: flutter build windows --release
+      - name: Create ZIP and installer
+        shell: pwsh
+        env:
+          VERSION: ${{ needs.metadata.outputs.version }}
+        run: |
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          Compress-Archive -Path "build\windows\x64\runner\Release\*" `
+            -DestinationPath "dist\terminal-master-$env:VERSION-windows-x64.zip"
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" `
+            "/DMyAppVersion=$env:VERSION" "packaging\windows\terminal_master.iss"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-windows
+          path: dist/*
+          if-no-files-found: error
+
+  linux:
+    name: Package Linux
+    needs: [metadata, quality]
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install build dependencies
+        run: sudo apt-get update && sudo apt-get install -y ninja-build libgtk-3-dev
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - run: flutter build linux --release
+      - name: Download appimagetool
+        run: |
+          curl -L --fail --retry 3 \
+            -o "$RUNNER_TEMP/appimagetool.AppImage" \
+            https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
+          chmod +x "$RUNNER_TEMP/appimagetool.AppImage"
+      - name: Create Linux packages
+        env:
+          VERSION: ${{ needs.metadata.outputs.version }}
+          APPIMAGETOOL: ${{ runner.temp }}/appimagetool.AppImage
+        run: |
+          packaging/linux/package.sh "$VERSION"
+          packaging/release/generate_linux_manifests.sh \
+            "$VERSION" "$GITHUB_REPOSITORY" dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-linux
+          path: dist/*
+          if-no-files-found: error
+
+  publish:
+    name: Create draft release
+    needs: [metadata, macos, windows, linux]
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: release-*
+          path: dist
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ needs.metadata.outputs.version }}
+          target_commitish: ${{ github.sha }}
+          name: Terminal Master ${{ needs.metadata.outputs.version }}
+          draft: true
+          generate_release_notes: true
+          files: dist/*

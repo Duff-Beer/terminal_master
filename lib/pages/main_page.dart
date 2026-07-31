@@ -87,7 +87,7 @@ class _MainPageState extends State<MainPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Terminal Command Generator'),
+        title: const Text('Terminal Master'),
         actions: [
           SizedBox(
             width: 200,

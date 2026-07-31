@@ -1,106 +1,620 @@
 schema_version: 1
 command: nmap
-description: Network mapping and port scanning tool
+display_name: Nmap Advanced
+description: Network discovery, service enumeration, and security scanner
 parameters:
   - name: use_sudo
     type: boolean
-    flag: "sudo"
-    description: Run the command with elevated privileges (sudo)
+    flag: sudo
+    description: Run Nmap with elevated privileges for raw-packet scan types
     default: false
     order: 0
-  - name: scan_type
-    type: options
-    flag: ""
-    description: Specify the type of scan to perform
-    order: 1
-    options:
-      - value: "-sS"
-        description: SYN scan (default, stealthy and fast)
-      - value: "-sT"
-        description: TCP connect scan (full connection)
-      - value: "-sU"
-        description: UDP scan (for open UDP ports)
-      - value: "-sP"
-        description: Ping scan (host discovery only)
-      - value: "-sV"
-        description: Service/version detection
-  - name: host_discovery
-    type: options
-    flag: ""
-    description: Host discovery options
-    options:
-      - value: "-sL"
-        description: List Scan - simply list targets to scan
-      - value: "-sn"
-        description: Ping Scan - disable port scan
-      - value: "-Pn"
-        description: Treat all hosts as online -- skip host discovery
-      - value: "-PS"
-        description: TCP SYN discovery to given ports
-      - value: "-PA"
-        description: TCP ACK discovery to given ports
-      - value: "-PU"
-        description: UDP discovery to given ports
-      - value: "-PY"
-        description: SCTP discovery to given ports
-      - value: "-PE"
-        description: ICMP echo request discovery probes
-      - value: "-PP"
-        description: ICMP timestamp request discovery probes
-      - value: "-PM"
-        description: ICMP netmask request discovery probes
-      - value: "-PO"
-        description: IP Protocol Ping
-      - value: "-n"
-        description: Never do DNS resolution
-      - value: "-R"
-        description: Always resolve
-      - value: "--dns-servers"
-        description: Specify custom DNS servers
-      - value: "--system-dns"
-        description: Use OS's DNS resolver
-      - value: "--traceroute"
-        description: Trace hop path to each host
-    order: 2
-  - name: output_format
-    type: options
-    flag: ""
-    description: Specify the output format
-    order: 7
-    options:
-      - value: "-oN"
-        description: Normal output
-      - value: "-oX"
-        description: XML output
-      - value: "-oG"
-        description: Grepable output
-      - value: "-oA"
-        description: All formats
-  - name: target
-    type: options
-    flag: ""
-    order: 9
-    required: true
-    description: Target host(s) or network(s) to scan
-    options:
-      - value: "192.168.0.0/24"
-        description: "IP-Range"
-      - value: "192.168.10.0/24"
-        description: "IP-Range"
-    note: "Accepts single IPs, ranges, or CIDR notation."
-  - name: filter_up
-    type: boolean
-    order: 10
-    placement: pipeline
-    flag: "grep Up"
-    description: Filter the output to show only hosts that are up
-    default: false
-help_text: |
-  nmap is a powerful network scanning tool. Use it to discover hosts and services on a network.
-  Common use cases include:
-  - Scanning a target for open ports: `nmap -sS -p 80,443 target`
-  - Detecting operating systems: `nmap -O target`
-  - Aggressive scan with additional information: `nmap -A target`
-  - Filtering results to show only hosts that are up: `nmap -sP target | grep "Up"`
 
-  Be cautious when scanning networks you do not own or have explicit permission to scan.
+  - name: scan_technique
+    type: options
+    flag: ""
+    description: Primary scan technique; leave empty to use the Nmap default
+    order: 10
+    options:
+      - value: -sS
+        description: TCP SYN scan
+      - value: -sT
+        description: TCP connect scan
+      - value: -sA
+        description: TCP ACK scan
+      - value: -sW
+        description: TCP Window scan
+      - value: -sM
+        description: TCP Maimon scan
+      - value: -sU
+        description: UDP scan
+      - value: -sN
+        description: TCP Null scan
+      - value: -sF
+        description: TCP FIN scan
+      - value: -sX
+        description: TCP Xmas scan
+      - value: -sY
+        description: SCTP INIT scan
+      - value: -sZ
+        description: SCTP COOKIE-ECHO scan
+      - value: -sO
+        description: IP protocol scan
+
+  - name: custom_scan_flags
+    type: text
+    flag: --scanflags
+    description: Custom TCP flags such as SYNACK or URGACKPSHRSTSYNFIN
+    example: SYNACK
+    order: 11
+
+  - name: idle_scan_zombie
+    type: text
+    flag: -sI
+    description: Zombie host and optional probe port for an idle scan
+    example: zombie.example.com:80
+    order: 12
+
+  - name: ftp_bounce_host
+    type: text
+    flag: -b
+    description: FTP relay host for an FTP bounce scan
+    example: user:password@ftp.example.com:21
+    order: 13
+
+  - name: list_scan
+    type: boolean
+    flag: -sL
+    description: List targets without scanning them
+    default: false
+    order: 20
+
+  - name: ping_scan
+    type: boolean
+    flag: -sn
+    description: Perform host discovery without a port scan
+    default: false
+    order: 21
+
+  - name: skip_host_discovery
+    type: boolean
+    flag: -Pn
+    description: Treat every target as online and skip host discovery
+    default: false
+    order: 22
+
+  - name: syn_discovery_ports
+    type: text
+    flag: -PS
+    join: attached
+    description: TCP SYN discovery ports
+    example: 22,80,443
+    order: 23
+
+  - name: ack_discovery_ports
+    type: text
+    flag: -PA
+    join: attached
+    description: TCP ACK discovery ports
+    example: 80,443
+    order: 24
+
+  - name: udp_discovery_ports
+    type: text
+    flag: -PU
+    join: attached
+    description: UDP discovery ports
+    example: 53,161
+    order: 25
+
+  - name: icmp_echo_discovery
+    type: boolean
+    flag: -PE
+    description: Use ICMP echo requests for host discovery
+    default: false
+    order: 26
+
+  - name: no_dns
+    type: boolean
+    flag: -n
+    description: Never perform DNS resolution
+    conflicts_with: [always_dns]
+    default: false
+    order: 27
+
+  - name: always_dns
+    type: boolean
+    flag: -R
+    description: Always perform DNS resolution
+    conflicts_with: [no_dns]
+    default: false
+    order: 28
+
+  - name: dns_servers
+    type: text
+    flag: --dns-servers
+    description: Comma-separated DNS servers used for reverse resolution
+    example: 1.1.1.1,8.8.8.8
+    order: 29
+
+  - name: system_dns
+    type: boolean
+    flag: --system-dns
+    description: Use the operating system DNS resolver
+    default: false
+    order: 30
+
+  - name: traceroute
+    type: boolean
+    flag: --traceroute
+    description: Trace the network path to each target
+    default: false
+    order: 31
+
+  - name: ports
+    type: text
+    flag: -p
+    description: Ports or protocol-qualified ranges to scan
+    example: 22,80,443 or U:53,T:1-1024
+    order: 40
+
+  - name: exclude_ports
+    type: text
+    flag: --exclude-ports
+    description: Ports that must not be scanned
+    example: 25,445
+    order: 41
+
+  - name: fast_scan
+    type: boolean
+    flag: -F
+    description: Scan fewer ports than the default scan
+    default: false
+    order: 42
+
+  - name: sequential_ports
+    type: boolean
+    flag: -r
+    description: Scan ports sequentially instead of randomizing their order
+    default: false
+    order: 43
+
+  - name: top_ports
+    type: text
+    flag: --top-ports
+    description: Scan the specified number of most common ports
+    example: "100"
+    order: 44
+
+  - name: port_ratio
+    type: text
+    flag: --port-ratio
+    description: Scan ports more common than this ratio
+    example: "0.1"
+    order: 45
+
+  - name: version_detection
+    type: boolean
+    flag: -sV
+    description: Probe open ports for service and version information
+    default: false
+    order: 50
+
+  - name: version_intensity
+    type: options
+    flag: --version-intensity
+    description: Version probe intensity from 0 to 9; requires version detection
+    depends_on: [version_detection]
+    visible_when:
+      parameter: version_detection
+      equals: true
+    order: 51
+    options:
+      - value: "0"
+        description: Use only the lightest probes
+      - value: "2"
+        description: Light version detection
+      - value: "5"
+        description: Default probe intensity
+      - value: "7"
+        description: Thorough version detection
+      - value: "9"
+        description: Try every version probe
+
+  - name: version_trace
+    type: boolean
+    flag: --version-trace
+    description: Show detailed version detection activity
+    depends_on: [version_detection]
+    visible_when:
+      parameter: version_detection
+      equals: true
+    default: false
+    order: 52
+
+  - name: default_scripts
+    type: boolean
+    flag: -sC
+    description: Run the default Nmap Scripting Engine scripts
+    default: false
+    order: 60
+
+  - name: scripts
+    type: text
+    flag: --script
+    description: Comma-separated NSE scripts, categories, or expressions
+    example: safe,vuln or http-title
+    order: 61
+
+  - name: script_args
+    type: text
+    flag: --script-args
+    description: Comma-separated NSE script arguments
+    example: user=admin,password=secret
+    visible_when:
+      any:
+        - parameter: default_scripts
+          equals: true
+        - parameter: scripts
+          active: true
+    order: 62
+
+  - name: script_args_file
+    type: filepath
+    mode: file
+    flag: --script-args-file
+    description: File containing NSE script arguments
+    visible_when:
+      any:
+        - parameter: default_scripts
+          equals: true
+        - parameter: scripts
+          active: true
+    order: 63
+
+  - name: script_trace
+    type: boolean
+    flag: --script-trace
+    description: Show all data sent and received by NSE scripts
+    visible_when:
+      any:
+        - parameter: default_scripts
+          equals: true
+        - parameter: scripts
+          active: true
+    default: false
+    order: 64
+
+  - name: os_detection
+    type: boolean
+    flag: -O
+    description: Enable operating system detection
+    default: false
+    order: 70
+
+  - name: os_scan_limit
+    type: boolean
+    flag: --osscan-limit
+    description: Limit OS detection to promising targets
+    depends_on: [os_detection]
+    visible_when:
+      parameter: os_detection
+      equals: true
+    default: false
+    order: 71
+
+  - name: os_scan_guess
+    type: boolean
+    flag: --osscan-guess
+    description: Guess the operating system more aggressively
+    depends_on: [os_detection]
+    visible_when:
+      parameter: os_detection
+      equals: true
+    default: false
+    order: 72
+
+  - name: timing_template
+    type: options
+    flag: ""
+    description: Timing template from paranoid to insane
+    order: 80
+    options:
+      - value: -T0
+        description: Paranoid
+      - value: -T1
+        description: Sneaky
+      - value: -T2
+        description: Polite
+      - value: -T3
+        description: Normal
+      - value: -T4
+        description: Aggressive
+      - value: -T5
+        description: Insane
+
+  - name: min_hostgroup
+    type: text
+    flag: --min-hostgroup
+    description: Minimum parallel host scan group size
+    example: "16"
+    order: 81
+
+  - name: max_hostgroup
+    type: text
+    flag: --max-hostgroup
+    description: Maximum parallel host scan group size
+    example: "256"
+    order: 82
+
+  - name: max_retries
+    type: text
+    flag: --max-retries
+    description: Maximum number of probe retransmissions
+    example: "3"
+    order: 83
+
+  - name: host_timeout
+    type: text
+    flag: --host-timeout
+    description: Stop scanning a host after this duration
+    example: 5m
+    order: 84
+
+  - name: scan_delay
+    type: text
+    flag: --scan-delay
+    description: Minimum delay between probes
+    example: 100ms
+    order: 85
+
+  - name: min_rate
+    type: text
+    flag: --min-rate
+    description: Send packets no slower than this rate per second
+    example: "100"
+    order: 86
+
+  - name: max_rate
+    type: text
+    flag: --max-rate
+    description: Send packets no faster than this rate per second
+    example: "1000"
+    order: 87
+
+  - name: fragmented_packets
+    type: boolean
+    flag: -f
+    description: Fragment IP packets into small pieces
+    default: false
+    order: 90
+
+  - name: mtu
+    type: text
+    flag: --mtu
+    description: Use the specified packet fragmentation MTU
+    example: "24"
+    order: 91
+
+  - name: decoys
+    type: text
+    flag: -D
+    description: Comma-separated decoy addresses, optionally including ME
+    example: RND:5,ME
+    order: 92
+
+  - name: source_address
+    type: text
+    flag: -S
+    description: Spoof the source IP address
+    example: 192.0.2.10
+    order: 93
+
+  - name: interface
+    type: text
+    flag: -e
+    description: Network interface to use
+    example: eth0
+    order: 94
+
+  - name: source_port
+    type: text
+    flag: --source-port
+    description: Source port used for probes
+    example: "53"
+    order: 95
+
+  - name: proxies
+    type: text
+    flag: --proxies
+    description: Comma-separated HTTP or SOCKS4 proxy URLs
+    example: http://127.0.0.1:8080
+    order: 96
+
+  - name: data_string
+    type: text
+    flag: --data-string
+    description: ASCII payload appended to sent packets
+    example: probe-data
+    order: 97
+
+  - name: data_length
+    type: text
+    flag: --data-length
+    description: Number of random payload bytes to append
+    example: "32"
+    order: 98
+
+  - name: ttl
+    type: text
+    flag: --ttl
+    description: IP time-to-live value
+    example: "64"
+    order: 99
+
+  - name: spoof_mac
+    type: text
+    flag: --spoof-mac
+    description: MAC address, prefix, or vendor name to spoof
+    example: "0"
+    order: 100
+
+  - name: bad_checksum
+    type: boolean
+    flag: --badsum
+    description: Send packets with invalid checksums
+    default: false
+    order: 101
+
+  - name: output_normal
+    type: text
+    flag: -oN
+    description: Write normal output to this file
+    example: scan.txt
+    order: 110
+
+  - name: output_xml
+    type: text
+    flag: -oX
+    description: Write XML output to this file
+    example: scan.xml
+    order: 111
+
+  - name: output_grepable
+    type: text
+    flag: -oG
+    description: Write grepable output to this file
+    example: scan.gnmap
+    order: 112
+
+  - name: output_all
+    type: text
+    flag: -oA
+    description: Base name for normal, XML, and grepable output files
+    conflicts_with: [output_normal, output_xml, output_grepable]
+    example: scan
+    order: 113
+
+  - name: verbosity
+    type: options
+    flag: ""
+    description: Increase output verbosity
+    order: 114
+    options:
+      - value: -v
+        description: Verbose
+      - value: -vv
+        description: More verbose
+      - value: -vvv
+        description: Very verbose
+
+  - name: debugging
+    type: options
+    flag: ""
+    description: Increase debugging output
+    order: 115
+    options:
+      - value: -d
+        description: Debug output
+      - value: -dd
+        description: More debugging output
+      - value: -ddd
+        description: Very detailed debugging output
+
+  - name: show_reason
+    type: boolean
+    flag: --reason
+    description: Show why each port is in its reported state
+    default: false
+    order: 116
+
+  - name: open_only
+    type: boolean
+    flag: --open
+    description: Show only open or possibly open ports
+    default: false
+    order: 117
+
+  - name: packet_trace
+    type: boolean
+    flag: --packet-trace
+    description: Show every packet sent and received
+    default: false
+    order: 118
+
+  - name: append_output
+    type: boolean
+    flag: --append-output
+    description: Append instead of overwriting output files
+    default: false
+    order: 119
+
+  - name: ipv6
+    type: boolean
+    flag: "-6"
+    description: Enable IPv6 scanning
+    default: false
+    order: 120
+
+  - name: aggressive_scan
+    type: boolean
+    flag: -A
+    description: Enable OS detection, version detection, scripts, and traceroute
+    default: false
+    order: 121
+
+  - name: privilege_mode
+    type: options
+    flag: ""
+    description: Override Nmap privilege detection
+    order: 122
+    options:
+      - value: --privileged
+        description: Assume full privileges
+      - value: --unprivileged
+        description: Assume no raw-socket privileges
+
+  - name: send_mode
+    type: options
+    flag: ""
+    description: Select raw Ethernet frames or IP packets
+    order: 123
+    options:
+      - value: --send-eth
+        description: Send raw Ethernet frames
+      - value: --send-ip
+        description: Send raw IP packets
+
+  - name: exclude_hosts
+    type: text
+    flag: --exclude
+    description: Comma-separated hosts or networks to exclude
+    example: 192.168.1.1,192.168.2.0/24
+    order: 124
+
+  - name: exclude_file
+    type: filepath
+    mode: file
+    flag: --excludefile
+    description: File containing hosts or networks to exclude
+    order: 125
+
+  - name: target
+    type: text_list
+    flag: ""
+    required: true
+    description: Hostnames, IP addresses, ranges, or CIDR networks to scan
+    example: scanme.nmap.org or 192.168.1.0/24
+    order: 1000
+
+help_text: |
+  This configuration covers the main Nmap option groups from the official
+  reference guide. Options can be combined unless Nmap itself forbids the
+  combination. Some raw-packet scan types require elevated privileges.
+
+  Examples:
+  - SYN and version scan: `sudo nmap -sS -sV -p 22,80,443 -T4 target`
+  - Default NSE scripts and OS detection: `sudo nmap -sC -O target`
+  - XML report: `nmap -sT -oX scan.xml target`
+
+  Only scan systems and networks for which you have explicit authorization.

@@ -52,19 +52,175 @@ void main() {
       expect(command, 'flutter pub get');
     });
 
-    test('renders structured pipeline after all arguments', () {
+    test('renders a combined Nmap scan with required option values', () {
       final config = ConfigLoader.loadConfig('data/nmap.yaml');
       final command = CommandBuilder(
         config: config,
         values: {
           ...config.defaultValues,
-          'target': '192.168.0.0/24',
-          'filter_up': true,
+          'use_sudo': true,
+          'scan_technique': '-sS',
+          'syn_discovery_ports': '80,443',
+          'dns_servers': '1.1.1.1,8.8.8.8',
+          'ports': '22,80,443',
+          'version_detection': true,
+          'version_intensity': '7',
+          'default_scripts': true,
+          'scripts': 'http-title,safe',
+          'os_detection': true,
+          'timing_template': '-T4',
+          'output_xml': '/tmp/scan report.xml',
+          'verbosity': '-vv',
+          'show_reason': true,
+          'target': ['scanme.nmap.org', '192.168.1.0/24'],
         },
         shell: CommandShell.posix,
       ).build();
 
-      expect(command, 'nmap 192.168.0.0/24 | grep Up');
+      expect(
+        command,
+        "sudo nmap -sS -PS80,443 --dns-servers 1.1.1.1,8.8.8.8 "
+        "-p 22,80,443 -sV --version-intensity 7 -sC --script "
+        "http-title,safe -O -T4 -oX '/tmp/scan report.xml' -vv --reason "
+        'scanme.nmap.org 192.168.1.0/24',
+      );
+    });
+
+    test('renders the basic Nmap defaults and selected common options', () {
+      final config = ConfigLoader.loadConfig('data/nmap_basic.yaml');
+      final command = CommandBuilder(
+        config: config,
+        values: {
+          ...config.defaultValues,
+          'scan_type': '-sT',
+          'port_preset': '80,443',
+          'version_detection': true,
+          'open_only': true,
+          'verbosity': '-v',
+        },
+        shell: CommandShell.posix,
+      ).build();
+
+      expect(command, 'nmap -sT -p 80,443 -sV -T3 --open -v 127.0.0.1');
+    });
+
+    test('ignores hidden values and enforces conditional requirements', () {
+      final directory = Directory.systemTemp.createTempSync('conditions-');
+      addTearDown(() => directory.deleteSync(recursive: true));
+      final configFile = File('${directory.path}/conditional.yaml')
+        ..writeAsStringSync('''
+schema_version: 1
+command: demo
+parameters:
+  - name: advanced
+    type: boolean
+  - name: hidden_value
+    type: text
+    flag: --hidden
+    visible_when:
+      parameter: advanced
+      equals: true
+  - name: mode
+    type: options
+    flag: --mode
+    options:
+      - value: basic
+        description: Basic
+      - value: secure
+        description: Secure
+  - name: consumer
+    type: boolean
+    flag: --consumer
+    depends_on: [hidden_value]
+  - name: token
+    type: text
+    flag: --token
+    visible_when:
+      parameter: mode
+      equals: secure
+    required_when:
+      parameter: mode
+      equals: secure
+  - name: targets
+    type: text_list
+    required: true
+''');
+      final config = ConfigLoader.loadConfig(configFile.path);
+
+      final basicCommand = CommandBuilder(
+        config: config,
+        values: const {
+          'advanced': false,
+          'hidden_value': 'stale-value',
+          'mode': 'basic',
+          'token': 'stale-token',
+          'consumer': false,
+          'targets': ['first.example', 'second; touch /tmp/injected'],
+        },
+        shell: CommandShell.posix,
+      ).build();
+
+      expect(
+        basicCommand,
+        "demo --mode basic first.example 'second; touch /tmp/injected'",
+      );
+      expect(
+        () => CommandBuilder(
+          config: config,
+          values: const {
+            'advanced': false,
+            'hidden_value': 'stale-value',
+            'mode': 'basic',
+            'consumer': true,
+            'targets': ['first.example'],
+          },
+          shell: CommandShell.posix,
+        ).build(),
+        throwsA(
+          isA<CommandBuildException>().having(
+            (error) => error.message,
+            'message',
+            contains('hidden_value'),
+          ),
+        ),
+      );
+      expect(
+        () => CommandBuilder(
+          config: config,
+          values: const {
+            'mode': 'secure',
+            'targets': ['first.example'],
+          },
+          shell: CommandShell.posix,
+        ).build(),
+        throwsA(
+          isA<CommandBuildException>().having(
+            (error) => error.message,
+            'message',
+            contains('token'),
+          ),
+        ),
+      );
+    });
+
+    test('removes port scan options from basic Nmap host discovery', () {
+      final config = ConfigLoader.loadConfig('data/nmap_basic.yaml');
+      final command = CommandBuilder(
+        config: config,
+        values: {
+          ...config.defaultValues,
+          'host_discovery_only': true,
+          'scan_type': '-sT',
+          'port_preset': '80,443',
+          'version_detection': true,
+          'os_detection': true,
+          'default_scripts': true,
+          'open_only': true,
+        },
+        shell: CommandShell.posix,
+      ).build();
+
+      expect(command, 'nmap -sn -T3 127.0.0.1');
     });
 
     test('treats false values as inactive for conflicts', () {
