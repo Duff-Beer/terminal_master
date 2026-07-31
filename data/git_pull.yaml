@@ -1,4 +1,5 @@
 # git_pull.yaml
+schema_version: 1
 command: git_pull
 description: Holt und merged Änderungen vom Remote in den aktuellen Branch
 parameters:

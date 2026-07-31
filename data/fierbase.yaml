@@ -1,3 +1,4 @@
+schema_version: 1
 command: firebase
 description: Firebase CLI for managing Firebase projects and services
 parameters:

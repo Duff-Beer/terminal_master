@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 import 'settings_loader.dart';
 
@@ -16,6 +17,8 @@ Future<InitData> initializeApp() async {
     terminalMasterDir.createSync(recursive: true);
   }
 
+  await _installBundledConfigs(terminalMasterDir);
+
   SettingsLoader.initialize(terminalMasterDir.path);
 
   String displayPath = terminalMasterDir.path;
@@ -28,4 +31,20 @@ Future<InitData> initializeApp() async {
     configPath: terminalMasterDir.path,
     displayPath: displayPath,
   );
+}
+
+Future<void> _installBundledConfigs(Directory targetDirectory) async {
+  final manifest = await AssetManifest.loadFromAssetBundle(rootBundle);
+  final configAssets = manifest
+      .listAssets()
+      .where((asset) => asset.startsWith('data/') && asset.endsWith('.yaml'));
+
+  for (final asset in configAssets) {
+    final fileName = asset.substring(asset.lastIndexOf('/') + 1);
+    final target =
+        File('${targetDirectory.path}${Platform.pathSeparator}$fileName');
+    if (!target.existsSync()) {
+      await target.writeAsString(await rootBundle.loadString(asset));
+    }
+  }
 }

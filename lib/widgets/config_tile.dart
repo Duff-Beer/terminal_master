@@ -10,7 +10,16 @@ class ConfigTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListTile(
-      title: Text(item.command),
+      leading: item.error == null
+          ? null
+          : Icon(Icons.error_outline,
+              color: Theme.of(context).colorScheme.error),
+      title: Text(
+        item.command,
+        style: item.error == null
+            ? null
+            : TextStyle(color: Theme.of(context).colorScheme.error),
+      ),
       subtitle: Text(item.description),
       onTap: onTap,
     );

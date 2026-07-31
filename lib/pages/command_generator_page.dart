@@ -1,10 +1,16 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart'; // Für Clipboard
+import 'package:flutter/services.dart';
+
 import '../models/command_config.dart';
-import '../utils/config_loader.dart';
+import '../services/command_builder.dart';
 import '../services/command_executor.dart';
-import '../widgets/parameter_input.dart';
+import '../services/command_risk_assessor.dart';
+import '../utils/config_loader.dart';
+import '../widgets/command_confirmation_dialog.dart';
 import '../widgets/output_dialog.dart';
+import '../widgets/parameter_input.dart';
 
 class CommandGeneratorPage extends StatefulWidget {
   final String configPath;
@@ -16,159 +22,172 @@ class CommandGeneratorPage extends StatefulWidget {
 }
 
 class _CommandGeneratorPageState extends State<CommandGeneratorPage> {
-  bool _openInNewTerminal = true; // Steuerung für Terminal-Modus
-  CommandConfig? config;
-  final Map<String, dynamic> values = {};
+  bool _openInNewTerminal = true;
+  bool _isExecuting = false;
+  CommandConfig? _config;
+  String? _loadError;
+  final Map<String, Object?> _values = {};
+
+  CommandShell get _shell =>
+      Platform.isWindows ? CommandShell.windowsCmd : CommandShell.posix;
 
   @override
   void initState() {
     super.initState();
-    config = ConfigLoader.loadConfig(widget.configPath);
-  }
-
-  void _onParameterChanged(String name, dynamic value) {
-    setState(() {
-      values[name] = value;
-    });
-  }
-
-  String _buildCommand() {
-    if (config == null) return '';
-    // Validierung: Pflicht, Abhängigkeiten, Konflikte, Unterschiedlichkeit
     try {
-      for (var p in config!.parameters) {
-        var v = values[p.name];
-        if (p.required && (v == null || (v is String && v.isEmpty))) {
-          throw Exception('Erforderlicher Parameter "${p.name}" fehlt.');
-        }
-        if (p.dependsOn != null && v != null) {
-          for (var dep in p.dependsOn!) {
-            if (values[dep] == null) {
-              throw Exception('Parameter "${p.name}" erfordert "$dep".');
-            }
-          }
-        }
-        if (p.conflictsWith != null && v != null) {
-          for (var c in p.conflictsWith!) {
-            if (values[c] != null) {
-              throw Exception(
-                  'Parameter "${p.name}" kann nicht mit "$c" verwendet werden.');
-            }
-          }
-        }
-        if (p.mustDiffer && p.dependsOn != null && p.dependsOn!.isNotEmpty) {
-          var depValue = values[p.dependsOn!.first];
-          if (v != null && v == depValue) {
-            throw Exception(
-                'Parameter "${p.name}" muss sich von "${p.dependsOn!.first}" unterscheiden.');
-          }
-        }
-      }
-    } catch (e) {
-      showOutputDialog(context, 'Error: ${e.toString()}');
-      return '';
+      _config = ConfigLoader.loadConfig(widget.configPath);
+      _values.addAll(_config!.defaultValues);
+    } on Object catch (error) {
+      _loadError = error.toString();
     }
+  }
 
-    String raw = config!.command.replaceAll('_', ' ');
-    var sorted = List<CommandParameter>.from(config!.parameters)
-      ..sort((a, b) => a.order.compareTo(b.order));
+  void _onParameterChanged(String name, Object? value) {
+    setState(() => _values[name] = value);
+  }
 
-    String prefix = '';
-    for (var p in sorted.where((p) => p.order == 0)) {
-      var v = values[p.name];
-      if (p.type == 'boolean' && v == true && p.flag != null) {
-        prefix += '${p.flag} ';
-      } else if (v != null && v.toString().isNotEmpty) {
-        prefix += '${p.prefix ?? ''}$v${p.suffix ?? ''} ';
-      }
+  String? _buildCommand() {
+    try {
+      return CommandBuilder(
+        config: _config!,
+        values: _values,
+        shell: _shell,
+      ).build();
+    } on Object catch (error) {
+      showOutputDialog(context, 'Fehler: $error');
+      return null;
     }
+  }
 
-    String command = '$prefix$raw';
-
-    for (var p in sorted.where((p) => p.order != 0 && p.type != 'button')) {
-      var v = values[p.name];
-      if (v == null || (v is String && v.isEmpty)) continue;
-      if (p.type == 'boolean' && v == true && p.flag != null) {
-        command += ' ${p.flag}';
-      } else if (p.type == 'options' && p.flag != null) {
-        command += ' ${p.flag} ${p.prefix ?? ''}$v${p.suffix ?? ''}';
-      } else if (p.type != 'boolean') {
-        command += ' ${p.prefix ?? ''}$v${p.suffix ?? ''}';
-      }
+  Future<void> _confirmAndExecute(
+    String command,
+    CommandRiskAssessment assessment,
+    bool alwaysOpenNew,
+  ) async {
+    if (_isExecuting) return;
+    setState(() => _isExecuting = true);
+    try {
+      final approved = await showCommandConfirmationDialog(
+        context,
+        commands: [command],
+        assessment: assessment,
+      );
+      if (!mounted || !approved) return;
+      await CommandExecutor.executeInTerminal(command, alwaysOpenNew);
+    } on Object catch (error) {
+      if (!mounted) return;
+      showOutputDialog(context, 'Fehler beim Ausführen: $error');
+    } finally {
+      if (mounted) setState(() => _isExecuting = false);
     }
+  }
 
-    return command.trim();
+  Future<void> _executeAction(CommandParameter parameter) async {
+    try {
+      final command = CommandBuilder(
+        config: _config!,
+        values: _values,
+        shell: _shell,
+      ).buildAction(parameter);
+      final assessment = CommandRiskAssessor.assessRawCommands([
+        command,
+      ], containsRawConfiguration: false);
+      await _confirmAndExecute(command, assessment, true);
+    } on Object catch (error) {
+      if (!mounted) return;
+      showOutputDialog(context, 'Fehler bei der Aktion: $error');
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    if (config == null) {
+    if (_loadError != null) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Loading...')),
-        body: const Center(child: CircularProgressIndicator()),
+        appBar: AppBar(title: const Text('Konfigurationsfehler')),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: SelectableText(_loadError!, textAlign: TextAlign.center),
+          ),
+        ),
       );
     }
 
+    final config = _config!;
     return Scaffold(
-      appBar: AppBar(title: Text(config!.command.toUpperCase())),
+      appBar: AppBar(title: Text(config.command.toUpperCase())),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          Text(config!.description,
-              style: Theme.of(context).textTheme.titleMedium),
-          const SizedBox(height: 16),
-          ...config!.parameters.map((p) => Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                child: ParameterInput(
-                  param: p,
-                  value: values[p.name],
-                  onChanged: (v) => _onParameterChanged(p.name, v),
-                ),
-              )),
-          const SizedBox(height: 16),
-          // Buttons und Modus-Switch
-
-          ElevatedButton(
-            onPressed: () {
-              final cmd = _buildCommand();
-              if (cmd.isEmpty) return;
-              Clipboard.setData(ClipboardData(text: cmd));
-              showOutputDialog(
-                  context, 'Command in die Zwischenablage kopiert:$cmd');
-            },
-            child: const Text('Generate Command'),
+          Text(
+            config.description,
+            style: Theme.of(context).textTheme.titleMedium,
           ),
-          const SizedBox(width: 16),
-
-          const SizedBox(height: 8),
+          const SizedBox(height: 16),
+          ...config.parameters.map(
+            (parameter) => Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: ParameterInput(
+                param: parameter,
+                value: _values[parameter.name],
+                onChanged: (value) =>
+                    _onParameterChanged(parameter.name, value),
+                onAction: parameter.type == CommandParameterType.button
+                    ? () => _executeAction(parameter)
+                    : null,
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
           ElevatedButton(
             onPressed: () async {
-              final cmd = _buildCommand();
-              if (cmd.isEmpty) return;
-              try {
-                if (_openInNewTerminal) {
-                  await CommandExecutor.executeInTerminal(cmd, true);
-                } else {
-                  await CommandExecutor.executeInTerminal(cmd, false);
-                }
-              } catch (e) {
-                showOutputDialog(context, 'Fehler beim Ausführen: $e');
-              }
+              final command = _buildCommand();
+              if (command == null) return;
+              await Clipboard.setData(ClipboardData(text: command));
+              if (!context.mounted) return;
+              showOutputDialog(
+                context,
+                'Kommando in die Zwischenablage kopiert:\n$command',
+              );
             },
-            child: const Text('Execute Command'),
+            child: const Text('Kommando erzeugen'),
+          ),
+          const SizedBox(height: 8),
+          ElevatedButton(
+            onPressed: _isExecuting
+                ? null
+                : () async {
+                    final command = _buildCommand();
+                    if (command != null) {
+                      final assessment = CommandRiskAssessor.assessConfig(
+                        config,
+                        _values,
+                      );
+                      await _confirmAndExecute(
+                        command,
+                        assessment,
+                        _openInNewTerminal,
+                      );
+                    }
+                  },
+            child: Text(
+              _isExecuting ? 'Wird gestartet...' : 'Kommando ausführen',
+            ),
           ),
           SwitchListTile(
-            title: const Text('New Terminal'),
+            title: const Text('Neues Terminal'),
             value: _openInNewTerminal,
-            onChanged: (val) => setState(() => _openInNewTerminal = val),
+            onChanged: _isExecuting
+                ? null
+                : (value) => setState(() => _openInNewTerminal = value),
             contentPadding: const EdgeInsets.symmetric(horizontal: 28),
           ),
-
           const SizedBox(height: 16),
-
-          if (config!.helpText != null)
-            Text(config!.helpText!,
-                style: Theme.of(context).textTheme.bodySmall),
+          if (config.helpText != null)
+            Text(
+              config.helpText!,
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
         ],
       ),
     );

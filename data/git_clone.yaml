@@ -1,4 +1,5 @@
 # git_clone.yaml
+schema_version: 1
 command: git_clone
 description: Klont ein Remote‑Repository lokal
 parameters:

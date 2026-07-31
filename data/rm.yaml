@@ -1,3 +1,4 @@
+schema_version: 1
 command: rm
 description: Remove files or directories
 parameters:
@@ -28,7 +29,7 @@ parameters:
 
   - name: path
     type: filepath
-    mode: directory
+    mode: any
     required: true
     description: Path of the file or directory to be removed
     example: "/home/user/oldfile"
