@@ -267,6 +267,36 @@ void main() {
     expect(session.terminal.buffer.getText(), isNot(contains(block.marker)));
   });
 
+  test('captures CMD output after an expanded BEGIN command echo', () async {
+    final factory = RecordingTerminalBackendFactory();
+    const profile = ShellProfile(
+      id: 'windows-cmd',
+      name: 'Windows CMD',
+      executable: 'cmd.exe',
+      dialect: ShellDialect.windowsCmd,
+    );
+    final session = TerminalSession(
+      backendFactory: factory.create,
+      profile: profile,
+    );
+    addTearDown(session.dispose);
+    await session.start();
+
+    session.sendTrackedCommand('echo hello');
+    final block = session.commandBlocks.single;
+    final backend = factory.backends.single;
+    backend.emit(utf8.encode('C:\\>echo ${block.marker}:BEGIN\r\n'));
+    backend.emit(utf8.encode('${block.marker}:BEGIN\r\n'));
+    backend.emit(utf8.encode('hello\r\n'));
+    backend.emit(utf8.encode('C:\\>echo ${block.marker}:0\r\n'));
+    backend.emit(utf8.encode('${block.marker}:0\r\n'));
+    await Future<void>.delayed(Duration.zero);
+
+    expect(block.status, TerminalCommandBlockStatus.succeeded);
+    expect(block.output, contains('hello'));
+    expect(session.terminal.buffer.getText(), isNot(contains(block.marker)));
+  });
+
   test('ignores an expanded Windows CMD marker command echo', () async {
     final factory = RecordingTerminalBackendFactory();
     const profile = ShellProfile(

@@ -262,16 +262,15 @@ class TerminalSession extends ChangeNotifier {
                   line.toLowerCase().contains('echo '));
           final isWindowsBeginMarker =
               profile.dialect == ShellDialect.windowsCmd &&
-              line.contains(windowsBeginMarker) &&
-              !line.toLowerCase().contains('echo ');
-          if (isWindowsBeginEcho) {
-            // Wait for the expanded BEGIN marker before capturing output.
-          } else if (isWindowsBeginMarker) {
+              line.contains(windowsBeginMarker);
+          if (isWindowsBeginMarker) {
             trackedData = _trackedEchoBuffer;
             _trackedEchoBuffer = '';
             _awaitingTrackedEcho = false;
             final visibleCommand = block.command.replaceAll('\n', '\n> ');
             terminal.write('> $visibleCommand\r\n');
+          } else if (isWindowsBeginEcho) {
+            // Wait for the expanded BEGIN marker before capturing output.
           } else if (line.contains(_commandMarkerVariable) ||
               line.contains(expandedWindowsEcho)) {
             trackedData = _trackedEchoBuffer;
@@ -301,7 +300,23 @@ class TerminalSession extends ChangeNotifier {
     }
 
     _trackedOutputBuffer += trackedData;
-    final match = pattern.firstMatch(_trackedOutputBuffer);
+    final markerMatches = pattern.allMatches(_trackedOutputBuffer).toList();
+    RegExpMatch? match;
+    for (final candidate in markerMatches) {
+      final lineStart = candidate.start == 0
+          ? 0
+          : _trackedOutputBuffer.lastIndexOf('\n', candidate.start - 1) + 1;
+      final linePrefix = _trackedOutputBuffer.substring(
+        lineStart,
+        candidate.start,
+      );
+      if (profile.dialect == ShellDialect.windowsCmd &&
+          linePrefix.toLowerCase().contains('echo ')) {
+        continue;
+      }
+      match = candidate;
+      break;
+    }
     if (match != null) {
       _emitTrackedOutput(_trackedOutputBuffer.substring(0, match.start));
       var remaining = _trackedOutputBuffer.substring(match.end);
@@ -315,6 +330,7 @@ class TerminalSession extends ChangeNotifier {
       _notify();
       return;
     }
+    if (markerMatches.isNotEmpty) return;
 
     final heldSuffixLength = _trackedMarkerSuffixLength(
       _trackedOutputBuffer,
