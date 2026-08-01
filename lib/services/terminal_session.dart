@@ -239,6 +239,7 @@ class TerminalSession extends ChangeNotifier {
 
     var trackedData = data;
     final pattern = RegExp('${RegExp.escape(block.marker)}:(-?\\d+)');
+    final windowsBeginMarker = '${block.marker}:BEGIN';
     if (_awaitingTrackedEcho) {
       _trackedEchoBuffer += trackedData;
       final expandedWindowsEcho = 'echo ${block.marker}:';
@@ -254,7 +255,24 @@ class TerminalSession extends ChangeNotifier {
           if (lineEnd < 0) return;
           final line = _trackedEchoBuffer.substring(0, lineEnd + 1);
           _trackedEchoBuffer = _trackedEchoBuffer.substring(lineEnd + 1);
-          if (line.contains(_commandMarkerVariable) ||
+          final isWindowsBeginEcho =
+              profile.dialect == ShellDialect.windowsCmd &&
+              line.contains(':BEGIN') &&
+              (line.contains(_commandMarkerVariable) ||
+                  line.toLowerCase().contains('echo '));
+          final isWindowsBeginMarker =
+              profile.dialect == ShellDialect.windowsCmd &&
+              line.contains(windowsBeginMarker) &&
+              !line.toLowerCase().contains('echo ');
+          if (isWindowsBeginEcho) {
+            // Wait for the expanded BEGIN marker before capturing output.
+          } else if (isWindowsBeginMarker) {
+            trackedData = _trackedEchoBuffer;
+            _trackedEchoBuffer = '';
+            _awaitingTrackedEcho = false;
+            final visibleCommand = block.command.replaceAll('\n', '\n> ');
+            terminal.write('> $visibleCommand\r\n');
+          } else if (line.contains(_commandMarkerVariable) ||
               line.contains(expandedWindowsEcho)) {
             trackedData = _trackedEchoBuffer;
             _trackedEchoBuffer = '';

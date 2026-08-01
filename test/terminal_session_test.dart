@@ -250,15 +250,16 @@ void main() {
 
     session.sendTrackedCommand('echo hello');
     final block = session.commandBlocks.single;
-    factory.backends.single.emit(
-      utf8.encode(
-        'C:\\>echo %TERMINAL_MASTER_END_MARKER%:BEGIN\r\n'
-        '${block.marker}:BEGIN\r\n'
-        'hello\r\n'
-        'C:\\>echo %TERMINAL_MASTER_END_MARKER%:%errorlevel%\r\n'
-        '${block.marker}:0\r\n',
-      ),
+    final backend = factory.backends.single;
+    backend.emit(
+      utf8.encode('C:\\>echo %TERMINAL_MASTER_END_MARKER%:BEGIN\r\n'),
     );
+    backend.emit(utf8.encode('${block.marker}:BEGIN\r\n'));
+    backend.emit(utf8.encode('hello\r\n'));
+    backend.emit(
+      utf8.encode('C:\\>echo %TERMINAL_MASTER_END_MARKER%:%errorlevel%\r\n'),
+    );
+    backend.emit(utf8.encode('${block.marker}:0\r\n'));
     await Future<void>.delayed(Duration.zero);
 
     expect(block.status, TerminalCommandBlockStatus.succeeded);
