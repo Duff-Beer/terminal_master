@@ -4,8 +4,10 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
+import 'package:terminal_master/models/shell_profile.dart';
 import 'package:terminal_master/services/flutter_pty_backend.dart';
 import 'package:terminal_master/services/terminal_backend.dart';
+import 'package:terminal_master/services/terminal_session.dart';
 
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
@@ -58,8 +60,60 @@ void main() {
     expect(output.toString(), contains(marker));
 
     backend.write(const Utf8Encoder().convert('exit$lineEnding'));
-    final exitCode = await backend.exitCode.timeout(const Duration(seconds: 10));
+    final exitCode = await backend.exitCode.timeout(
+      const Duration(seconds: 10),
+    );
     exited = true;
     expect(exitCode, 0);
+  });
+
+  testWidgets('tracks a command through a native shell PTY', (tester) async {
+    final outputMarker =
+        'TRACKED_OUTPUT_${DateTime.now().microsecondsSinceEpoch}';
+    final profile = ShellProfile(
+      id: 'integration-shell',
+      name: 'Integration Shell',
+      executable: Platform.isWindows
+          ? 'cmd.exe'
+          : Platform.environment['SHELL'] ?? '/bin/sh',
+      workingDirectory:
+          Platform.environment[Platform.isWindows ? 'USERPROFILE' : 'HOME'],
+      dialect: Platform.isWindows
+          ? ShellDialect.windowsCmd
+          : ShellDialect.posix,
+    );
+    final session = TerminalSession(
+      backendFactory: FlutterPtyBackend.start,
+      profile: profile,
+    );
+    final completed = Completer<void>();
+    void onSessionChanged() {
+      if (session.commandBlocks.lastOrNull?.finishedAt != null &&
+          !completed.isCompleted) {
+        completed.complete();
+      }
+    }
+
+    session.addListener(onSessionChanged);
+    addTearDown(() {
+      session.removeListener(onSessionChanged);
+      session.dispose();
+    });
+
+    await session.start();
+    expect(session.status, TerminalSessionStatus.running);
+    session.sendTrackedCommand(
+      Platform.isWindows
+          ? 'echo $outputMarker'
+          : "printf '%s\\n' '$outputMarker'",
+    );
+
+    await completed.future.timeout(const Duration(seconds: 10));
+    final block = session.commandBlocks.single;
+    expect(block.exitCode, 0);
+    expect(block.output, contains(outputMarker));
+    expect(session.terminal.buffer.getText(), isNot(contains(block.marker)));
+
+    await session.stop();
   });
 }

@@ -1,8 +1,12 @@
+import 'dart:io';
+
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:xterm/xterm.dart';
 
 import '../models/shell_profile.dart';
+import '../models/terminal_command_block.dart';
 import '../services/terminal_backend.dart';
 import '../services/external_url_launcher.dart';
 import '../services/terminal_session.dart';
@@ -223,7 +227,7 @@ class TerminalPanelController extends ChangeNotifier {
     final activeSession = await _ensureStarted(tab);
     controller.clear();
     try {
-      activeSession.sendCommand(command);
+      activeSession.sendTrackedCommand(command);
     } on Object {
       controller.text = command;
       rethrow;
@@ -862,6 +866,7 @@ class _TerminalPaneState extends State<TerminalPane> {
   bool _isAtBottom = true;
   bool _wasSearchOpen = false;
   bool _searchRefreshScheduled = false;
+  bool _showCommandHistory = false;
 
   TerminalSession get session => widget.tab.session;
 
@@ -1012,6 +1017,16 @@ class _TerminalPaneState extends State<TerminalPane> {
                     ),
                   ),
                 _compactIconButton(
+                  key: _paneKey('terminal-command-history-toggle'),
+                  tooltip: 'Command Blocks (${session.commandBlocks.length})',
+                  icon: _showCommandHistory
+                      ? Icons.view_agenda
+                      : Icons.view_agenda_outlined,
+                  onPressed: () {
+                    setState(() => _showCommandHistory = !_showCommandHistory);
+                  },
+                ),
+                _compactIconButton(
                   key: _paneKey('terminal-zoom-out'),
                   tooltip: 'Verkleinern',
                   icon: Icons.remove,
@@ -1037,6 +1052,7 @@ class _TerminalPaneState extends State<TerminalPane> {
           ),
         ),
         if (isSearchOpen) _buildSearchBar(),
+        if (_showCommandHistory) _buildCommandHistory(),
         Expanded(
           child: Stack(
             children: [
@@ -1094,7 +1110,7 @@ class _TerminalPaneState extends State<TerminalPane> {
     required Key key,
     required String tooltip,
     required IconData icon,
-    required VoidCallback onPressed,
+    required VoidCallback? onPressed,
   }) {
     return IconButton(
       key: key,
@@ -1153,6 +1169,194 @@ class _TerminalPaneState extends State<TerminalPane> {
         ],
       ),
     );
+  }
+
+  Widget _buildCommandHistory() {
+    final blocks = session.commandBlocks.reversed.toList();
+    return Container(
+      key: _paneKey('terminal-command-history'),
+      height: 190,
+      decoration: const BoxDecoration(
+        color: TerminalMasterColors.surface,
+        border: Border(bottom: BorderSide(color: TerminalMasterColors.border)),
+      ),
+      child: Column(
+        children: [
+          SizedBox(
+            height: 34,
+            child: Row(
+              children: [
+                const SizedBox(width: 10),
+                const Expanded(
+                  child: Text(
+                    'Command Blocks',
+                    style: TextStyle(
+                      color: TerminalMasterColors.yellow,
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                Text('${blocks.length}', style: const TextStyle(fontSize: 10)),
+                _compactIconButton(
+                  key: _paneKey('clear-command-history'),
+                  tooltip: session.hasActiveCommand
+                      ? 'Während eines Befehls nicht möglich'
+                      : 'Command Blocks leeren',
+                  icon: Icons.delete_sweep_outlined,
+                  onPressed: session.hasActiveCommand
+                      ? null
+                      : session.clearCommandBlocks,
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: blocks.isEmpty
+                ? const Center(
+                    child: Text(
+                      'Noch keine Befehle über Terminal Master gesendet.',
+                      style: TextStyle(fontSize: 10),
+                    ),
+                  )
+                : ListView.builder(
+                    itemCount: blocks.length,
+                    itemBuilder: (context, index) =>
+                        _buildCommandBlock(blocks[index]),
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCommandBlock(TerminalCommandBlock block) {
+    final output = block.output;
+    final displayedOutput = output.length > 10000
+        ? '…\n${output.substring(output.length - 10000)}'
+        : output;
+    return ExpansionTile(
+      key: Key('terminal-command-block-${block.id}'),
+      dense: true,
+      leading: Icon(
+        _commandStatusIcon(block.status),
+        size: 15,
+        color: _commandStatusColor(block.status),
+      ),
+      title: Text(
+        block.command,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: const TextStyle(fontSize: 10),
+      ),
+      subtitle: Text(
+        '${_commandStatusText(block)} · ${_formatDuration(block.duration)}',
+        style: const TextStyle(fontSize: 9),
+      ),
+      childrenPadding: const EdgeInsets.fromLTRB(12, 0, 8, 8),
+      children: [
+        if (displayedOutput.isNotEmpty)
+          Container(
+            width: double.infinity,
+            constraints: const BoxConstraints(maxHeight: 110),
+            padding: const EdgeInsets.all(8),
+            color: TerminalMasterColors.background,
+            child: SingleChildScrollView(
+              child: SelectableText(
+                displayedOutput,
+                style: const TextStyle(fontSize: 10),
+              ),
+            ),
+          ),
+        if (block.outputTruncated)
+          const Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              'Ausgabe wurde nach 500.000 Zeichen gekürzt.',
+              style: TextStyle(color: TerminalMasterColors.yellow, fontSize: 9),
+            ),
+          ),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: [
+            TextButton.icon(
+              onPressed: () =>
+                  Clipboard.setData(ClipboardData(text: block.command)),
+              icon: const Icon(Icons.copy, size: 13),
+              label: const Text('Befehl'),
+            ),
+            TextButton.icon(
+              onPressed: output.isEmpty
+                  ? null
+                  : () => Clipboard.setData(ClipboardData(text: output)),
+              icon: const Icon(Icons.content_copy, size: 13),
+              label: const Text('Ausgabe'),
+            ),
+            TextButton.icon(
+              onPressed: () => _exportCommandBlock(block),
+              icon: const Icon(Icons.save_alt, size: 13),
+              label: const Text('Export'),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Future<void> _exportCommandBlock(TerminalCommandBlock block) async {
+    final path = await FilePicker.platform.saveFile(
+      dialogTitle: 'Command Block exportieren',
+      fileName: 'terminal-command-${block.id}.md',
+    );
+    if (path == null) return;
+    try {
+      await File(path).writeAsString(block.toMarkdown());
+    } on Object catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Export fehlgeschlagen: $error')));
+    }
+  }
+
+  String _commandStatusText(TerminalCommandBlock block) {
+    return switch (block.status) {
+      TerminalCommandBlockStatus.running => 'Läuft',
+      TerminalCommandBlockStatus.succeeded => 'Erfolgreich (Exit 0)',
+      TerminalCommandBlockStatus.failed =>
+        'Fehlgeschlagen (Exit ${block.exitCode ?? '?'})',
+      TerminalCommandBlockStatus.interrupted => 'Unterbrochen',
+    };
+  }
+
+  IconData _commandStatusIcon(TerminalCommandBlockStatus status) {
+    return switch (status) {
+      TerminalCommandBlockStatus.running => Icons.pending,
+      TerminalCommandBlockStatus.succeeded => Icons.check_circle_outline,
+      TerminalCommandBlockStatus.failed => Icons.error_outline,
+      TerminalCommandBlockStatus.interrupted => Icons.cancel_outlined,
+    };
+  }
+
+  Color _commandStatusColor(TerminalCommandBlockStatus status) {
+    return switch (status) {
+      TerminalCommandBlockStatus.running => TerminalMasterColors.yellow,
+      TerminalCommandBlockStatus.succeeded => TerminalMasterColors.green,
+      TerminalCommandBlockStatus.failed => TerminalMasterColors.red,
+      TerminalCommandBlockStatus.interrupted => TerminalMasterColors.muted,
+    };
+  }
+
+  String _formatDuration(Duration duration) {
+    if (duration.inSeconds >= 60) {
+      final minutes = duration.inMinutes;
+      final seconds = duration.inSeconds.remainder(60);
+      return '${minutes}m ${seconds}s';
+    }
+    if (duration.inMilliseconds >= 1000) {
+      return '${(duration.inMilliseconds / 1000).toStringAsFixed(1)}s';
+    }
+    return '${duration.inMilliseconds}ms';
   }
 
   Future<void> _handleSecondaryTap(

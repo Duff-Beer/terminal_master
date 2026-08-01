@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:terminal_master/models/shell_profile.dart';
+import 'package:terminal_master/models/terminal_command_block.dart';
 import 'package:terminal_master/services/terminal_session.dart';
 import 'package:xterm/xterm.dart';
 
@@ -146,6 +147,110 @@ void main() {
       expect(options.environment!['TERM'], 'xterm-256color');
     },
   );
+
+  test('tracks command output and exit codes across output chunks', () async {
+    final factory = RecordingTerminalBackendFactory();
+    final session = TerminalSession(
+      backendFactory: factory.create,
+      profile: _testProfile,
+    );
+    addTearDown(session.dispose);
+    await session.start();
+
+    session.sendTrackedCommand('printf hello');
+    final successful = session.commandBlocks.single;
+    expect(successful.status, TerminalCommandBlockStatus.running);
+    expect(
+      utf8.decode(factory.backends.single.writes.single),
+      contains('TERMINAL_MASTER_END_MARKER'),
+    );
+    expect(
+      utf8.decode(factory.backends.single.writes.single),
+      isNot(contains(successful.marker)),
+    );
+    expect(
+      () => session.sendTrackedCommand('echo too-early'),
+      throwsStateError,
+    );
+
+    factory.backends.single.emit(
+      utf8.encode(
+        'wrapper TERMINAL_MASTER_END_MARKER\r\n'
+        'hello\r\n${successful.marker}:',
+      ),
+    );
+    factory.backends.single.emit(utf8.encode('0\r\nprompt '));
+    await Future<void>.delayed(Duration.zero);
+
+    expect(successful.status, TerminalCommandBlockStatus.succeeded);
+    expect(successful.exitCode, 0);
+    expect(successful.output, 'hello');
+    expect(session.hasActiveCommand, isFalse);
+    expect(
+      session.terminal.buffer.getText(),
+      isNot(contains(successful.marker)),
+    );
+
+    session.sendTrackedCommand('false');
+    final failed = session.commandBlocks.last;
+    factory.backends.single.emit(utf8.encode('${failed.marker}:7\r\n'));
+    await Future<void>.delayed(Duration.zero);
+    expect(failed.status, TerminalCommandBlockStatus.failed);
+    expect(failed.exitCode, 7);
+  });
+
+  test('captures Windows CMD output before the marker command echo', () async {
+    final factory = RecordingTerminalBackendFactory();
+    const profile = ShellProfile(
+      id: 'windows-cmd',
+      name: 'Windows CMD',
+      executable: 'cmd.exe',
+      dialect: ShellDialect.windowsCmd,
+    );
+    final session = TerminalSession(
+      backendFactory: factory.create,
+      profile: profile,
+    );
+    addTearDown(session.dispose);
+    await session.start();
+
+    session.sendTrackedCommand('echo hello');
+    final block = session.commandBlocks.single;
+    factory.backends.single.emit(
+      utf8.encode(
+        'C:\\>echo hello\r\n'
+        'hello\r\n'
+        'C:\\>echo %TERMINAL_MASTER_END_MARKER%:%errorlevel%\r\n'
+        '${block.marker}:0\r\n',
+      ),
+    );
+    await Future<void>.delayed(Duration.zero);
+
+    expect(block.status, TerminalCommandBlockStatus.succeeded);
+    expect(block.output, 'hello');
+    expect(session.terminal.buffer.getText(), isNot(contains(block.marker)));
+  });
+
+  test('uses Fish status syntax for tracked commands', () async {
+    final factory = RecordingTerminalBackendFactory();
+    const profile = ShellProfile(
+      id: 'fish',
+      name: 'Fish',
+      executable: '/usr/bin/fish',
+      dialect: ShellDialect.posix,
+    );
+    final session = TerminalSession(
+      backendFactory: factory.create,
+      profile: profile,
+    );
+    addTearDown(session.dispose);
+    await session.start();
+
+    session.sendTrackedCommand("printf 'fish'");
+    final payload = utf8.decode(factory.backends.single.writes.single);
+    expect(payload, contains(r'set __terminal_master_exit $status'));
+    expect(payload, isNot(contains(r'__terminal_master_exit=$?')));
+  });
 
   test('does not report a failed process termination as exited', () async {
     final backend = FakeTerminalBackend(

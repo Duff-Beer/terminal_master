@@ -68,6 +68,16 @@ Profile IDs must be unique. Supported command dialects are `posix` and
 Terminal Master variables such as `TERM=xterm-256color` and
 `COLORTERM=truecolor` remain authoritative.
 
+## Command Blocks
+
+Commands sent through a tab's Terminal Master input field are tracked as
+Command Blocks. Each block records its command, start time, duration, exit code,
+success/failure/interruption state, and up to 500,000 characters of plain-text
+output. Tracking markers are removed from the visible terminal output. Blocks
+can copy their command or output and export a Markdown report through the
+history button in the terminal status bar. Commands typed directly into the
+terminal remain untracked and behave like a normal shell session.
+
 <img src="assets/branding/terminal_master.png" alt="Terminal Master icon" width="180">
 
 ## Development

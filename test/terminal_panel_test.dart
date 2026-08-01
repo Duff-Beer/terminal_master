@@ -62,7 +62,21 @@ void main() {
     await tester.pump();
     final writes = factory.backends.single.writes.map(utf8.decode).toList();
     expect(writes, hasLength(1));
-    expect(writes.single, startsWith('echo first\necho second'));
+    expect(writes.single, contains('echo first\necho second'));
+
+    final panelController = TerminalPanelScope.of(
+      tester.element(find.byType(TerminalPanel)),
+    );
+    final block = panelController.session.commandBlocks.single;
+    factory.backends.single.emit(
+      utf8.encode('tracked output\r\n${block.marker}:0\r\n'),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('terminal-command-history-toggle')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('terminal-command-history')), findsOneWidget);
+    expect(find.text('echo first\necho second'), findsOneWidget);
+    expect(find.textContaining('Erfolgreich (Exit 0)'), findsOneWidget);
 
     await tester.tap(find.byKey(const Key('hide-terminal-panel')));
     await tester.pumpAndSettle();
@@ -425,7 +439,7 @@ void main() {
     await controller.sendPending();
     expect(
       factory.backends.first.writes.map(utf8.decode).single,
-      startsWith('echo primary'),
+      contains('echo primary'),
     );
     expect(factory.backends.last.writes, isEmpty);
 
@@ -440,7 +454,7 @@ void main() {
     await controller.sendPending();
     expect(
       factory.backends.last.writes.map(utf8.decode).single,
-      startsWith('echo secondary'),
+      contains('echo secondary'),
     );
 
     controller.closeTab(secondaryId);

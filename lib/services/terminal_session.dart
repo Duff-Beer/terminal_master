@@ -6,11 +6,13 @@ import 'package:flutter/foundation.dart';
 import 'package:xterm/xterm.dart';
 
 import '../models/shell_profile.dart';
+import '../models/terminal_command_block.dart';
 import 'terminal_backend.dart';
 
 enum TerminalSessionStatus { idle, starting, running, exited, failed }
 
 class TerminalSession extends ChangeNotifier {
+  static const _commandMarkerVariable = 'TERMINAL_MASTER_END_MARKER';
   static const _terminalEnvironment = {
     'TERM': 'xterm-256color',
     'COLORTERM': 'truecolor',
@@ -46,6 +48,15 @@ class TerminalSession extends ChangeNotifier {
   CellAnchor? _pendingLinkStart;
   Uri? _pendingLinkUri;
   final List<TerminalHyperlink> _hyperlinks = [];
+  final List<TerminalCommandBlock> _commandBlocks = [];
+  TerminalCommandBlock? _activeCommandBlock;
+  String _trackedOutputBuffer = '';
+  String _trackedEchoBuffer = '';
+  bool _awaitingTrackedEcho = false;
+  bool _trackedCommandEchoSeen = false;
+  var _commandSequence = 0;
+  final String _commandEndMarker =
+      '__TERMINAL_MASTER_END_${DateTime.now().microsecondsSinceEpoch}__';
   bool _disposed = false;
   bool _processExited = false;
   Future<void>? _startOperation;
@@ -65,6 +76,11 @@ class TerminalSession extends ChangeNotifier {
   bool get isRunning =>
       _status == TerminalSessionStatus.starting ||
       (_backend != null && !_processExited);
+
+  List<TerminalCommandBlock> get commandBlocks =>
+      List.unmodifiable(_commandBlocks);
+
+  bool get hasActiveCommand => _activeCommandBlock != null;
 
   Uri? hyperlinkAt(CellOffset position) {
     _hyperlinks.removeWhere((link) {
@@ -129,6 +145,49 @@ class TerminalSession extends ChangeNotifier {
     );
   }
 
+  void sendTrackedCommand(String command) {
+    final backend = _backend;
+    if (backend == null || _status != TerminalSessionStatus.running) {
+      throw StateError('Die Terminal-Sitzung läuft nicht.');
+    }
+    if (_activeCommandBlock != null) {
+      throw StateError(
+        'In diesem Terminal läuft bereits ein getrackter Befehl.',
+      );
+    }
+    if (command.contains('\u0000')) {
+      throw ArgumentError.value(command, 'command', 'NUL ist nicht erlaubt.');
+    }
+
+    final id = '${DateTime.now().microsecondsSinceEpoch}-${_commandSequence++}';
+    final marker = _commandEndMarker;
+    final block = TerminalCommandBlock(
+      id: id,
+      command: command,
+      startedAt: DateTime.now(),
+      marker: marker,
+    );
+    _commandBlocks.add(block);
+    _activeCommandBlock = block;
+    _trackedOutputBuffer = '';
+    _trackedEchoBuffer = '';
+    _awaitingTrackedEcho = true;
+    _trackedCommandEchoSeen = false;
+    final payload = switch (profile.dialect) {
+      ShellDialect.posix =>
+        _isFish ? _fishTrackedPayload(command) : _posixTrackedPayload(command),
+      ShellDialect.windowsCmd => _windowsTrackedPayload(command),
+    };
+    backend.write(const Utf8Encoder().convert(payload));
+    _notify();
+  }
+
+  void clearCommandBlocks() {
+    if (_activeCommandBlock != null) return;
+    _commandBlocks.clear();
+    _notify();
+  }
+
   void sendInput(String data) => _writeInput(data);
 
   Future<void> stop() async {
@@ -175,8 +234,151 @@ class TerminalSession extends ChangeNotifier {
   }
 
   void _writeOutput(String data) {
-    terminal.write(data);
+    final block = _activeCommandBlock;
+    if (block == null) {
+      terminal.write(data);
+      _notify();
+      return;
+    }
+
+    var trackedData = data;
+    final pattern = RegExp('${RegExp.escape(block.marker)}:(-?\\d+)');
+    if (_awaitingTrackedEcho) {
+      _trackedEchoBuffer += trackedData;
+      if (pattern.hasMatch(_trackedEchoBuffer) &&
+          !_trackedEchoBuffer.contains(_commandMarkerVariable)) {
+        trackedData = _trackedEchoBuffer;
+        _trackedEchoBuffer = '';
+        _awaitingTrackedEcho = false;
+      } else {
+        while (_awaitingTrackedEcho) {
+          final lineEnd = _trackedEchoBuffer.indexOf('\n');
+          if (lineEnd < 0) return;
+          final line = _trackedEchoBuffer.substring(0, lineEnd + 1);
+          _trackedEchoBuffer = _trackedEchoBuffer.substring(lineEnd + 1);
+          if (line.contains(_commandMarkerVariable)) {
+            trackedData = _trackedEchoBuffer;
+            _trackedEchoBuffer = '';
+            _awaitingTrackedEcho = false;
+            if (!_trackedCommandEchoSeen) {
+              final visibleCommand = block.command.replaceAll('\n', '\n> ');
+              terminal.write('> $visibleCommand\r\n');
+            }
+          } else {
+            terminal.write(line);
+            final firstCommandLine = block.command
+                .split(RegExp(r'[\r\n]'))
+                .first;
+            if (!_trackedCommandEchoSeen &&
+                firstCommandLine.isNotEmpty &&
+                line.contains(firstCommandLine)) {
+              _trackedCommandEchoSeen = true;
+            } else if (_trackedCommandEchoSeen) {
+              block.appendOutput(line);
+            }
+          }
+          _notify();
+        }
+        if (trackedData.isEmpty) return;
+      }
+    }
+
+    _trackedOutputBuffer += trackedData;
+    final match = pattern.firstMatch(_trackedOutputBuffer);
+    if (match != null) {
+      _emitTrackedOutput(_trackedOutputBuffer.substring(0, match.start));
+      var remaining = _trackedOutputBuffer.substring(match.end);
+      remaining = remaining.replaceFirst(RegExp(r'^\r?\n'), '');
+      _trackedOutputBuffer = '';
+      block.finish(int.parse(match.group(1)!));
+      _activeCommandBlock = null;
+      if (remaining.isNotEmpty) terminal.write(remaining);
+      _notify();
+      return;
+    }
+
+    final heldSuffixLength = _trackedMarkerSuffixLength(
+      _trackedOutputBuffer,
+      block.marker,
+    );
+    final flushLength = _trackedOutputBuffer.length - heldSuffixLength;
+    if (flushLength > 0) {
+      _emitTrackedOutput(_trackedOutputBuffer.substring(0, flushLength));
+      _trackedOutputBuffer = _trackedOutputBuffer.substring(flushLength);
+    }
+  }
+
+  void _emitTrackedOutput(String value) {
+    if (value.isEmpty) return;
+    final block = _activeCommandBlock;
+    if (block == null) return;
+    terminal.write(_trackedVisibleOutput(value, block));
+    block.appendOutput(value);
     _notify();
+  }
+
+  String _trackedVisibleOutput(String value, TerminalCommandBlock block) {
+    final echoedWrapper = RegExp(
+      '^.*(?:${RegExp.escape(block.marker)}|$_commandMarkerVariable).*(?:\\r?\\n|\$)',
+      multiLine: true,
+    );
+    return value.replaceAllMapped(echoedWrapper, (match) {
+      final matched = match.group(0)!;
+      final ending = matched.endsWith('\r\n')
+          ? '\r\n'
+          : matched.endsWith('\n')
+          ? '\n'
+          : '';
+      final command = block.command.replaceAll('\n', '$ending> ');
+      return '> $command$ending';
+    });
+  }
+
+  int _trackedMarkerSuffixLength(String value, String marker) {
+    final markerIndex = value.lastIndexOf(marker);
+    if (markerIndex >= 0) {
+      final suffix = value.substring(markerIndex + marker.length);
+      if (!suffix.contains('\n') ||
+          suffix.isEmpty ||
+          suffix == ':' ||
+          RegExp(r'^:-?\d*$').hasMatch(suffix)) {
+        return value.length - markerIndex;
+      }
+    }
+    final maximum = value.length < marker.length ? value.length : marker.length;
+    for (var length = maximum; length > 0; length--) {
+      if (marker.startsWith(value.substring(value.length - length))) {
+        return length;
+      }
+    }
+    return 0;
+  }
+
+  String _posixTrackedPayload(String command) {
+    final quoted = command.replaceAll("'", "'\"'\"'");
+    return "eval '$quoted'; __terminal_master_exit=\$?; "
+        "printf '\\r\\n%s:%s\\r\\n' "
+        '"\$$_commandMarkerVariable" "\$__terminal_master_exit"\n';
+  }
+
+  String _windowsTrackedPayload(String command) {
+    return '$command\r\n'
+        'echo %$_commandMarkerVariable%:%errorlevel%\r\n';
+  }
+
+  String _fishTrackedPayload(String command) {
+    final quoted = command.replaceAll('\\', '\\\\').replaceAll("'", "\\'");
+    return "eval '$quoted'; set __terminal_master_exit \$status; "
+        "printf '\\r\\n%s:%s\\r\\n' "
+        '"\$$_commandMarkerVariable" "\$__terminal_master_exit"\n';
+  }
+
+  bool get _isFish {
+    final executable = profile.executable.replaceAll('\\', '/');
+    return executable
+            .substring(executable.lastIndexOf('/') + 1)
+            .toLowerCase() ==
+        'fish';
   }
 
   void _resize(int width, int height, int pixelWidth, int pixelHeight) {
@@ -243,14 +445,35 @@ class TerminalSession extends ChangeNotifier {
     if (_processExited) return;
     _processExited = true;
     _exitCode = code;
+    _interruptTrackedCommand(code);
     terminal.write('\r\n\x1b[90m[Prozess beendet: $code]\x1b[0m\r\n');
     _setStatus(TerminalSessionStatus.exited);
   }
 
   void _fail(Object error) {
     _error = error.toString();
+    _interruptTrackedCommand();
     terminal.write('\r\n\x1b[31m[Terminalfehler: $_error]\x1b[0m\r\n');
     _setStatus(TerminalSessionStatus.failed);
+  }
+
+  void _interruptTrackedCommand([int? code]) {
+    final block = _activeCommandBlock;
+    if (block == null) return;
+    if (_trackedOutputBuffer.isNotEmpty) {
+      terminal.write(_trackedOutputBuffer);
+      block.appendOutput(_trackedOutputBuffer);
+      _trackedOutputBuffer = '';
+    }
+    if (_trackedEchoBuffer.isNotEmpty) {
+      terminal.write(_trackedEchoBuffer);
+      block.appendOutput(_trackedEchoBuffer);
+      _trackedEchoBuffer = '';
+    }
+    _awaitingTrackedEcho = false;
+    _trackedCommandEchoSeen = false;
+    block.interrupt(code);
+    _activeCommandBlock = null;
   }
 
   void _setStatus(TerminalSessionStatus status) {
@@ -267,6 +490,7 @@ class TerminalSession extends ChangeNotifier {
       return {
         ...Platform.environment,
         ...profile.environment,
+        _commandMarkerVariable: _commandEndMarker,
         ..._terminalEnvironment,
       };
     }
@@ -284,6 +508,7 @@ class TerminalSession extends ChangeNotifier {
         if (_isAscii(entry.key) && _isAscii(entry.value))
           entry.key: entry.value,
       ...profile.environment,
+      _commandMarkerVariable: _commandEndMarker,
       ..._terminalEnvironment,
     };
     final path = Platform.environment['PATH'];
