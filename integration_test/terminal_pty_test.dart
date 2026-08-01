@@ -110,6 +110,14 @@ void main() {
 
     await _waitForTrackedCommand(completed, session);
     final block = session.commandBlocks.single;
+    if (Platform.isWindows) {
+      tester.printToConsole(
+        'CMD tracking: exitCode=${block.exitCode}, '
+        'output=${jsonEncode(block.output)}, '
+        'terminal=${jsonEncode(session.terminal.buffer.getText())}, '
+        'markerVisible=${session.terminal.buffer.getText().contains(block.marker)}',
+      );
+    }
     expect(block.exitCode, 0);
     expect(block.output, contains(outputMarker));
     expect(session.terminal.buffer.getText(), isNot(contains(block.marker)));

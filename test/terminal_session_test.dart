@@ -264,6 +264,38 @@ void main() {
     expect(session.terminal.buffer.getText(), isNot(contains(block.marker)));
   });
 
+  test('removes marker lines remaining after CMD completion', () async {
+    final factory = RecordingTerminalBackendFactory();
+    const profile = ShellProfile(
+      id: 'windows-cmd',
+      name: 'Windows CMD',
+      executable: 'cmd.exe',
+      dialect: ShellDialect.windowsCmd,
+    );
+    final session = TerminalSession(
+      backendFactory: factory.create,
+      profile: profile,
+    );
+    addTearDown(session.dispose);
+    await session.start();
+
+    session.sendTrackedCommand('echo hello');
+    final block = session.commandBlocks.single;
+    factory.backends.single.emit(
+      utf8.encode(
+        'C:\\>echo hello\r\n'
+        'hello\r\n'
+        'C:\\>ECHO ${block.marker}:0\r\n'
+        '${block.marker}:0\r\n',
+      ),
+    );
+    await Future<void>.delayed(Duration.zero);
+
+    expect(block.status, TerminalCommandBlockStatus.succeeded);
+    expect(block.output, contains('hello'));
+    expect(session.terminal.buffer.getText(), isNot(contains(block.marker)));
+  });
+
   test('tracks PowerShell commands through an encoded script block', () async {
     final factory = RecordingTerminalBackendFactory();
     const profile = ShellProfile(

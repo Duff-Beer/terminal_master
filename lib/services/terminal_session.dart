@@ -291,7 +291,9 @@ class TerminalSession extends ChangeNotifier {
       _trackedOutputBuffer = '';
       block.finish(int.parse(match.group(1)!));
       _activeCommandBlock = null;
-      if (remaining.isNotEmpty) terminal.write(remaining);
+      if (remaining.isNotEmpty) {
+        terminal.write(_trackedVisibleOutput(remaining, block));
+      }
       _notify();
       return;
     }
