@@ -7,22 +7,16 @@ import '../models/command_config.dart';
 import '../services/command_builder.dart';
 import '../services/command_executor.dart';
 import '../services/command_risk_assessor.dart';
-import '../services/terminal_backend.dart';
 import '../utils/config_loader.dart';
 import '../widgets/command_confirmation_dialog.dart';
 import '../widgets/output_dialog.dart';
 import '../widgets/parameter_input.dart';
-import 'integrated_terminal_page.dart';
+import '../widgets/terminal_panel.dart';
 
 class CommandGeneratorPage extends StatefulWidget {
   final String configPath;
-  final TerminalBackendFactory terminalBackendFactory;
 
-  const CommandGeneratorPage({
-    super.key,
-    required this.configPath,
-    this.terminalBackendFactory = unavailableTerminalBackendFactory,
-  });
+  const CommandGeneratorPage({super.key, required this.configPath});
 
   @override
   State<CommandGeneratorPage> createState() => _CommandGeneratorPageState();
@@ -75,25 +69,17 @@ class _CommandGeneratorPageState extends State<CommandGeneratorPage> {
     if (_isExecuting) return;
     setState(() => _isExecuting = true);
     try {
+      if (_useIntegratedTerminal) {
+        await TerminalPanelScope.of(context).insertCommand(command);
+        return;
+      }
       final approved = await showCommandConfirmationDialog(
         context,
         commands: [command],
         assessment: assessment,
       );
       if (!mounted || !approved) return;
-      if (_useIntegratedTerminal) {
-        await Navigator.push<void>(
-          context,
-          MaterialPageRoute(
-            builder: (_) => IntegratedTerminalPage(
-              initialCommands: [command],
-              backendFactory: widget.terminalBackendFactory,
-            ),
-          ),
-        );
-      } else {
-        await CommandExecutor.executeInTerminal(command, alwaysOpenNew);
-      }
+      await CommandExecutor.executeInTerminal(command, alwaysOpenNew);
     } on Object catch (error) {
       if (!mounted) return;
       showOutputDialog(context, 'Fehler beim Ausführen: $error');
@@ -135,7 +121,10 @@ class _CommandGeneratorPageState extends State<CommandGeneratorPage> {
 
     final config = _config!;
     return Scaffold(
-      appBar: AppBar(title: Text(config.displayName)),
+      appBar: AppBar(
+        title: Text(config.displayName),
+        actions: const [TerminalPanelToggleButton()],
+      ),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
@@ -198,7 +187,11 @@ class _CommandGeneratorPageState extends State<CommandGeneratorPage> {
                     }
                   },
             child: Text(
-              _isExecuting ? 'Wird gestartet...' : 'Kommando ausführen',
+              _isExecuting
+                  ? 'Wird vorbereitet...'
+                  : _useIntegratedTerminal
+                  ? 'Ins Terminal einfügen'
+                  : 'Kommando ausführen',
             ),
           ),
           SwitchListTile(

@@ -2,8 +2,9 @@ import 'package:flutter/material.dart';
 import 'services/terminal_backend.dart';
 import 'theme.dart';
 import 'pages/main_page.dart';
+import 'widgets/terminal_panel.dart';
 
-class MyApp extends StatelessWidget {
+class MyApp extends StatefulWidget {
   final String configDirectoryPath;
   final String displayPath;
   final TerminalBackendFactory terminalBackendFactory;
@@ -16,14 +17,30 @@ class MyApp extends StatelessWidget {
   });
 
   @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> {
+  final _navigatorKey = GlobalKey<NavigatorState>();
+
+  @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      navigatorKey: _navigatorKey,
       title: 'Terminal Master',
       theme: buildDarkTheme(),
-      home: MainPage(
-        configDirectoryPath: configDirectoryPath,
-        displayPath: displayPath,
-        terminalBackendFactory: terminalBackendFactory,
+      home: TerminalWorkspace(
+        backendFactory: widget.terminalBackendFactory,
+        navigatorKey: _navigatorKey,
+        child: Navigator(
+          onGenerateRoute: (settings) => MaterialPageRoute<void>(
+            settings: settings,
+            builder: (context) => MainPage(
+              configDirectoryPath: widget.configDirectoryPath,
+              displayPath: widget.displayPath,
+            ),
+          ),
+        ),
       ),
     );
   }

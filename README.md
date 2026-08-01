@@ -5,9 +5,14 @@ commands from reusable YAML definitions. It keeps command options discoverable,
 checks conditional input requirements, and asks for explicit confirmation before
 returning commands marked as risky.
 
-Commands can run in an embedded `xterm` terminal backed by a native pseudo
-terminal (`flutter_pty`). The configured external terminal remains available as
-a fallback.
+Commands can run in a persistent, resizable `xterm` side panel backed by a
+native pseudo terminal (`flutter_pty`). The panel stays active while navigating
+between YAML definitions, and the configured external terminal remains
+available as a fallback.
+
+Confirmed commands are collected in the panel's editable command field. This
+allows commands from multiple YAML definitions to be reviewed or combined
+before explicitly sending them to the shared shell session.
 
 <img src="assets/branding/terminal_master.png" alt="Terminal Master icon" width="180">
 

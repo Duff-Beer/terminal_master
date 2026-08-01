@@ -2,25 +2,22 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import '../utils/settings_loader.dart';
 import '../models/config_item.dart';
-import '../services/terminal_backend.dart';
 import '../utils/config_loader.dart';
 import '../widgets/config_tile.dart';
 import '../widgets/output_dialog.dart';
+import '../widgets/terminal_panel.dart';
 import 'command_generator_page.dart';
 import 'batch_command_page.dart';
-import 'integrated_terminal_page.dart';
 import 'package:flutter/services.dart';
 
 class MainPage extends StatefulWidget {
   final String configDirectoryPath;
   final String displayPath;
-  final TerminalBackendFactory terminalBackendFactory;
 
   const MainPage({
     super.key,
     required this.configDirectoryPath,
     required this.displayPath,
-    this.terminalBackendFactory = unavailableTerminalBackendFactory,
   });
 
   @override
@@ -74,14 +71,8 @@ class _MainPageState extends State<MainPage> {
       context,
       MaterialPageRoute(
         builder: (_) => item.isBatch
-            ? BatchCommandPage(
-                filePath: item.filePath,
-                terminalBackendFactory: widget.terminalBackendFactory,
-              )
-            : CommandGeneratorPage(
-                configPath: item.filePath,
-                terminalBackendFactory: widget.terminalBackendFactory,
-              ),
+            ? BatchCommandPage(filePath: item.filePath)
+            : CommandGeneratorPage(configPath: item.filePath),
       ),
     );
   }
@@ -113,18 +104,7 @@ class _MainPageState extends State<MainPage> {
               ),
             ),
           ),
-          IconButton(
-            icon: const Icon(Icons.terminal),
-            tooltip: 'Integriertes Terminal öffnen',
-            onPressed: () => Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => IntegratedTerminalPage(
-                  backendFactory: widget.terminalBackendFactory,
-                ),
-              ),
-            ),
-          ),
+          const TerminalPanelToggleButton(),
           IconButton(
             icon: const Icon(Icons.folder),
             tooltip: 'Im Finder anzeigen',

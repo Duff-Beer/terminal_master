@@ -1,25 +1,17 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import '../models/batch_command.dart';
 import '../services/command_executor.dart';
 import '../services/command_risk_assessor.dart';
-import '../services/terminal_backend.dart';
 import '../utils/config_loader.dart';
 import '../widgets/command_confirmation_dialog.dart';
 import '../widgets/output_dialog.dart';
-import 'integrated_terminal_page.dart';
+import '../widgets/terminal_panel.dart';
 import 'package:flutter/services.dart';
 
 class BatchCommandPage extends StatefulWidget {
   final String filePath;
-  final TerminalBackendFactory terminalBackendFactory;
 
-  const BatchCommandPage({
-    super.key,
-    required this.filePath,
-    this.terminalBackendFactory = unavailableTerminalBackendFactory,
-  });
+  const BatchCommandPage({super.key, required this.filePath});
 
   @override
   State<BatchCommandPage> createState() => _BatchCommandPageState();
@@ -58,6 +50,11 @@ class _BatchCommandPageState extends State<BatchCommandPage> {
 
     setState(() => _isExecuting = true);
     try {
+      final integratedCommand = commands.join('\n\n');
+      if (_useIntegratedTerminal) {
+        await TerminalPanelScope.of(context).insertCommand(integratedCommand);
+        return;
+      }
       final approved = await showCommandConfirmationDialog(
         context,
         commands: commands,
@@ -65,20 +62,7 @@ class _BatchCommandPageState extends State<BatchCommandPage> {
       );
       if (!mounted || !approved) return;
 
-      if (_useIntegratedTerminal) {
-        final terminalCommands = _runInSameTerminal
-            ? [commands.join(' && ')]
-            : commands;
-        await Navigator.push<void>(
-          context,
-          MaterialPageRoute(
-            builder: (_) => IntegratedTerminalPage(
-              initialCommands: terminalCommands,
-              backendFactory: widget.terminalBackendFactory,
-            ),
-          ),
-        );
-      } else if (_runInSameTerminal) {
+      if (_runInSameTerminal) {
         await CommandExecutor.executeInTerminal(commands.join(' && '), false);
       } else {
         for (final index in indexes) {
@@ -111,7 +95,10 @@ class _BatchCommandPageState extends State<BatchCommandPage> {
     }
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Batch Commands')),
+      appBar: AppBar(
+        title: const Text('Batch Commands'),
+        actions: const [TerminalPanelToggleButton()],
+      ),
       body: _commands.isEmpty
           ? const Center(child: Text('Keine Befehle gefunden.'))
           : ListView.builder(
@@ -119,15 +106,21 @@ class _BatchCommandPageState extends State<BatchCommandPage> {
               itemCount: _commands.length + 2,
               itemBuilder: (context, index) {
                 if (index == _commands.length) {
+                  if (_useIntegratedTerminal) {
+                    return const ListTile(
+                      leading: Icon(Icons.terminal),
+                      title: Text('Gemeinsame Shell-Sitzung'),
+                      subtitle: Text(
+                        'Befehle werden durch Leerzeilen getrennt in das '
+                        'editierbare Terminalfeld übernommen.',
+                      ),
+                    );
+                  }
                   return SwitchListTile(
                     title: const Text('Im selben Terminal ausführen'),
                     subtitle: Text(
                       _runInSameTerminal
                           ? 'Mit && verknüpfen und beim ersten Fehler stoppen'
-                          : _useIntegratedTerminal
-                          ? Platform.isWindows
-                                ? 'In getrennten Tabs; Start beim ersten Öffnen'
-                                : 'Parallel in getrennten Terminal-Tabs starten'
                           : 'In getrennten externen Terminalfenstern starten',
                     ),
                     value: _runInSameTerminal,
@@ -188,7 +181,13 @@ class _BatchCommandPageState extends State<BatchCommandPage> {
             ),
       floatingActionButton: FloatingActionButton.extended(
         icon: const Icon(Icons.play_arrow),
-        label: Text(_isExecuting ? 'Wird gestartet...' : 'Ausführen'),
+        label: Text(
+          _isExecuting
+              ? 'Wird vorbereitet...'
+              : _useIntegratedTerminal
+              ? 'Ins Terminal einfügen'
+              : 'Ausführen',
+        ),
         onPressed: _selectedIndexes.isEmpty || _isExecuting
             ? null
             : _executeSelected,
