@@ -68,19 +68,16 @@ void main() {
   });
 
   testWidgets('tracks a command through a native shell PTY', (tester) async {
+    if (Platform.isWindows) return;
+
     final outputMarker =
         'TRACKED_OUTPUT_${DateTime.now().microsecondsSinceEpoch}';
     final profile = ShellProfile(
       id: 'integration-shell',
       name: 'Integration Shell',
-      executable: Platform.isWindows
-          ? 'cmd.exe'
-          : Platform.environment['SHELL'] ?? '/bin/sh',
-      workingDirectory:
-          Platform.environment[Platform.isWindows ? 'USERPROFILE' : 'HOME'],
-      dialect: Platform.isWindows
-          ? ShellDialect.windowsCmd
-          : ShellDialect.posix,
+      executable: Platform.environment['SHELL'] ?? '/bin/sh',
+      workingDirectory: Platform.environment['HOME'],
+      dialect: ShellDialect.posix,
     );
     final session = TerminalSession(
       backendFactory: FlutterPtyBackend.start,
@@ -102,27 +99,44 @@ void main() {
 
     await session.start();
     expect(session.status, TerminalSessionStatus.running);
-    session.sendTrackedCommand(
-      Platform.isWindows
-          ? 'echo $outputMarker'
-          : "printf '%s\\n' '$outputMarker'",
-    );
+    session.sendTrackedCommand("printf '%s\\n' '$outputMarker'");
 
     await _waitForTrackedCommand(completed, session);
     final block = session.commandBlocks.single;
-    if (Platform.isWindows) {
-      tester.printToConsole(
-        'CMD tracking: exitCode=${block.exitCode}, '
-        'output=${jsonEncode(block.output)}, '
-        'terminal=${jsonEncode(session.terminal.buffer.getText())}, '
-        'markerVisible=${session.terminal.buffer.getText().contains(block.marker)}',
-      );
-    }
     expect(block.exitCode, 0);
     expect(block.output, contains(outputMarker));
     expect(session.terminal.buffer.getText(), isNot(contains(block.marker)));
 
     await session.stop();
+  });
+
+  testWidgets('Windows CMD tracking completes', (tester) async {
+    await _withWindowsCmdTracking((session, outputMarker) async {});
+  });
+
+  testWidgets('Windows CMD tracking reports exit code', (tester) async {
+    await _withWindowsCmdTracking((session, outputMarker) async {
+      expect(session.commandBlocks.single.exitCode, 0);
+    });
+  });
+
+  testWidgets('Windows CMD tracking captures output', (tester) async {
+    await _withWindowsCmdTracking((session, outputMarker) async {
+      expect(session.commandBlocks.single.output, contains(outputMarker));
+    });
+  });
+
+  testWidgets('Windows CMD tracking hides its marker', (tester) async {
+    await _withWindowsCmdTracking((session, outputMarker) async {
+      final block = session.commandBlocks.single;
+      expect(session.terminal.buffer.getText(), isNot(contains(block.marker)));
+    });
+  });
+
+  testWidgets('Windows CMD tracking stops its shell', (tester) async {
+    await _withWindowsCmdTracking((session, outputMarker) async {
+      await session.stop();
+    });
   });
 
   testWidgets('tracks a command through Windows PowerShell', (tester) async {
@@ -185,4 +199,42 @@ Future<void> _waitForTrackedCommand(
       'terminal=${jsonEncode(session.terminal.buffer.getText())}',
     );
   }
+}
+
+Future<void> _withWindowsCmdTracking(
+  Future<void> Function(TerminalSession session, String outputMarker) verify,
+) async {
+  if (!Platform.isWindows) return;
+
+  final outputMarker =
+      'CMD_TRACKED_OUTPUT_${DateTime.now().microsecondsSinceEpoch}';
+  final session = TerminalSession(
+    backendFactory: FlutterPtyBackend.start,
+    profile: ShellProfile(
+      id: 'windows-cmd',
+      name: 'Windows CMD',
+      executable: 'cmd.exe',
+      workingDirectory: Platform.environment['USERPROFILE'],
+      dialect: ShellDialect.windowsCmd,
+    ),
+  );
+  final completed = Completer<void>();
+  void onSessionChanged() {
+    if (session.commandBlocks.lastOrNull?.finishedAt != null &&
+        !completed.isCompleted) {
+      completed.complete();
+    }
+  }
+
+  session.addListener(onSessionChanged);
+  addTearDown(() {
+    session.removeListener(onSessionChanged);
+    session.dispose();
+  });
+
+  await session.start();
+  expect(session.status, TerminalSessionStatus.running);
+  session.sendTrackedCommand('echo $outputMarker');
+  await _waitForTrackedCommand(completed, session);
+  await verify(session, outputMarker);
 }
