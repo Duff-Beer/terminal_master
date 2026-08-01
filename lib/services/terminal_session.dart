@@ -353,7 +353,13 @@ class TerminalSession extends ChangeNotifier {
   }
 
   String _trackedBlockOutput(String value) {
+    // ConPTY separates a command's real output from the following prompt and
+    // echoed input with cursor-position sequences (ESC[<row>;<col>H) rather
+    // than newlines, so the real output and the next marker-variable echo line
+    // collapse onto a single '\n'-delimited line. Treat those sequences as line
+    // breaks so the echo lines can be filtered without discarding real output.
     return value
+        .replaceAll(RegExp(r'\x1b\[\d*(?:;\d*)?[Hf]'), '\n')
         .split(RegExp(r'\r?\n'))
         .where((line) => !line.contains(_commandMarkerVariable))
         .join('\n');
