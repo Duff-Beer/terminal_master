@@ -273,6 +273,90 @@ void main() {
       findsNothing,
     );
   });
+
+  testWidgets('shows session details and provides a terminal context menu', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1200, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final factory = RecordingTerminalBackendFactory();
+    final navigatorKey = GlobalKey<NavigatorState>();
+
+    await tester.pumpWidget(
+      MaterialApp(
+        navigatorKey: navigatorKey,
+        home: TerminalWorkspace(
+          backendFactory: factory.create,
+          navigatorKey: navigatorKey,
+          child: const _FirstPage(),
+        ),
+      ),
+    );
+    await tester.tap(find.text('Send first'));
+    await tester.pumpAndSettle();
+
+    factory.backends.single.emit(
+      utf8.encode(
+        '\x1b]7;file://localhost/tmp/project\x07'
+        'https://example.com/docs',
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final shell = factory.options.single.executable.split('/').last;
+    expect(find.text('$shell · /tmp/project'), findsOneWidget);
+
+    final terminalState = tester.state<TerminalViewState>(
+      find.byType(TerminalView),
+    );
+    final renderTerminal = terminalState.renderTerminal;
+    final linkPosition = renderTerminal.localToGlobal(
+      renderTerminal.getOffset(const CellOffset(8, 0)) +
+          renderTerminal.cellSize.center(Offset.zero),
+    );
+    await tester.tapAt(
+      linkPosition,
+      kind: PointerDeviceKind.mouse,
+      buttons: kSecondaryMouseButton,
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Link öffnen'), findsOneWidget);
+    expect(find.text('Kopieren'), findsOneWidget);
+    expect(find.text('Einfügen'), findsOneWidget);
+    expect(find.text('Alles auswählen'), findsOneWidget);
+    expect(find.text('Auswahl suchen'), findsOneWidget);
+    expect(find.text('Ausgabe leeren'), findsOneWidget);
+
+    await tester.tap(find.text('Alles auswählen'));
+    await tester.pumpAndSettle();
+    expect(
+      tester
+          .widget<TerminalView>(find.byType(TerminalView))
+          .controller!
+          .selection,
+      isNotNull,
+    );
+
+    await tester.tapAt(
+      linkPosition,
+      kind: PointerDeviceKind.mouse,
+      buttons: kSecondaryMouseButton,
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Ausgabe leeren'));
+    await tester.pumpAndSettle();
+    expect(
+      tester
+          .widget<TerminalView>(find.byType(TerminalView))
+          .terminal
+          .buffer
+          .getText(),
+      isNot(contains('example.com')),
+    );
+  });
 }
 
 class _FirstPage extends StatelessWidget {

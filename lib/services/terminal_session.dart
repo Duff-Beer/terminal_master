@@ -30,6 +30,7 @@ class TerminalSession extends ChangeNotifier {
     this.terminal.onOutput = _writeInput;
     this.terminal.onResize = _resize;
     this.terminal.onTitleChange = _updateTitle;
+    this.terminal.onPrivateOSC = _handlePrivateOsc;
   }
 
   TerminalBackend? _backend;
@@ -37,7 +38,11 @@ class TerminalSession extends ChangeNotifier {
   TerminalSessionStatus _status = TerminalSessionStatus.idle;
   String? _error;
   String? _title;
+  String? _workingDirectory;
   int? _exitCode;
+  CellAnchor? _pendingLinkStart;
+  Uri? _pendingLinkUri;
+  final List<TerminalHyperlink> _hyperlinks = [];
   bool _disposed = false;
   bool _processExited = false;
 
@@ -47,15 +52,35 @@ class TerminalSession extends ChangeNotifier {
 
   String? get title => _title;
 
+  String get shellName {
+    final normalized = _shell.replaceAll('\\', '/');
+    return normalized.substring(normalized.lastIndexOf('/') + 1);
+  }
+
+  String? get workingDirectory => _workingDirectory;
+
   int? get exitCode => _exitCode;
 
   bool get isRunning =>
       _status == TerminalSessionStatus.starting ||
       (_backend != null && !_processExited);
 
+  Uri? hyperlinkAt(CellOffset position) {
+    _hyperlinks.removeWhere((link) {
+      if (link.isAttached) return false;
+      link.dispose();
+      return true;
+    });
+    for (final link in _hyperlinks.reversed) {
+      if (link.contains(position)) return link.uri;
+    }
+    return null;
+  }
+
   Future<void> start() async {
     if (_status != TerminalSessionStatus.idle) return;
     _setStatus(TerminalSessionStatus.starting);
+    _workingDirectory ??= _homeDirectory;
 
     try {
       final backend = backendFactory(
@@ -155,6 +180,56 @@ class TerminalSession extends ChangeNotifier {
     _notify();
   }
 
+  void _handlePrivateOsc(String code, List<String> arguments) {
+    if (code == '7' && arguments.isNotEmpty) {
+      _updateWorkingDirectory(arguments.join(';'));
+      return;
+    }
+    if (code != '8' || arguments.isEmpty) return;
+
+    final value = arguments.length > 1
+        ? arguments.skip(1).join(';')
+        : arguments.single;
+    if (value.isEmpty) {
+      _finishHyperlink();
+      return;
+    }
+    final uri = Uri.tryParse(value);
+    if (uri == null || !uri.hasScheme) return;
+    _finishHyperlink();
+    _pendingLinkUri = uri;
+    _pendingLinkStart = terminal.buffer.createAnchorFromCursor();
+  }
+
+  void _finishHyperlink() {
+    final uri = _pendingLinkUri;
+    final begin = _pendingLinkStart;
+    _pendingLinkUri = null;
+    _pendingLinkStart = null;
+    if (uri == null || begin == null || !begin.attached) {
+      begin?.dispose();
+      return;
+    }
+    final end = terminal.buffer.createAnchorFromCursor();
+    if (begin.offset == end.offset) {
+      begin.dispose();
+      end.dispose();
+      return;
+    }
+    _hyperlinks.add(TerminalHyperlink(uri: uri, begin: begin, end: end));
+  }
+
+  void _updateWorkingDirectory(String value) {
+    final uri = Uri.tryParse(value);
+    if (uri == null || uri.scheme != 'file' || uri.path.isEmpty) return;
+    var path = Uri.decodeComponent(uri.path);
+    if (Platform.isWindows && RegExp(r'^/[A-Za-z]:/').hasMatch(path)) {
+      path = path.substring(1).replaceAll('/', '\\');
+    }
+    _workingDirectory = path;
+    _notify();
+  }
+
   void _handleExit(int code) {
     if (_processExited) return;
     _processExited = true;
@@ -233,8 +308,39 @@ class TerminalSession extends ChangeNotifier {
     terminal.onOutput = null;
     terminal.onResize = null;
     terminal.onTitleChange = null;
+    terminal.onPrivateOSC = null;
+    _pendingLinkStart?.dispose();
+    for (final link in _hyperlinks) {
+      link.dispose();
+    }
+    _hyperlinks.clear();
     _outputSubscription?.cancel();
     if (isRunning) _backend?.kill();
     super.dispose();
+  }
+}
+
+class TerminalHyperlink {
+  final Uri uri;
+  final CellAnchor begin;
+  final CellAnchor end;
+
+  TerminalHyperlink({
+    required this.uri,
+    required this.begin,
+    required this.end,
+  });
+
+  bool get isAttached => begin.attached && end.attached;
+
+  bool contains(CellOffset position) {
+    if (!isAttached) return false;
+    final range = BufferRangeLine(begin.offset, end.offset).normalized;
+    return range.begin.isBeforeOrSame(position) && range.end.isAfter(position);
+  }
+
+  void dispose() {
+    begin.dispose();
+    end.dispose();
   }
 }

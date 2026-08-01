@@ -26,6 +26,11 @@ void main() {
     expect(environment['COLORTERM'], 'truecolor');
     expect(environment['TERM_PROGRAM'], 'Terminal Master');
     expect(
+      session.shellName,
+      factory.options.single.executable.split('/').last,
+    );
+    expect(session.workingDirectory, factory.options.single.workingDirectory);
+    expect(
       utf8.decode(factory.backends.single.writes.single),
       startsWith('echo ready'),
     );
@@ -77,6 +82,21 @@ void main() {
       await Future<void>.delayed(Duration.zero);
       expect(session.terminal.isUsingAltBuffer, isFalse);
       expect(session.terminal.buffer.getText(), contains('A界🙂'));
+
+      factory.backends.single.emit(
+        utf8.encode(
+          '\r\n\x1b]7;file://localhost/tmp/project\x07'
+          '\x1b]8;;https://example.com/docs\x07Docs'
+          '\x1b]8;;\x07',
+        ),
+      );
+      await Future<void>.delayed(Duration.zero);
+      expect(session.workingDirectory, '/tmp/project');
+      expect(
+        session.hyperlinkAt(const CellOffset(2, 1)),
+        Uri.parse('https://example.com/docs'),
+      );
+      expect(session.hyperlinkAt(const CellOffset(4, 1)), isNull);
     },
   );
 

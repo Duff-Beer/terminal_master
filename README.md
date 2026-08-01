@@ -13,9 +13,9 @@ zoom, highlighted scrollback search, a visible scrollbar, and a shortcut back
 to the latest output.
 
 Generated commands are collected in the panel's editable command field without
-an execution confirmation. This
-allows commands from multiple YAML definitions to be reviewed or combined
-before explicitly sending them to the shared shell session.
+an execution confirmation. This allows commands from multiple YAML definitions
+to be reviewed or combined before explicitly sending them to the shared shell
+session.
 
 Terminal keyboard shortcuts use `Cmd` on macOS and `Ctrl` on Windows/Linux:
 
@@ -30,6 +30,11 @@ shown in the terminal status bar. Interactive terminal applications receive
 click, wheel, drag, and pointer-move events while mouse reporting is active;
 normal scrollback behavior remains available when an application does not
 request wheel events.
+
+Visible HTTP(S), mail, and OSC-8 hyperlinks can be opened with `Cmd/Ctrl+Click`
+or from the context menu. The context menu also provides copy, paste, select
+all, search selection, and clear-output actions. The status bar tracks the
+shell, OSC-7 working directory, dynamic OSC title, process state, and exit code.
 
 <img src="assets/branding/terminal_master.png" alt="Terminal Master icon" width="180">
 

@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:xterm/xterm.dart';
 
 import '../services/terminal_backend.dart';
+import '../services/external_url_launcher.dart';
 import '../services/terminal_session.dart';
 import '../theme.dart';
 import 'terminal_mouse_overlay.dart';
@@ -550,17 +551,33 @@ class _TerminalPaneState extends State<TerminalPane> {
                 const SizedBox(width: 8),
                 Expanded(
                   child: Tooltip(
-                    message: session.title ?? _statusText(session),
-                    child: Text(
-                      session.title ?? _statusText(session),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: session.title == null
-                            ? TerminalMasterColors.cyan
-                            : TerminalMasterColors.yellow,
-                        fontSize: 11,
-                      ),
+                    message: _statusTooltip(),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          _statusTitle(),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: session.title == null
+                                ? TerminalMasterColors.cyan
+                                : TerminalMasterColors.yellow,
+                            fontSize: 11,
+                          ),
+                        ),
+                        Text(
+                          _sessionDetails(),
+                          key: const Key('terminal-session-details'),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: TerminalMasterColors.muted,
+                            fontSize: 9,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
@@ -647,6 +664,7 @@ class _TerminalPaneState extends State<TerminalPane> {
                     padding: const EdgeInsets.all(10),
                     autofocus: false,
                     alwaysShowCursor: true,
+                    onTapUp: _handleTerminalTap,
                     onSecondaryTapDown: _handleSecondaryTap,
                     onKeyEvent: _handleTerminalKey,
                   ),
@@ -748,15 +766,166 @@ class _TerminalPaneState extends State<TerminalPane> {
     TapDownDetails details,
     CellOffset offset,
   ) async {
-    final selection = _terminalController.selection;
-    if (selection != null) {
-      final text = session.terminal.buffer.getText(selection);
-      _terminalController.clearSelection();
-      await Clipboard.setData(ClipboardData(text: text));
-      return;
+    final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
+    final localPosition = overlay.globalToLocal(details.globalPosition);
+    final selectionText = _selectedText();
+    final link = _linkAt(offset);
+    final action = await showMenu<_TerminalMenuAction>(
+      context: context,
+      position: RelativeRect.fromRect(
+        localPosition & Size.zero,
+        Offset.zero & overlay.size,
+      ),
+      items: [
+        if (link != null)
+          const PopupMenuItem(
+            value: _TerminalMenuAction.openLink,
+            child: ListTile(
+              leading: Icon(Icons.open_in_new),
+              title: Text('Link öffnen'),
+            ),
+          ),
+        PopupMenuItem(
+          value: _TerminalMenuAction.copy,
+          enabled: selectionText != null,
+          child: const ListTile(
+            leading: Icon(Icons.copy_outlined),
+            title: Text('Kopieren'),
+          ),
+        ),
+        const PopupMenuItem(
+          value: _TerminalMenuAction.paste,
+          child: ListTile(
+            leading: Icon(Icons.paste_outlined),
+            title: Text('Einfügen'),
+          ),
+        ),
+        const PopupMenuItem(
+          value: _TerminalMenuAction.selectAll,
+          child: ListTile(
+            leading: Icon(Icons.select_all),
+            title: Text('Alles auswählen'),
+          ),
+        ),
+        PopupMenuItem(
+          value: _TerminalMenuAction.searchSelection,
+          enabled: selectionText != null,
+          child: const ListTile(
+            leading: Icon(Icons.search),
+            title: Text('Auswahl suchen'),
+          ),
+        ),
+        const PopupMenuDivider(),
+        const PopupMenuItem(
+          value: _TerminalMenuAction.clearOutput,
+          child: ListTile(
+            leading: Icon(Icons.cleaning_services_outlined),
+            title: Text('Ausgabe leeren'),
+          ),
+        ),
+      ],
+    );
+    if (!mounted || action == null) return;
+
+    switch (action) {
+      case _TerminalMenuAction.openLink:
+        if (link != null) await _openLink(link);
+        break;
+      case _TerminalMenuAction.copy:
+        if (selectionText != null) {
+          await Clipboard.setData(ClipboardData(text: selectionText));
+        }
+        break;
+      case _TerminalMenuAction.paste:
+        final data = await Clipboard.getData('text/plain');
+        if (data?.text case final text?) await _paste(text);
+        break;
+      case _TerminalMenuAction.selectAll:
+        _selectAll();
+        break;
+      case _TerminalMenuAction.searchSelection:
+        if (selectionText != null) _searchForSelection(selectionText);
+        break;
+      case _TerminalMenuAction.clearOutput:
+        _clearOutput();
+        break;
     }
-    final data = await Clipboard.getData('text/plain');
-    if (data?.text case final text?) await _paste(text);
+  }
+
+  void _handleTerminalTap(TapUpDetails details, CellOffset offset) {
+    final isShortcut =
+        HardwareKeyboard.instance.isControlPressed ||
+        HardwareKeyboard.instance.isMetaPressed;
+    if (!isShortcut) return;
+    final link = _linkAt(offset);
+    if (link != null) _openLink(link);
+  }
+
+  String? _selectedText() {
+    final selection = _terminalController.selection;
+    if (selection == null) return null;
+    final text = session.terminal.buffer.getText(selection);
+    return text.isEmpty ? null : text;
+  }
+
+  Uri? _linkAt(CellOffset offset) {
+    final oscLink = session.hyperlinkAt(offset);
+    if (oscLink != null && ExternalUrlLauncher.isSupported(oscLink)) {
+      return oscLink;
+    }
+    if (offset.y < 0 || offset.y >= session.terminal.buffer.height) return null;
+
+    final line = _readLine(session.terminal.buffer.lines[offset.y]);
+    final pattern = RegExp(r'''(?:https?://|mailto:)[^\s<>"']+''');
+    for (final match in pattern.allMatches(line.text)) {
+      var value = match.group(0)!;
+      while (value.isNotEmpty && '.,;:)]}'.contains(value[value.length - 1])) {
+        value = value.substring(0, value.length - 1);
+      }
+      final begin = line.columns[match.start];
+      final end = line.columns[match.start + value.length];
+      if (begin != null && end != null && offset.x >= begin && offset.x < end) {
+        final uri = Uri.tryParse(value);
+        if (uri != null && ExternalUrlLauncher.isSupported(uri)) return uri;
+      }
+    }
+    return null;
+  }
+
+  Future<void> _openLink(Uri uri) async {
+    try {
+      await ExternalUrlLauncher.open(uri);
+    } on Object catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Link konnte nicht geöffnet werden: $error')),
+      );
+    }
+  }
+
+  void _selectAll() {
+    final buffer = session.terminal.buffer;
+    if (buffer.height == 0) return;
+    final lastLine = buffer.lines[buffer.height - 1];
+    _terminalController.setSelection(
+      buffer.createAnchor(0, 0),
+      buffer.createAnchor(lastLine.getTrimmedLength(), buffer.height - 1),
+    );
+  }
+
+  void _searchForSelection(String selection) {
+    final query = selection.trim().split(RegExp(r'[\r\n]')).first;
+    if (query.isEmpty) return;
+    _searchController.text = query;
+    widget.panelController.openSearch();
+    _runSearch();
+  }
+
+  void _clearOutput() {
+    _terminalController.clearSelection();
+    _clearSearchHighlights();
+    session.terminal.write('\x1b[2J\x1b[3J\x1b[H');
+    if (_searchController.text.isNotEmpty) _runSearch();
   }
 
   KeyEventResult _handleTerminalKey(FocusNode node, KeyEvent event) {
@@ -862,25 +1031,16 @@ class _TerminalPaneState extends State<TerminalPane> {
     final normalizedQuery = query.toLowerCase();
     final buffer = session.terminal.buffer;
     for (var y = 0; y < buffer.height; y++) {
-      final line = buffer.lines[y];
-      final text = StringBuffer();
-      final columns = <int, int>{0: 0};
-      for (var x = 0; x < line.length; x++) {
-        final codePoint = line.getCodePoint(x);
-        if (codePoint == 0) continue;
-        columns[text.length] = x;
-        text.writeCharCode(codePoint);
-        columns[text.length] = x + line.getWidth(x).clamp(1, 2);
-      }
-      final value = text.toString();
+      final line = _readLine(buffer.lines[y]);
+      final value = line.text;
       final normalizedValue = value.toLowerCase();
       if (normalizedValue.length != value.length) continue;
       var start = 0;
       while (start <= normalizedValue.length - normalizedQuery.length) {
         final index = normalizedValue.indexOf(normalizedQuery, start);
         if (index < 0) break;
-        final beginColumn = columns[index];
-        final endColumn = columns[index + normalizedQuery.length];
+        final beginColumn = line.columns[index];
+        final endColumn = line.columns[index + normalizedQuery.length];
         if (beginColumn != null && endColumn != null) {
           matches.add(
             _TerminalSearchMatch(
@@ -893,6 +1053,19 @@ class _TerminalPaneState extends State<TerminalPane> {
       }
     }
     return matches;
+  }
+
+  _TerminalLineText _readLine(BufferLine line) {
+    final text = StringBuffer();
+    final columns = <int, int>{0: 0};
+    for (var x = 0; x < line.length; x++) {
+      final codePoint = line.getCodePoint(x);
+      if (codePoint == 0) continue;
+      columns[text.length] = x;
+      text.writeCharCode(codePoint);
+      columns[text.length] = x + line.getWidth(x).clamp(1, 2);
+    }
+    return _TerminalLineText(text.toString(), columns);
   }
 
   void _nextSearchMatch() => _activateSearchMatch(1);
@@ -989,6 +1162,32 @@ class _TerminalPaneState extends State<TerminalPane> {
     };
   }
 
+  String _statusTitle() {
+    if (session.status == TerminalSessionStatus.exited ||
+        session.status == TerminalSessionStatus.failed) {
+      return _statusText(session);
+    }
+    return session.title ?? _statusText(session);
+  }
+
+  String _sessionDetails() {
+    final directory = session.workingDirectory;
+    return directory == null
+        ? session.shellName
+        : '${session.shellName} · $directory';
+  }
+
+  String _statusTooltip() {
+    final details = <String>[
+      _statusTitle(),
+      'Shell: ${session.shellName}',
+      if (session.workingDirectory case final directory?)
+        'Verzeichnis: $directory',
+      'Status: ${_statusText(session)}',
+    ];
+    return details.join('\n');
+  }
+
   IconData _statusIcon(TerminalSessionStatus status) {
     return switch (status) {
       TerminalSessionStatus.idle => Icons.circle_outlined,
@@ -1022,4 +1221,20 @@ class _TerminalSearchMatch {
 
   @override
   int get hashCode => Object.hash(begin, end);
+}
+
+class _TerminalLineText {
+  final String text;
+  final Map<int, int> columns;
+
+  const _TerminalLineText(this.text, this.columns);
+}
+
+enum _TerminalMenuAction {
+  openLink,
+  copy,
+  paste,
+  selectAll,
+  searchSelection,
+  clearOutput,
 }
