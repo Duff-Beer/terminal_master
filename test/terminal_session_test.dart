@@ -214,12 +214,46 @@ void main() {
     session.sendTrackedCommand('echo hello');
     final block = session.commandBlocks.single;
     expect(factory.backends.single.writes.map(utf8.decode), [
+      'echo %TERMINAL_MASTER_END_MARKER%:BEGIN\r\n',
       'echo hello\r\n',
       'echo %TERMINAL_MASTER_END_MARKER%:%errorlevel%\r\n',
     ]);
     factory.backends.single.emit(
       utf8.encode(
         'C:\\>echo hello\r\n'
+        'hello\r\n'
+        'C:\\>echo %TERMINAL_MASTER_END_MARKER%:%errorlevel%\r\n'
+        '${block.marker}:0\r\n',
+      ),
+    );
+    await Future<void>.delayed(Duration.zero);
+
+    expect(block.status, TerminalCommandBlockStatus.succeeded);
+    expect(block.output, 'hello');
+    expect(session.terminal.buffer.getText(), isNot(contains(block.marker)));
+  });
+
+  test('captures Windows CMD output without a user command echo', () async {
+    final factory = RecordingTerminalBackendFactory();
+    const profile = ShellProfile(
+      id: 'windows-cmd',
+      name: 'Windows CMD',
+      executable: 'cmd.exe',
+      dialect: ShellDialect.windowsCmd,
+    );
+    final session = TerminalSession(
+      backendFactory: factory.create,
+      profile: profile,
+    );
+    addTearDown(session.dispose);
+    await session.start();
+
+    session.sendTrackedCommand('echo hello');
+    final block = session.commandBlocks.single;
+    factory.backends.single.emit(
+      utf8.encode(
+        'C:\\>echo %TERMINAL_MASTER_END_MARKER%:BEGIN\r\n'
+        '${block.marker}:BEGIN\r\n'
         'hello\r\n'
         'C:\\>echo %TERMINAL_MASTER_END_MARKER%:%errorlevel%\r\n'
         '${block.marker}:0\r\n',

@@ -314,8 +314,15 @@ class TerminalSession extends ChangeNotifier {
     final block = _activeCommandBlock;
     if (block == null) return;
     terminal.write(_trackedVisibleOutput(value, block));
-    block.appendOutput(value);
+    block.appendOutput(_trackedBlockOutput(value));
     _notify();
+  }
+
+  String _trackedBlockOutput(String value) {
+    return value
+        .split(RegExp(r'\r?\n'))
+        .where((line) => !line.contains(_commandMarkerVariable))
+        .join('\n');
   }
 
   String _trackedVisibleOutput(String value, TerminalCommandBlock block) {
@@ -363,6 +370,7 @@ class TerminalSession extends ChangeNotifier {
   }
 
   List<String> _windowsTrackedPayload(String command) => [
+    'echo %$_commandMarkerVariable%:BEGIN\r\n',
     '$command\r\n',
     'echo %$_commandMarkerVariable%:%errorlevel%\r\n',
   ];
