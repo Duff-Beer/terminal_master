@@ -241,8 +241,10 @@ class TerminalSession extends ChangeNotifier {
     final pattern = RegExp('${RegExp.escape(block.marker)}:(-?\\d+)');
     if (_awaitingTrackedEcho) {
       _trackedEchoBuffer += trackedData;
+      final expandedWindowsEcho = 'echo ${block.marker}:';
       if (pattern.hasMatch(_trackedEchoBuffer) &&
-          !_trackedEchoBuffer.contains(_commandMarkerVariable)) {
+          !_trackedEchoBuffer.contains(_commandMarkerVariable) &&
+          !_trackedEchoBuffer.contains(expandedWindowsEcho)) {
         trackedData = _trackedEchoBuffer;
         _trackedEchoBuffer = '';
         _awaitingTrackedEcho = false;
@@ -252,7 +254,8 @@ class TerminalSession extends ChangeNotifier {
           if (lineEnd < 0) return;
           final line = _trackedEchoBuffer.substring(0, lineEnd + 1);
           _trackedEchoBuffer = _trackedEchoBuffer.substring(lineEnd + 1);
-          if (line.contains(_commandMarkerVariable)) {
+          if (line.contains(_commandMarkerVariable) ||
+              line.contains(expandedWindowsEcho)) {
             trackedData = _trackedEchoBuffer;
             _trackedEchoBuffer = '';
             _awaitingTrackedEcho = false;
