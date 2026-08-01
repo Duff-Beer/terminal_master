@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
@@ -111,17 +112,17 @@ void main() {
   });
 
   testWidgets('Windows CMD tracking completes', (tester) async {
-    await _withWindowsCmdTracking((session, outputMarker) async {});
+    await _withWindowsCmdTracking((session, outputMarker, rawLog) async {});
   });
 
   testWidgets('Windows CMD tracking reports exit code', (tester) async {
-    await _withWindowsCmdTracking((session, outputMarker) async {
+    await _withWindowsCmdTracking((session, outputMarker, rawLog) async {
       expect(session.commandBlocks.single.exitCode, 0);
     });
   });
 
   testWidgets('Windows CMD tracking captures output', (tester) async {
-    await _withWindowsCmdTracking((session, outputMarker) async {
+    await _withWindowsCmdTracking((session, outputMarker, rawLog) async {
       final block = session.commandBlocks.single;
       expect(
         block.output,
@@ -129,20 +130,21 @@ void main() {
         reason:
             'marker=${jsonEncode(block.marker)}\n'
             'output=${jsonEncode(block.output)}\n'
-            'terminal=${jsonEncode(session.terminal.buffer.getText())}',
+            'terminal=${jsonEncode(session.terminal.buffer.getText())}\n'
+            'raw=\n$rawLog',
       );
     });
   });
 
   testWidgets('Windows CMD tracking hides its marker', (tester) async {
-    await _withWindowsCmdTracking((session, outputMarker) async {
+    await _withWindowsCmdTracking((session, outputMarker, rawLog) async {
       final block = session.commandBlocks.single;
       expect(session.terminal.buffer.getText(), isNot(contains(block.marker)));
     });
   });
 
   testWidgets('Windows CMD tracking stops its shell', (tester) async {
-    await _withWindowsCmdTracking((session, outputMarker) async {
+    await _withWindowsCmdTracking((session, outputMarker, rawLog) async {
       await session.stop();
     });
   });
@@ -210,14 +212,21 @@ Future<void> _waitForTrackedCommand(
 }
 
 Future<void> _withWindowsCmdTracking(
-  Future<void> Function(TerminalSession session, String outputMarker) verify,
+  Future<void> Function(
+    TerminalSession session,
+    String outputMarker,
+    String rawLog,
+  )
+  verify,
 ) async {
   if (!Platform.isWindows) return;
 
+  final rawLog = StringBuffer();
   final outputMarker =
       'CMD_TRACKED_OUTPUT_${DateTime.now().microsecondsSinceEpoch}';
   final session = TerminalSession(
-    backendFactory: FlutterPtyBackend.start,
+    backendFactory: (options) =>
+        _RecordingBackend(FlutterPtyBackend.start(options), rawLog),
     profile: ShellProfile(
       id: 'windows-cmd',
       name: 'Windows CMD',
@@ -244,5 +253,56 @@ Future<void> _withWindowsCmdTracking(
   expect(session.status, TerminalSessionStatus.running);
   session.sendTrackedCommand('echo $outputMarker');
   await _waitForTrackedCommand(completed, session);
-  await verify(session, outputMarker);
+  await verify(session, outputMarker, rawLog.toString());
+}
+
+/// Wraps a real backend and records every raw output chunk (with control
+/// characters escaped) so tests can inspect exactly what the shell emitted.
+class _RecordingBackend implements TerminalBackend {
+  _RecordingBackend(this._inner, this._log);
+
+  final TerminalBackend _inner;
+  final StringBuffer _log;
+
+  @override
+  Stream<Uint8List> get output => _inner.output.map((chunk) {
+    _log.write(_escapeBytes(chunk));
+    return chunk;
+  });
+
+  @override
+  Future<int> get exitCode => _inner.exitCode;
+
+  @override
+  void write(Uint8List data) => _inner.write(data);
+
+  @override
+  void resize(int rows, int columns) => _inner.resize(rows, columns);
+
+  @override
+  bool kill() => _inner.kill();
+}
+
+String _escapeBytes(List<int> bytes) {
+  final decoded = const Utf8Decoder(allowMalformed: true).convert(bytes);
+  final buffer = StringBuffer();
+  for (final rune in decoded.runes) {
+    switch (rune) {
+      case 0x1b:
+        buffer.write('\\e');
+      case 0x0d:
+        buffer.write('\\r');
+      case 0x0a:
+        buffer.write('\\n\n');
+      case 0x07:
+        buffer.write('\\a');
+      default:
+        if (rune < 0x20) {
+          buffer.write('\\x${rune.toRadixString(16).padLeft(2, '0')}');
+        } else {
+          buffer.writeCharCode(rune);
+        }
+    }
+  }
+  return buffer.toString();
 }
