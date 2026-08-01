@@ -10,6 +10,12 @@ import 'terminal_backend.dart';
 enum TerminalSessionStatus { idle, starting, running, exited, failed }
 
 class TerminalSession extends ChangeNotifier {
+  static const _terminalEnvironment = {
+    'TERM': 'xterm-256color',
+    'COLORTERM': 'truecolor',
+    'TERM_PROGRAM': 'Terminal Master',
+  };
+
   final TerminalBackendFactory backendFactory;
   final String? initialCommand;
   final Terminal terminal;
@@ -66,7 +72,7 @@ class TerminalSession extends ChangeNotifier {
       _outputSubscription = backend.output
           .cast<List<int>>()
           .transform(const Utf8Decoder(allowMalformed: true))
-          .listen(terminal.write, onError: (Object error) => _fail(error));
+          .listen(_writeOutput, onError: (Object error) => _fail(error));
       backend.exitCode.then(_handleExit, onError: _fail);
       _setStatus(TerminalSessionStatus.running);
 
@@ -90,6 +96,8 @@ class TerminalSession extends ChangeNotifier {
       ),
     );
   }
+
+  void sendInput(String data) => _writeInput(data);
 
   Future<void> stop() async {
     final backend = _backend;
@@ -130,6 +138,11 @@ class TerminalSession extends ChangeNotifier {
     final backend = _backend;
     if (backend == null || _status != TerminalSessionStatus.running) return;
     backend.write(const Utf8Encoder().convert(data));
+  }
+
+  void _writeOutput(String data) {
+    terminal.write(data);
+    _notify();
   }
 
   void _resize(int width, int height, int pixelWidth, int pixelHeight) {
@@ -181,7 +194,7 @@ class TerminalSession extends ChangeNotifier {
 
   Map<String, String> get _environment {
     if (!Platform.isWindows) {
-      return {...Platform.environment, 'TERM': 'xterm-256color'};
+      return {...Platform.environment, ..._terminalEnvironment};
     }
 
     final home = Platform.environment['USERPROFILE'];
@@ -196,7 +209,7 @@ class TerminalSession extends ChangeNotifier {
       for (final entry in Platform.environment.entries)
         if (_isAscii(entry.key) && _isAscii(entry.value))
           entry.key: entry.value,
-      'TERM': 'xterm-256color',
+      ..._terminalEnvironment,
     };
     final path = Platform.environment['PATH'];
     if (path != null) {

@@ -5,6 +5,7 @@ import 'package:xterm/xterm.dart';
 import '../services/terminal_backend.dart';
 import '../services/terminal_session.dart';
 import '../theme.dart';
+import 'terminal_mouse_overlay.dart';
 
 class TerminalPanelController extends ChangeNotifier {
   static const minFontSize = 9.0;
@@ -501,11 +502,13 @@ class _TerminalPaneState extends State<TerminalPane> {
   void initState() {
     super.initState();
     _scrollController.addListener(_handleScroll);
+    session.addListener(_handleSessionUpdate);
     session.terminal.addListener(_scheduleSearchRefresh);
   }
 
   @override
   void dispose() {
+    session.removeListener(_handleSessionUpdate);
     session.terminal.removeListener(_scheduleSearchRefresh);
     _clearSearchHighlights();
     _searchFocusNode.dispose();
@@ -513,6 +516,10 @@ class _TerminalPaneState extends State<TerminalPane> {
     _scrollController.dispose();
     _terminalController.dispose();
     super.dispose();
+  }
+
+  void _handleSessionUpdate() {
+    if (mounted) setState(() {});
   }
 
   @override
@@ -542,16 +549,59 @@ class _TerminalPaneState extends State<TerminalPane> {
                 ),
                 const SizedBox(width: 8),
                 Expanded(
-                  child: Text(
-                    session.title ?? _statusText(session),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: TerminalMasterColors.cyan,
-                      fontSize: 11,
+                  child: Tooltip(
+                    message: session.title ?? _statusText(session),
+                    child: Text(
+                      session.title ?? _statusText(session),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: session.title == null
+                            ? TerminalMasterColors.cyan
+                            : TerminalMasterColors.yellow,
+                        fontSize: 11,
+                      ),
                     ),
                   ),
                 ),
+                const Tooltip(
+                  message: 'xterm-256color mit 24-Bit-True-Color',
+                  child: Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 4),
+                    child: Icon(
+                      Icons.palette_outlined,
+                      key: Key('terminal-true-color-indicator'),
+                      size: 14,
+                      color: TerminalMasterColors.cyan,
+                    ),
+                  ),
+                ),
+                if (session.terminal.isUsingAltBuffer)
+                  const Tooltip(
+                    message: 'Alternate Screen aktiv',
+                    child: Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 4),
+                      child: Icon(
+                        Icons.layers_outlined,
+                        key: Key('terminal-alt-screen-indicator'),
+                        size: 14,
+                        color: TerminalMasterColors.yellow,
+                      ),
+                    ),
+                  ),
+                if (session.terminal.mouseMode != MouseMode.none)
+                  const Tooltip(
+                    message: 'Terminal-Maussteuerung aktiv',
+                    child: Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 4),
+                      child: Icon(
+                        Icons.mouse_outlined,
+                        key: Key('terminal-mouse-mode-indicator'),
+                        size: 14,
+                        color: TerminalMasterColors.green,
+                      ),
+                    ),
+                  ),
                 _compactIconButton(
                   key: const Key('terminal-zoom-out'),
                   tooltip: 'Verkleinern',
@@ -593,7 +643,6 @@ class _TerminalPaneState extends State<TerminalPane> {
                     theme: _terminalTheme,
                     textStyle: TerminalStyle(
                       fontSize: widget.panelController.fontSize,
-                      fontFamily: 'Courier',
                     ),
                     padding: const EdgeInsets.all(10),
                     autofocus: false,
@@ -603,6 +652,15 @@ class _TerminalPaneState extends State<TerminalPane> {
                   ),
                 ),
               ),
+              if (session.terminal.mouseMode != MouseMode.none)
+                Positioned.fill(
+                  child: TerminalMouseOverlay(
+                    terminal: session.terminal,
+                    terminalViewKey: _terminalViewKey,
+                    scrollController: _scrollController,
+                    sendInput: session.sendInput,
+                  ),
+                ),
               if (!_isAtBottom)
                 Positioned(
                   right: 18,

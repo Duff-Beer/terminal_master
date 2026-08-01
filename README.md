@@ -23,6 +23,14 @@ Terminal keyboard shortcuts use `Cmd` on macOS and `Ctrl` on Windows/Linux:
 - `Cmd/Ctrl++`, `Cmd/Ctrl+-`, `Cmd/Ctrl+0`: adjust or reset the font size
 - `F11`: maximize or restore the terminal panel
 
+The PTY advertises `xterm-256color` and `COLORTERM=truecolor`. The renderer
+supports ANSI styles, 16/256/24-bit colors, wide Unicode characters, and system
+monospace/emoji font fallbacks. Alternate-screen and mouse-reporting modes are
+shown in the terminal status bar. Interactive terminal applications receive
+click, wheel, drag, and pointer-move events while mouse reporting is active;
+normal scrollback behavior remains available when an application does not
+request wheel events.
+
 <img src="assets/branding/terminal_master.png" alt="Terminal Master icon" width="180">
 
 ## Development

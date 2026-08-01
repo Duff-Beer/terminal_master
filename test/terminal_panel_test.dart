@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:terminal_master/widgets/terminal_panel.dart';
@@ -187,6 +188,90 @@ void main() {
     await tester.pump();
     expect(scrollController.offset, scrollController.position.maxScrollExtent);
     expect(find.byKey(const Key('terminal-scroll-to-bottom')), findsNothing);
+  });
+
+  testWidgets('shows TUI state and forwards reported mouse clicks', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1200, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final factory = RecordingTerminalBackendFactory();
+    final navigatorKey = GlobalKey<NavigatorState>();
+
+    await tester.pumpWidget(
+      MaterialApp(
+        navigatorKey: navigatorKey,
+        home: TerminalWorkspace(
+          backendFactory: factory.create,
+          navigatorKey: navigatorKey,
+          child: const _FirstPage(),
+        ),
+      ),
+    );
+    await tester.tap(find.text('Send first'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const Key('terminal-true-color-indicator')),
+      findsOneWidget,
+    );
+    factory.backends.single.emit(
+      utf8.encode('\x1b]0;Interactive Tool\x07\x1b[?1049h\x1b[?1000h'),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Interactive Tool'), findsOneWidget);
+    expect(
+      find.byKey(const Key('terminal-alt-screen-indicator')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const Key('terminal-mouse-mode-indicator')),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.byKey(const Key('terminal-mouse-overlay')));
+    await tester.pump(const Duration(milliseconds: 301));
+    expect(
+      factory.backends.single.writes.map(utf8.decode),
+      contains(startsWith('\x1b[M')),
+    );
+
+    factory.backends.single.emit(
+      utf8.encode('\x1b[?1000l\x1b[?1002h\x1b[?1006h'),
+    );
+    await tester.pump();
+    final writesBeforeDrag = factory.backends.single.writes.length;
+    final gesture = await tester.startGesture(
+      tester.getCenter(find.byKey(const Key('terminal-mouse-overlay'))),
+      kind: PointerDeviceKind.mouse,
+      buttons: kPrimaryMouseButton,
+    );
+    await gesture.moveBy(const Offset(40, 20));
+    await gesture.up();
+    await tester.pump();
+    final dragWrites = factory.backends.single.writes
+        .skip(writesBeforeDrag)
+        .map(utf8.decode)
+        .toList();
+    expect(
+      dragWrites.any((write) => write.startsWith('\x1b[<32;')),
+      isTrue,
+      reason: '$dragWrites',
+    );
+
+    factory.backends.single.emit(utf8.encode('\x1b[?1002l\x1b[?1049l'));
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const Key('terminal-alt-screen-indicator')),
+      findsNothing,
+    );
+    expect(
+      find.byKey(const Key('terminal-mouse-mode-indicator')),
+      findsNothing,
+    );
   });
 }
 
