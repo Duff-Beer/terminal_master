@@ -15,7 +15,9 @@ to the latest output.
 Generated commands are collected in the panel's editable command field without
 an execution confirmation. This allows commands from multiple YAML definitions
 to be reviewed or combined before explicitly sending them to the shared shell
-session.
+session of the focused tab. Each tab keeps its own PTY, scrollback, search state,
+and pending command draft. Two tabs can be displayed in a vertical split while
+all other sessions continue running in the background.
 
 Terminal keyboard shortcuts use `Cmd` on macOS and `Ctrl` on Windows/Linux:
 
@@ -35,6 +37,36 @@ Visible HTTP(S), mail, and OSC-8 hyperlinks can be opened with `Cmd/Ctrl+Click`
 or from the context menu. The context menu also provides copy, paste, select
 all, search selection, and clear-output actions. The status bar tracks the
 shell, OSC-7 working directory, dynamic OSC title, process state, and exit code.
+
+## Integrated Shell Profiles
+
+Without configuration, Terminal Master offers the platform shell and installed
+Bash, Zsh, or Fish executables it can detect. Custom local shells, SSH sessions,
+containers, and other interactive programs can be defined in `settings.yaml`:
+
+```yaml
+integrated_terminal:
+  default_profile: local-zsh
+  profiles:
+    - id: local-zsh
+      name: Local Zsh
+      executable: /bin/zsh
+      arguments: [-l]
+      working_directory: ~/projects
+      dialect: posix
+    - id: production-ssh
+      name: Production SSH
+      executable: /usr/bin/ssh
+      arguments: [example.com]
+      environment:
+        LANG: en_US.UTF-8
+      dialect: posix
+```
+
+Profile IDs must be unique. Supported command dialects are `posix` and
+`windows_cmd`; the selected dialect controls command quoting and line endings.
+Terminal Master variables such as `TERM=xterm-256color` and
+`COLORTERM=truecolor` remain authoritative.
 
 <img src="assets/branding/terminal_master.png" alt="Terminal Master icon" width="180">
 

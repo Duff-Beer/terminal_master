@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../models/command_config.dart';
+import '../models/shell_profile.dart';
 import '../services/command_builder.dart';
 import '../services/command_executor.dart';
 import '../services/command_risk_assessor.dart';
@@ -30,8 +31,18 @@ class _CommandGeneratorPageState extends State<CommandGeneratorPage> {
   String? _loadError;
   final Map<String, Object?> _values = {};
 
-  CommandShell get _shell =>
-      Platform.isWindows ? CommandShell.windowsCmd : CommandShell.posix;
+  CommandShell get _shell {
+    if (_useIntegratedTerminal) {
+      final controller = TerminalPanelScope.maybeOf(context);
+      if (controller != null) {
+        return switch (controller.activeProfile.dialect) {
+          ShellDialect.posix => CommandShell.posix,
+          ShellDialect.windowsCmd => CommandShell.windowsCmd,
+        };
+      }
+    }
+    return Platform.isWindows ? CommandShell.windowsCmd : CommandShell.posix;
+  }
 
   @override
   void initState() {

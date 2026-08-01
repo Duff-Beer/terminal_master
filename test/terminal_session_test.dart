@@ -1,6 +1,8 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:terminal_master/models/shell_profile.dart';
 import 'package:terminal_master/services/terminal_session.dart';
 import 'package:xterm/xterm.dart';
 
@@ -11,6 +13,7 @@ void main() {
     final factory = RecordingTerminalBackendFactory();
     final session = TerminalSession(
       backendFactory: factory.create,
+      profile: _testProfile,
       initialCommand: 'echo ready',
     );
     addTearDown(session.dispose);
@@ -25,10 +28,7 @@ void main() {
     expect(environment['TERM'], 'xterm-256color');
     expect(environment['COLORTERM'], 'truecolor');
     expect(environment['TERM_PROGRAM'], 'Terminal Master');
-    expect(
-      session.shellName,
-      factory.options.single.executable.split('/').last,
-    );
+    expect(session.shellName, _testProfile.name);
     expect(session.workingDirectory, factory.options.single.workingDirectory);
     expect(
       utf8.decode(factory.backends.single.writes.single),
@@ -55,7 +55,10 @@ void main() {
     'renders ANSI true color, Unicode and alternate screen output',
     () async {
       final factory = RecordingTerminalBackendFactory();
-      final session = TerminalSession(backendFactory: factory.create);
+      final session = TerminalSession(
+        backendFactory: factory.create,
+        profile: _testProfile,
+      );
       addTearDown(session.dispose);
       await session.start();
 
@@ -103,6 +106,7 @@ void main() {
   test('reports backend startup failures without throwing', () async {
     final session = TerminalSession(
       backendFactory: (_) => throw StateError('PTY unavailable'),
+      profile: _testProfile,
     );
     addTearDown(session.dispose);
 
@@ -112,12 +116,46 @@ void main() {
     expect(session.error, contains('PTY unavailable'));
   });
 
+  test(
+    'starts a configured profile only once for concurrent callers',
+    () async {
+      final factory = RecordingTerminalBackendFactory();
+      const profile = ShellProfile(
+        id: 'custom',
+        name: 'Custom Shell',
+        executable: '/custom/shell',
+        arguments: ['--login'],
+        workingDirectory: '/workspace',
+        environment: {'CUSTOM_VALUE': 'yes', 'TERM': 'ignored'},
+        dialect: ShellDialect.posix,
+      );
+      final session = TerminalSession(
+        backendFactory: factory.create,
+        profile: profile,
+      );
+      addTearDown(session.dispose);
+
+      await Future.wait([session.start(), session.start()]);
+
+      expect(factory.options, hasLength(1));
+      final options = factory.options.single;
+      expect(options.executable, '/custom/shell');
+      expect(options.arguments, ['--login']);
+      expect(options.workingDirectory, '/workspace');
+      expect(options.environment!['CUSTOM_VALUE'], 'yes');
+      expect(options.environment!['TERM'], 'xterm-256color');
+    },
+  );
+
   test('does not report a failed process termination as exited', () async {
     final backend = FakeTerminalBackend(
       killSucceeds: false,
       exitOnCommand: false,
     );
-    final session = TerminalSession(backendFactory: (_) => backend);
+    final session = TerminalSession(
+      backendFactory: (_) => backend,
+      profile: _testProfile,
+    );
     addTearDown(session.dispose);
     await session.start();
 
@@ -128,3 +166,12 @@ void main() {
     expect(session.error, contains('nicht beendet'));
   });
 }
+
+final _testProfile = ShellProfile(
+  id: 'test-shell',
+  name: 'Test Shell',
+  executable: Platform.isWindows ? 'cmd.exe' : '/bin/sh',
+  workingDirectory:
+      Platform.environment[Platform.isWindows ? 'USERPROFILE' : 'HOME'],
+  dialect: Platform.isWindows ? ShellDialect.windowsCmd : ShellDialect.posix,
+);

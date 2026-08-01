@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'models/shell_profile.dart';
 import 'services/terminal_backend.dart';
 import 'theme.dart';
 import 'pages/main_page.dart';
@@ -8,12 +9,14 @@ class MyApp extends StatefulWidget {
   final String configDirectoryPath;
   final String displayPath;
   final TerminalBackendFactory terminalBackendFactory;
+  final List<ShellProfile>? shellProfiles;
 
   const MyApp({
     super.key,
     required this.configDirectoryPath,
     required this.displayPath,
     this.terminalBackendFactory = unavailableTerminalBackendFactory,
+    this.shellProfiles,
   });
 
   @override
@@ -32,6 +35,7 @@ class _MyAppState extends State<MyApp> {
       home: TerminalWorkspace(
         backendFactory: widget.terminalBackendFactory,
         navigatorKey: _navigatorKey,
+        profiles: widget.shellProfiles,
         child: Navigator(
           onGenerateRoute: (settings) => MaterialPageRoute<void>(
             settings: settings,

@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:terminal_master/models/shell_profile.dart';
 import 'package:terminal_master/widgets/terminal_panel.dart';
 import 'package:xterm/xterm.dart';
 
@@ -222,7 +223,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Interactive Tool'), findsOneWidget);
+    expect(find.text('Interactive Tool'), findsWidgets);
     expect(
       find.byKey(const Key('terminal-alt-screen-indicator')),
       findsOneWidget,
@@ -305,8 +306,13 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    final shell = factory.options.single.executable.split('/').last;
-    expect(find.text('$shell · /tmp/project'), findsOneWidget);
+    final panelController = TerminalPanelScope.of(
+      tester.element(find.byType(TerminalPanel)),
+    );
+    expect(
+      find.text('${panelController.activeProfile.name} · /tmp/project'),
+      findsOneWidget,
+    );
 
     final terminalState = tester.state<TerminalViewState>(
       find.byType(TerminalView),
@@ -356,6 +362,91 @@ void main() {
           .getText(),
       isNot(contains('example.com')),
     );
+  });
+
+  testWidgets('keeps drafts isolated across tabs and supports split view', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1200, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final factory = RecordingTerminalBackendFactory();
+    final navigatorKey = GlobalKey<NavigatorState>();
+    const profiles = [
+      ShellProfile(
+        id: 'primary',
+        name: 'Primary Shell',
+        executable: '/bin/primary',
+        dialect: ShellDialect.posix,
+      ),
+      ShellProfile(
+        id: 'secondary',
+        name: 'Secondary Shell',
+        executable: '/bin/secondary',
+        dialect: ShellDialect.posix,
+      ),
+    ];
+
+    await tester.pumpWidget(
+      MaterialApp(
+        navigatorKey: navigatorKey,
+        home: TerminalWorkspace(
+          backendFactory: factory.create,
+          navigatorKey: navigatorKey,
+          profiles: profiles,
+          child: const _FirstPage(),
+        ),
+      ),
+    );
+    final controller = TerminalPanelScope.of(
+      tester.element(find.byType(_FirstPage)),
+    );
+
+    await controller.insertCommand('echo primary');
+    await tester.pumpAndSettle();
+    final primaryId = controller.activeTab.id;
+    expect(factory.backends, hasLength(1));
+
+    await tester.tap(find.byKey(const Key('new-terminal-tab')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Secondary Shell'));
+    await tester.pumpAndSettle();
+    final secondaryId = controller.activeTab.id;
+    expect(factory.backends, hasLength(2));
+
+    await controller.insertCommand('echo secondary');
+    await tester.pump();
+    expect(controller.commandController.text, 'echo secondary');
+
+    await controller.selectTab(primaryId);
+    await tester.pump();
+    expect(controller.commandController.text, 'echo primary');
+    await controller.sendPending();
+    expect(
+      factory.backends.first.writes.map(utf8.decode).single,
+      startsWith('echo primary'),
+    );
+    expect(factory.backends.last.writes, isEmpty);
+
+    await controller.toggleSplit();
+    await tester.pump();
+    expect(controller.isSplit, isTrue);
+    expect(find.byType(TerminalPane).hitTestable(), findsNWidgets(2));
+
+    controller.focusTab(secondaryId);
+    await tester.pump();
+    expect(controller.commandController.text, 'echo secondary');
+    await controller.sendPending();
+    expect(
+      factory.backends.last.writes.map(utf8.decode).single,
+      startsWith('echo secondary'),
+    );
+
+    controller.closeTab(secondaryId);
+    await tester.pump();
+    expect(controller.tabs, hasLength(1));
+    expect(factory.backends.last.wasKilled, isTrue);
   });
 }
 

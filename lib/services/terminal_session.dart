@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:xterm/xterm.dart';
 
+import '../models/shell_profile.dart';
 import 'terminal_backend.dart';
 
 enum TerminalSessionStatus { idle, starting, running, exited, failed }
@@ -17,11 +18,13 @@ class TerminalSession extends ChangeNotifier {
   };
 
   final TerminalBackendFactory backendFactory;
+  final ShellProfile profile;
   final String? initialCommand;
   final Terminal terminal;
 
   TerminalSession({
     required this.backendFactory,
+    required this.profile,
     this.initialCommand,
     Terminal? terminal,
   }) : terminal =
@@ -45,6 +48,7 @@ class TerminalSession extends ChangeNotifier {
   final List<TerminalHyperlink> _hyperlinks = [];
   bool _disposed = false;
   bool _processExited = false;
+  Future<void>? _startOperation;
 
   TerminalSessionStatus get status => _status;
 
@@ -52,10 +56,7 @@ class TerminalSession extends ChangeNotifier {
 
   String? get title => _title;
 
-  String get shellName {
-    final normalized = _shell.replaceAll('\\', '/');
-    return normalized.substring(normalized.lastIndexOf('/') + 1);
-  }
+  String get shellName => profile.name;
 
   String? get workingDirectory => _workingDirectory;
 
@@ -77,17 +78,23 @@ class TerminalSession extends ChangeNotifier {
     return null;
   }
 
-  Future<void> start() async {
-    if (_status != TerminalSessionStatus.idle) return;
+  Future<void> start() {
+    if (_startOperation case final operation?) return operation;
+    if (_status != TerminalSessionStatus.idle) return Future.value();
+    return _startOperation = _start();
+  }
+
+  Future<void> _start() async {
     _setStatus(TerminalSessionStatus.starting);
-    _workingDirectory ??= _homeDirectory;
+    _workingDirectory ??= profile.workingDirectory;
 
     try {
+      _validateProfile();
       final backend = backendFactory(
         TerminalLaunchOptions(
-          executable: _shell,
-          arguments: _shellArguments,
-          workingDirectory: _homeDirectory,
+          executable: profile.executable,
+          arguments: profile.arguments,
+          workingDirectory: profile.workingDirectory,
           environment: _environment,
           rows: terminal.viewHeight,
           columns: terminal.viewWidth,
@@ -117,7 +124,7 @@ class TerminalSession extends ChangeNotifier {
     }
     backend.write(
       const Utf8Encoder().convert(
-        '$command${Platform.isWindows ? '\r\n' : '\n'}',
+        '$command${profile.dialect == ShellDialect.windowsCmd ? '\r\n' : '\n'}',
       ),
     );
   }
@@ -131,7 +138,9 @@ class TerminalSession extends ChangeNotifier {
     backend.write(Uint8List.fromList(const [0x03]));
     await Future<void>.delayed(const Duration(milliseconds: 100));
     backend.write(
-      const Utf8Encoder().convert(Platform.isWindows ? 'exit\r\n' : 'exit\n'),
+      const Utf8Encoder().convert(
+        profile.dialect == ShellDialect.windowsCmd ? 'exit\r\n' : 'exit\n',
+      ),
     );
     try {
       await backend.exitCode.timeout(const Duration(seconds: 1));
@@ -253,23 +262,13 @@ class TerminalSession extends ChangeNotifier {
     if (!_disposed) notifyListeners();
   }
 
-  String get _shell {
-    if (Platform.isWindows) return 'cmd.exe';
-    return Platform.environment['SHELL'] ?? '/bin/bash';
-  }
-
-  List<String> get _shellArguments {
-    if (Platform.isWindows) return const [];
-    return const ['-l'];
-  }
-
-  String? get _homeDirectory {
-    return Platform.environment[Platform.isWindows ? 'USERPROFILE' : 'HOME'];
-  }
-
   Map<String, String> get _environment {
     if (!Platform.isWindows) {
-      return {...Platform.environment, ..._terminalEnvironment};
+      return {
+        ...Platform.environment,
+        ...profile.environment,
+        ..._terminalEnvironment,
+      };
     }
 
     final home = Platform.environment['USERPROFILE'];
@@ -284,13 +283,38 @@ class TerminalSession extends ChangeNotifier {
       for (final entry in Platform.environment.entries)
         if (_isAscii(entry.key) && _isAscii(entry.value))
           entry.key: entry.value,
+      ...profile.environment,
       ..._terminalEnvironment,
     };
     final path = Platform.environment['PATH'];
-    if (path != null) {
+    if (path != null && !profile.environment.containsKey('PATH')) {
       environment['PATH'] = path.split(';').where(_isAscii).join(';');
     }
     return environment;
+  }
+
+  void _validateProfile() {
+    if (profile.executable.trim().isEmpty) {
+      throw ArgumentError.value(
+        profile.executable,
+        'profile.executable',
+        'Das Shell-Programm darf nicht leer sein.',
+      );
+    }
+    if (!Platform.isWindows) return;
+    final values = <String>[
+      profile.executable,
+      ...profile.arguments,
+      if (profile.workingDirectory case final directory?) directory,
+      ...profile.environment.keys,
+      ...profile.environment.values,
+    ];
+    if (values.any((value) => !_isAscii(value))) {
+      throw UnsupportedError(
+        'flutter_pty unterstützt unter Windows derzeit nur ASCII-Zeichen in '
+        'integrierten Shell-Profilen. Verwende vorerst das externe Terminal.',
+      );
+    }
   }
 
   bool _isAscii(String value) => value.codeUnits.every((unit) => unit <= 0x7f);

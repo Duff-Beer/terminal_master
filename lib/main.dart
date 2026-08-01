@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'app.dart';
 import 'services/flutter_pty_backend.dart';
 import 'utils/app_initializer.dart';
+import 'utils/settings_loader.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -13,6 +14,7 @@ Future<void> main() async {
       configDirectoryPath: initData.configPath,
       displayPath: initData.displayPath,
       terminalBackendFactory: FlutterPtyBackend.start,
+      shellProfiles: SettingsLoader.integratedTerminalProfiles,
     ),
   );
 }

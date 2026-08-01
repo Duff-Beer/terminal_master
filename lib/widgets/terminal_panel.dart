@@ -2,11 +2,27 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:xterm/xterm.dart';
 
+import '../models/shell_profile.dart';
 import '../services/terminal_backend.dart';
 import '../services/external_url_launcher.dart';
 import '../services/terminal_session.dart';
 import '../theme.dart';
 import 'terminal_mouse_overlay.dart';
+
+class TerminalTab {
+  final String id;
+  final ShellProfile profile;
+  final TextEditingController commandController = TextEditingController();
+  TerminalSession session;
+  bool isSearchOpen = false;
+
+  TerminalTab({required this.id, required this.profile, required this.session});
+
+  void dispose() {
+    commandController.dispose();
+    session.dispose();
+  }
+}
 
 class TerminalPanelController extends ChangeNotifier {
   static const minFontSize = 9.0;
@@ -15,25 +31,46 @@ class TerminalPanelController extends ChangeNotifier {
 
   final TerminalBackendFactory backendFactory;
   final GlobalKey<NavigatorState> navigatorKey;
-  final TextEditingController commandController = TextEditingController();
+  final List<ShellProfile> profiles;
 
   TerminalPanelController({
     required this.backendFactory,
     required this.navigatorKey,
-  });
+    List<ShellProfile>? profiles,
+  }) : profiles = List.unmodifiable(
+         profiles == null || profiles.isEmpty
+             ? ShellProfile.platformDefaults()
+             : profiles,
+       ) {
+    final tab = _newTab(this.profiles.first);
+    _tabs.add(tab);
+    _primaryTabId = tab.id;
+    _focusedTabId = tab.id;
+  }
 
-  TerminalSession? _session;
+  final List<TerminalTab> _tabs = [];
+  var _nextTabId = 1;
+  late String _primaryTabId;
+  late String _focusedTabId;
+  String? _secondaryTabId;
   bool _isOpen = false;
   bool _isMaximized = false;
-  bool _isSearchOpen = false;
   double _fontSize = defaultFontSize;
   bool _disposed = false;
 
-  TerminalSession? get session => _session;
+  List<TerminalTab> get tabs => List.unmodifiable(_tabs);
+  TerminalTab get activeTab => _tab(_focusedTabId);
+  TerminalTab get primaryTab => _tab(_primaryTabId);
+  TerminalTab? get secondaryTab =>
+      _secondaryTabId == null ? null : _tab(_secondaryTabId!);
+  TerminalSession get session => activeTab.session;
+  TextEditingController get commandController => activeTab.commandController;
+  ShellProfile get activeProfile => activeTab.profile;
 
   bool get isOpen => _isOpen;
   bool get isMaximized => _isMaximized;
-  bool get isSearchOpen => _isSearchOpen;
+  bool get isSearchOpen => activeTab.isSearchOpen;
+  bool get isSplit => _secondaryTabId != null;
   double get fontSize => _fontSize;
 
   Future<void> open() async {
@@ -41,11 +78,10 @@ class TerminalPanelController extends ChangeNotifier {
       _isOpen = true;
       notifyListeners();
     }
-    try {
-      await _ensureSession();
-    } on Object {
-      // Startup errors are rendered inside the panel.
-    }
+    await Future.wait([
+      _startForDisplay(primaryTab),
+      if (secondaryTab case final tab?) _startForDisplay(tab),
+    ]);
   }
 
   void hide() {
@@ -63,21 +99,94 @@ class TerminalPanelController extends ChangeNotifier {
     notifyListeners();
   }
 
-  void toggleSearch() {
-    _isSearchOpen = !_isSearchOpen;
+  void toggleSearch([String? tabId]) {
+    final tab = _tab(tabId ?? _focusedTabId);
+    tab.isSearchOpen = !tab.isSearchOpen;
     notifyListeners();
   }
 
-  void openSearch() {
-    if (_isSearchOpen) return;
-    _isSearchOpen = true;
+  void openSearch([String? tabId]) {
+    final tab = _tab(tabId ?? _focusedTabId);
+    if (tab.isSearchOpen) return;
+    tab.isSearchOpen = true;
     notifyListeners();
   }
 
-  void closeSearch() {
-    if (!_isSearchOpen) return;
-    _isSearchOpen = false;
+  void closeSearch([String? tabId]) {
+    final tab = _tab(tabId ?? _focusedTabId);
+    if (!tab.isSearchOpen) return;
+    tab.isSearchOpen = false;
     notifyListeners();
+  }
+
+  Future<void> createTab(ShellProfile profile, {bool activate = true}) async {
+    final tab = _newTab(profile);
+    _tabs.add(tab);
+    if (activate) {
+      _primaryTabId = tab.id;
+      _focusedTabId = tab.id;
+    }
+    notifyListeners();
+    if (_isOpen) await _startForDisplay(tab);
+  }
+
+  Future<void> selectTab(String tabId) async {
+    if (!_tabs.any((tab) => tab.id == tabId)) return;
+    if (_secondaryTabId == tabId) {
+      final previousPrimary = _primaryTabId;
+      _primaryTabId = tabId;
+      _secondaryTabId = previousPrimary;
+    } else {
+      _primaryTabId = tabId;
+    }
+    _focusedTabId = tabId;
+    notifyListeners();
+    if (_isOpen) await _startForDisplay(_tab(tabId));
+  }
+
+  void focusTab(String tabId) {
+    if (_focusedTabId == tabId || !_isVisible(tabId)) return;
+    _focusedTabId = tabId;
+    notifyListeners();
+  }
+
+  Future<void> toggleSplit() async {
+    if (_secondaryTabId != null) {
+      _secondaryTabId = null;
+      _focusedTabId = _primaryTabId;
+      notifyListeners();
+      return;
+    }
+    if (_tabs.length == 1) {
+      await createTab(primaryTab.profile, activate: false);
+    }
+    _secondaryTabId = _tabs.firstWhere((tab) => tab.id != _primaryTabId).id;
+    notifyListeners();
+    if (_isOpen) await _startForDisplay(secondaryTab!);
+  }
+
+  void closeTab(String tabId) {
+    if (_tabs.length == 1) return;
+    final tab = _tab(tabId);
+    tab.session.removeListener(_handleSessionUpdate);
+    _tabs.remove(tab);
+    tab.dispose();
+    if (_secondaryTabId == tabId) _secondaryTabId = null;
+    if (_primaryTabId == tabId) _primaryTabId = _tabs.first.id;
+    if (_secondaryTabId == _primaryTabId) _secondaryTabId = null;
+    if (_focusedTabId == tabId || !_isVisible(_focusedTabId)) {
+      _focusedTabId = _primaryTabId;
+    }
+    notifyListeners();
+  }
+
+  Future<void> restartTab(String tabId) async {
+    final tab = _tab(tabId);
+    tab.session.removeListener(_handleSessionUpdate);
+    tab.session.dispose();
+    tab.session = _newSession(tab.profile);
+    notifyListeners();
+    if (_isOpen && _isVisible(tabId)) await _startForDisplay(tab);
   }
 
   void zoomIn() => _setFontSize(_fontSize + 1);
@@ -94,46 +203,41 @@ class TerminalPanelController extends ChangeNotifier {
   }
 
   Future<void> insertCommand(String command) async {
+    final tab = activeTab;
     _isOpen = true;
-    notifyListeners();
-    await _ensureSession();
-    final current = commandController.text;
-    commandController.text = current.isEmpty ? command : '$current\n$command';
-    commandController.selection = TextSelection.collapsed(
-      offset: commandController.text.length,
+    final controller = tab.commandController;
+    final current = controller.text;
+    controller.text = current.isEmpty ? command : '$current\n$command';
+    controller.selection = TextSelection.collapsed(
+      offset: controller.text.length,
     );
+    notifyListeners();
+    await _startForDisplay(tab);
   }
 
   Future<void> sendPending() async {
-    final command = commandController.text;
+    final tab = activeTab;
+    final controller = tab.commandController;
+    final command = controller.text;
     if (command.trim().isEmpty) return;
-    final activeSession = await _ensureSession();
-    commandController.clear();
+    final activeSession = await _ensureStarted(tab);
+    controller.clear();
     try {
       activeSession.sendCommand(command);
     } on Object {
-      commandController.text = command;
+      controller.text = command;
       rethrow;
     }
   }
 
-  Future<void> stopSession() async {
-    final activeSession = _session;
-    if (activeSession == null || !activeSession.isRunning) return;
+  Future<void> stopSession([String? tabId]) async {
+    final activeSession = _tab(tabId ?? _focusedTabId).session;
+    if (!activeSession.isRunning) return;
     await activeSession.stop();
   }
 
-  Future<TerminalSession> _ensureSession() async {
-    var activeSession = _session;
-    if (activeSession == null ||
-        activeSession.status == TerminalSessionStatus.exited ||
-        (activeSession.status == TerminalSessionStatus.failed &&
-            !activeSession.isRunning)) {
-      activeSession?.dispose();
-      activeSession = TerminalSession(backendFactory: backendFactory);
-      _session = activeSession;
-      notifyListeners();
-    }
+  Future<TerminalSession> _ensureStarted(TerminalTab tab) async {
+    final activeSession = tab.session;
     if (activeSession.status == TerminalSessionStatus.idle) {
       await activeSession.start();
     }
@@ -145,11 +249,46 @@ class TerminalPanelController extends ChangeNotifier {
     return activeSession;
   }
 
+  Future<void> _startForDisplay(TerminalTab tab) async {
+    try {
+      await _ensureStarted(tab);
+    } on Object {
+      // Startup failures are rendered in the corresponding terminal pane.
+    }
+  }
+
+  TerminalTab _newTab(ShellProfile profile) {
+    final tab = TerminalTab(
+      id: 'terminal-${_nextTabId++}',
+      profile: profile,
+      session: _newSession(profile),
+    );
+    return tab;
+  }
+
+  TerminalSession _newSession(ShellProfile profile) {
+    final session = TerminalSession(
+      backendFactory: backendFactory,
+      profile: profile,
+    );
+    session.addListener(_handleSessionUpdate);
+    return session;
+  }
+
+  TerminalTab _tab(String id) => _tabs.firstWhere((tab) => tab.id == id);
+
+  bool _isVisible(String id) => id == _primaryTabId || id == _secondaryTabId;
+
+  void _handleSessionUpdate() => notifyListeners();
+
   @override
   void dispose() {
     _disposed = true;
-    commandController.dispose();
-    _session?.dispose();
+    for (final tab in _tabs) {
+      tab.session.removeListener(_handleSessionUpdate);
+      tab.dispose();
+    }
+    _tabs.clear();
     super.dispose();
   }
 
@@ -200,12 +339,14 @@ class TerminalPanelToggleButton extends StatelessWidget {
 class TerminalWorkspace extends StatefulWidget {
   final TerminalBackendFactory backendFactory;
   final GlobalKey<NavigatorState> navigatorKey;
+  final List<ShellProfile>? profiles;
   final Widget child;
 
   const TerminalWorkspace({
     super.key,
     required this.backendFactory,
     required this.navigatorKey,
+    this.profiles,
     required this.child,
   });
 
@@ -223,6 +364,7 @@ class _TerminalWorkspaceState extends State<TerminalWorkspace> {
     _controller = TerminalPanelController(
       backendFactory: widget.backendFactory,
       navigatorKey: widget.navigatorKey,
+      profiles: widget.profiles,
     );
   }
 
@@ -258,20 +400,25 @@ class _TerminalWorkspaceState extends State<TerminalWorkspace> {
                   right: reservedPanelWidth,
                   child: widget.child,
                 ),
-                if (_controller.isOpen)
-                  Positioned(
-                    top: 0,
-                    bottom: 0,
-                    right: 0,
-                    width: panelWidth,
-                    child: SizedBox(
-                      key: const Key('terminal-side-panel'),
-                      child: Material(
-                        color: TerminalMasterColors.background,
-                        child: TerminalPanel(controller: _controller),
+                Positioned(
+                  top: 0,
+                  bottom: 0,
+                  right: 0,
+                  width: panelWidth,
+                  child: Offstage(
+                    offstage: !_controller.isOpen,
+                    child: IgnorePointer(
+                      ignoring: !_controller.isOpen,
+                      child: SizedBox(
+                        key: const Key('terminal-side-panel'),
+                        child: Material(
+                          color: TerminalMasterColors.background,
+                          child: TerminalPanel(controller: _controller),
+                        ),
                       ),
                     ),
                   ),
+                ),
                 if (_controller.isOpen && !_controller.isMaximized)
                   Positioned(
                     top: 0,
@@ -308,76 +455,119 @@ class TerminalPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final tab = controller.activeTab;
     final session = controller.session;
     return Column(
       children: [
-        AnimatedBuilder(
-          animation: session ?? controller,
-          builder: (context, child) => Container(
-            height: 48,
-            padding: const EdgeInsets.only(left: 14, right: 4),
-            color: TerminalMasterColors.surfaceRaised,
-            child: Row(
-              children: [
-                const Icon(Icons.terminal, size: 18),
-                const SizedBox(width: 8),
-                const Expanded(
-                  child: Text(
-                    'Terminal',
-                    style: TextStyle(
-                      color: TerminalMasterColors.yellow,
-                      fontWeight: FontWeight.bold,
-                    ),
+        Container(
+          height: 48,
+          padding: const EdgeInsets.only(left: 14, right: 4),
+          color: TerminalMasterColors.surfaceRaised,
+          child: Row(
+            children: [
+              const Icon(Icons.terminal, size: 18),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Text(
+                  'Terminal',
+                  style: TextStyle(
+                    color: TerminalMasterColors.yellow,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
-                IconButton(
-                  key: const Key('terminal-search-toggle'),
-                  tooltip: controller.isSearchOpen
-                      ? 'Suche schließen'
-                      : 'Terminal durchsuchen',
-                  onPressed: controller.toggleSearch,
-                  icon: Icon(
-                    controller.isSearchOpen ? Icons.search_off : Icons.search,
-                  ),
+              ),
+              IconButton(
+                key: const Key('terminal-search-toggle'),
+                visualDensity: VisualDensity.compact,
+                constraints: const BoxConstraints.tightFor(
+                  width: 40,
+                  height: 40,
                 ),
-                IconButton(
-                  key: const Key('maximize-terminal-panel'),
-                  tooltip: controller.isMaximized
-                      ? 'Terminal verkleinern'
-                      : 'Terminal maximieren',
-                  onPressed: controller.toggleMaximized,
-                  icon: Icon(
-                    controller.isMaximized
-                        ? Icons.fullscreen_exit
-                        : Icons.fullscreen,
-                  ),
+                tooltip: controller.isSearchOpen
+                    ? 'Suche schließen'
+                    : 'Terminal durchsuchen',
+                onPressed: controller.toggleSearch,
+                icon: Icon(
+                  controller.isSearchOpen ? Icons.search_off : Icons.search,
                 ),
+              ),
+              IconButton(
+                key: const Key('split-terminal-panel'),
+                visualDensity: VisualDensity.compact,
+                constraints: const BoxConstraints.tightFor(
+                  width: 40,
+                  height: 40,
+                ),
+                tooltip: controller.isSplit
+                    ? 'Geteilte Ansicht schließen'
+                    : 'Terminal vertikal teilen',
+                onPressed: controller.toggleSplit,
+                icon: Icon(
+                  controller.isSplit
+                      ? Icons.vertical_split_outlined
+                      : Icons.splitscreen_outlined,
+                ),
+              ),
+              if ((session.status == TerminalSessionStatus.exited ||
+                      session.status == TerminalSessionStatus.failed) &&
+                  !session.isRunning)
                 IconButton(
+                  key: const Key('restart-terminal-tab'),
+                  visualDensity: VisualDensity.compact,
+                  constraints: const BoxConstraints.tightFor(
+                    width: 40,
+                    height: 40,
+                  ),
+                  tooltip: 'Sitzung neu starten',
+                  onPressed: () => controller.restartTab(tab.id),
+                  icon: const Icon(Icons.restart_alt),
+                ),
+              IconButton(
+                key: const Key('maximize-terminal-panel'),
+                visualDensity: VisualDensity.compact,
+                constraints: const BoxConstraints.tightFor(
+                  width: 40,
+                  height: 40,
+                ),
+                tooltip: controller.isMaximized
+                    ? 'Terminal verkleinern'
+                    : 'Terminal maximieren',
+                onPressed: controller.toggleMaximized,
+                icon: Icon(
+                  controller.isMaximized
+                      ? Icons.fullscreen_exit
+                      : Icons.fullscreen,
+                ),
+              ),
+              if (session.status != TerminalSessionStatus.exited &&
+                  session.status != TerminalSessionStatus.failed)
+                IconButton(
+                  visualDensity: VisualDensity.compact,
+                  constraints: const BoxConstraints.tightFor(
+                    width: 40,
+                    height: 40,
+                  ),
                   tooltip: 'Terminal-Sitzung beenden',
-                  onPressed: session?.isRunning == true
-                      ? () => _confirmStop(context)
+                  onPressed: session.isRunning
+                      ? () => _confirmStop(context, tab.id)
                       : null,
                   icon: const Icon(Icons.stop_circle_outlined),
                 ),
-                IconButton(
-                  key: const Key('hide-terminal-panel'),
-                  onPressed: controller.hide,
-                  icon: const Icon(Icons.chevron_right),
+              IconButton(
+                key: const Key('hide-terminal-panel'),
+                visualDensity: VisualDensity.compact,
+                constraints: const BoxConstraints.tightFor(
+                  width: 40,
+                  height: 40,
                 ),
-              ],
-            ),
+                onPressed: controller.hide,
+                icon: const Icon(Icons.chevron_right),
+              ),
+            ],
           ),
         ),
-        Expanded(
-          child: session == null
-              ? const Center(child: CircularProgressIndicator())
-              : TerminalPane(
-                  key: ValueKey(session),
-                  session: session,
-                  panelController: controller,
-                  navigatorKey: controller.navigatorKey,
-                ),
-        ),
+        _buildTabBar(context),
+        Expanded(child: _buildPanes()),
         Container(
           padding: const EdgeInsets.fromLTRB(10, 8, 6, 10),
           decoration: const BoxDecoration(
@@ -393,8 +583,9 @@ class TerminalPanel extends StatelessWidget {
                   controller: controller.commandController,
                   minLines: 1,
                   maxLines: 4,
-                  decoration: const InputDecoration(
-                    hintText: 'Befehle aus YAML erscheinen hier ...',
+                  decoration: InputDecoration(
+                    hintText:
+                        'Befehle für ${controller.activeProfile.name} ...',
                     isDense: true,
                   ),
                 ),
@@ -413,7 +604,157 @@ class TerminalPanel extends StatelessWidget {
     );
   }
 
-  Future<void> _confirmStop(BuildContext context) async {
+  Widget _buildTabBar(BuildContext context) {
+    return Container(
+      height: 40,
+      decoration: const BoxDecoration(
+        color: TerminalMasterColors.surface,
+        border: Border(bottom: BorderSide(color: TerminalMasterColors.border)),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              children: controller.tabs.map((tab) {
+                final selected = controller.activeTab.id == tab.id;
+                return Padding(
+                  padding: const EdgeInsets.only(left: 4, top: 4, bottom: 4),
+                  child: Material(
+                    color: selected
+                        ? TerminalMasterColors.surfaceRaised
+                        : Colors.transparent,
+                    borderRadius: BorderRadius.circular(4),
+                    child: InkWell(
+                      key: Key('terminal-tab-${tab.id}'),
+                      onTap: () => controller.selectTab(tab.id),
+                      borderRadius: BorderRadius.circular(4),
+                      child: Padding(
+                        padding: const EdgeInsets.only(left: 8),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              _tabStatusIcon(tab.session.status),
+                              size: 11,
+                              color: _tabStatusColor(tab.session.status),
+                            ),
+                            const SizedBox(width: 5),
+                            ConstrainedBox(
+                              constraints: const BoxConstraints(maxWidth: 120),
+                              child: Text(
+                                tab.session.title ?? tab.profile.name,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: selected
+                                      ? TerminalMasterColors.yellow
+                                      : TerminalMasterColors.foreground,
+                                  fontSize: 11,
+                                ),
+                              ),
+                            ),
+                            IconButton(
+                              tooltip: 'Tab schließen',
+                              visualDensity: VisualDensity.compact,
+                              constraints: const BoxConstraints.tightFor(
+                                width: 28,
+                                height: 28,
+                              ),
+                              padding: EdgeInsets.zero,
+                              onPressed: controller.tabs.length == 1
+                                  ? null
+                                  : () => _confirmClose(context, tab),
+                              icon: const Icon(Icons.close, size: 14),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+          PopupMenuButton<ShellProfile>(
+            key: const Key('new-terminal-tab'),
+            tooltip: 'Neuer Terminal-Tab',
+            icon: const Icon(Icons.add, size: 19),
+            onSelected: controller.createTab,
+            itemBuilder: (context) => controller.profiles
+                .map(
+                  (profile) =>
+                      PopupMenuItem(value: profile, child: Text(profile.name)),
+                )
+                .toList(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPanes() {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final primaryId = controller.primaryTab.id;
+        final secondaryId = controller.secondaryTab?.id;
+        final splitOffset = constraints.maxHeight / 2;
+        return Stack(
+          children: [
+            for (final tab in controller.tabs)
+              Positioned(
+                key: Key('terminal-pane-position-${tab.id}'),
+                top: tab.id == primaryId
+                    ? 0
+                    : tab.id == secondaryId
+                    ? splitOffset + 3
+                    : 0,
+                bottom: tab.id == primaryId && secondaryId != null
+                    ? splitOffset + 3
+                    : 0,
+                left: 0,
+                right: 0,
+                child: Offstage(
+                  offstage: tab.id != primaryId && tab.id != secondaryId,
+                  child: IgnorePointer(
+                    ignoring: tab.id != primaryId && tab.id != secondaryId,
+                    child: Listener(
+                      behavior: HitTestBehavior.translucent,
+                      onPointerDown: (_) => controller.focusTab(tab.id),
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          border: Border.all(
+                            color: controller.activeTab.id == tab.id
+                                ? TerminalMasterColors.green
+                                : Colors.transparent,
+                          ),
+                        ),
+                        child: TerminalPane(
+                          key: ValueKey(tab.session),
+                          tab: tab,
+                          panelController: controller,
+                          navigatorKey: controller.navigatorKey,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            if (secondaryId != null)
+              Positioned(
+                left: 0,
+                right: 0,
+                top: splitOffset,
+                height: 6,
+                child: Container(color: TerminalMasterColors.border),
+              ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _confirmStop(BuildContext context, String tabId) async {
     final dialogContext = controller.navigatorKey.currentContext;
     if (dialogContext == null) return;
     final approved =
@@ -438,18 +779,69 @@ class TerminalPanel extends StatelessWidget {
           ),
         ) ??
         false;
-    if (approved) await controller.stopSession();
+    if (approved) await controller.stopSession(tabId);
+  }
+
+  Future<void> _confirmClose(BuildContext context, TerminalTab tab) async {
+    if (!tab.session.isRunning) {
+      controller.closeTab(tab.id);
+      return;
+    }
+    final dialogContext = controller.navigatorKey.currentContext;
+    if (dialogContext == null) return;
+    final approved =
+        await showDialog<bool>(
+          context: dialogContext,
+          builder: (context) => AlertDialog(
+            title: const Text('Terminal-Tab schließen?'),
+            content: Text(
+              'Die laufende Sitzung „${tab.profile.name}“ wird beendet.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Abbrechen'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('Tab schließen'),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+    if (approved) controller.closeTab(tab.id);
+  }
+
+  IconData _tabStatusIcon(TerminalSessionStatus status) {
+    return switch (status) {
+      TerminalSessionStatus.idle => Icons.circle_outlined,
+      TerminalSessionStatus.starting => Icons.pending,
+      TerminalSessionStatus.running => Icons.circle,
+      TerminalSessionStatus.exited => Icons.stop_circle_outlined,
+      TerminalSessionStatus.failed => Icons.error_outline,
+    };
+  }
+
+  Color _tabStatusColor(TerminalSessionStatus status) {
+    return switch (status) {
+      TerminalSessionStatus.idle => TerminalMasterColors.muted,
+      TerminalSessionStatus.starting => TerminalMasterColors.yellow,
+      TerminalSessionStatus.running => TerminalMasterColors.green,
+      TerminalSessionStatus.exited => TerminalMasterColors.muted,
+      TerminalSessionStatus.failed => TerminalMasterColors.red,
+    };
   }
 }
 
 class TerminalPane extends StatefulWidget {
-  final TerminalSession session;
+  final TerminalTab tab;
   final TerminalPanelController panelController;
   final GlobalKey<NavigatorState> navigatorKey;
 
   const TerminalPane({
     super.key,
-    required this.session,
+    required this.tab,
     required this.panelController,
     required this.navigatorKey,
   });
@@ -471,7 +863,7 @@ class _TerminalPaneState extends State<TerminalPane> {
   bool _wasSearchOpen = false;
   bool _searchRefreshScheduled = false;
 
-  TerminalSession get session => widget.session;
+  TerminalSession get session => widget.tab.session;
 
   static const _terminalTheme = TerminalTheme(
     cursor: TerminalMasterColors.green,
@@ -525,7 +917,7 @@ class _TerminalPaneState extends State<TerminalPane> {
 
   @override
   Widget build(BuildContext context) {
-    final isSearchOpen = widget.panelController.isSearchOpen;
+    final isSearchOpen = widget.tab.isSearchOpen;
     if (isSearchOpen && !_wasSearchOpen) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) _searchFocusNode.requestFocus();
@@ -569,7 +961,7 @@ class _TerminalPaneState extends State<TerminalPane> {
                         ),
                         Text(
                           _sessionDetails(),
-                          key: const Key('terminal-session-details'),
+                          key: _paneKey('terminal-session-details'),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
@@ -581,52 +973,52 @@ class _TerminalPaneState extends State<TerminalPane> {
                     ),
                   ),
                 ),
-                const Tooltip(
+                Tooltip(
                   message: 'xterm-256color mit 24-Bit-True-Color',
                   child: Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 4),
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
                     child: Icon(
                       Icons.palette_outlined,
-                      key: Key('terminal-true-color-indicator'),
+                      key: _paneKey('terminal-true-color-indicator'),
                       size: 14,
                       color: TerminalMasterColors.cyan,
                     ),
                   ),
                 ),
                 if (session.terminal.isUsingAltBuffer)
-                  const Tooltip(
+                  Tooltip(
                     message: 'Alternate Screen aktiv',
                     child: Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 4),
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
                       child: Icon(
                         Icons.layers_outlined,
-                        key: Key('terminal-alt-screen-indicator'),
+                        key: _paneKey('terminal-alt-screen-indicator'),
                         size: 14,
                         color: TerminalMasterColors.yellow,
                       ),
                     ),
                   ),
                 if (session.terminal.mouseMode != MouseMode.none)
-                  const Tooltip(
+                  Tooltip(
                     message: 'Terminal-Maussteuerung aktiv',
                     child: Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 4),
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
                       child: Icon(
                         Icons.mouse_outlined,
-                        key: Key('terminal-mouse-mode-indicator'),
+                        key: _paneKey('terminal-mouse-mode-indicator'),
                         size: 14,
                         color: TerminalMasterColors.green,
                       ),
                     ),
                   ),
                 _compactIconButton(
-                  key: const Key('terminal-zoom-out'),
+                  key: _paneKey('terminal-zoom-out'),
                   tooltip: 'Verkleinern',
                   icon: Icons.remove,
                   onPressed: widget.panelController.zoomOut,
                 ),
                 TextButton(
-                  key: const Key('terminal-zoom-reset'),
+                  key: _paneKey('terminal-zoom-reset'),
                   onPressed: widget.panelController.resetZoom,
                   style: TextButton.styleFrom(
                     minimumSize: const Size(42, 32),
@@ -635,7 +1027,7 @@ class _TerminalPaneState extends State<TerminalPane> {
                   child: Text('${widget.panelController.fontSize.round()} px'),
                 ),
                 _compactIconButton(
-                  key: const Key('terminal-zoom-in'),
+                  key: _paneKey('terminal-zoom-in'),
                   tooltip: 'Vergrößern',
                   icon: Icons.add,
                   onPressed: widget.panelController.zoomIn,
@@ -673,6 +1065,7 @@ class _TerminalPaneState extends State<TerminalPane> {
               if (session.terminal.mouseMode != MouseMode.none)
                 Positioned.fill(
                   child: TerminalMouseOverlay(
+                    overlayKey: _paneKey('terminal-mouse-overlay'),
                     terminal: session.terminal,
                     terminalViewKey: _terminalViewKey,
                     scrollController: _scrollController,
@@ -684,7 +1077,7 @@ class _TerminalPaneState extends State<TerminalPane> {
                   right: 18,
                   bottom: 12,
                   child: FloatingActionButton.small(
-                    key: const Key('terminal-scroll-to-bottom'),
+                    key: _paneKey('terminal-scroll-to-bottom'),
                     tooltip: 'Zum aktuellen Output',
                     onPressed: _scrollToBottom,
                     child: const Icon(Icons.keyboard_arrow_down),
@@ -719,14 +1112,14 @@ class _TerminalPaneState extends State<TerminalPane> {
         ? '0 Treffer'
         : '${_activeSearchMatch + 1}/${_searchMatches.length}';
     return Container(
-      key: const Key('terminal-search-bar'),
+      key: _paneKey('terminal-search-bar'),
       color: TerminalMasterColors.surfaceRaised,
       padding: const EdgeInsets.fromLTRB(10, 6, 6, 6),
       child: Row(
         children: [
           Expanded(
             child: TextField(
-              key: const Key('terminal-search-input'),
+              key: _paneKey('terminal-search-input'),
               controller: _searchController,
               focusNode: _searchFocusNode,
               decoration: const InputDecoration(
@@ -740,22 +1133,22 @@ class _TerminalPaneState extends State<TerminalPane> {
           const SizedBox(width: 8),
           Text(resultText, style: const TextStyle(fontSize: 11)),
           _compactIconButton(
-            key: const Key('terminal-search-previous'),
+            key: _paneKey('terminal-search-previous'),
             tooltip: 'Vorheriger Treffer',
             icon: Icons.keyboard_arrow_up,
             onPressed: _previousSearchMatch,
           ),
           _compactIconButton(
-            key: const Key('terminal-search-next'),
+            key: _paneKey('terminal-search-next'),
             tooltip: 'Nächster Treffer',
             icon: Icons.keyboard_arrow_down,
             onPressed: _nextSearchMatch,
           ),
           _compactIconButton(
-            key: const Key('terminal-search-close'),
+            key: _paneKey('terminal-search-close'),
             tooltip: 'Suche schließen',
             icon: Icons.close,
-            onPressed: widget.panelController.closeSearch,
+            onPressed: () => widget.panelController.closeSearch(widget.tab.id),
           ),
         ],
       ),
@@ -917,7 +1310,7 @@ class _TerminalPaneState extends State<TerminalPane> {
     final query = selection.trim().split(RegExp(r'[\r\n]')).first;
     if (query.isEmpty) return;
     _searchController.text = query;
-    widget.panelController.openSearch();
+    widget.panelController.openSearch(widget.tab.id);
     _runSearch();
   }
 
@@ -940,7 +1333,7 @@ class _TerminalPaneState extends State<TerminalPane> {
       return KeyEventResult.handled;
     }
     if (isShortcut && key == LogicalKeyboardKey.keyF) {
-      widget.panelController.openSearch();
+      widget.panelController.openSearch(widget.tab.id);
       return KeyEventResult.handled;
     }
     if (isShortcut &&
@@ -1187,6 +1580,11 @@ class _TerminalPaneState extends State<TerminalPane> {
     ];
     return details.join('\n');
   }
+
+  Key _paneKey(String value) =>
+      widget.panelController.activeTab.id == widget.tab.id
+      ? Key(value)
+      : Key('$value-${widget.tab.id}');
 
   IconData _statusIcon(TerminalSessionStatus status) {
     return switch (status) {

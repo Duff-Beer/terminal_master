@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:xterm/xterm.dart';
 
 class TerminalMouseOverlay extends StatefulWidget {
+  final Key overlayKey;
   final Terminal terminal;
   final GlobalKey<TerminalViewState> terminalViewKey;
   final ScrollController scrollController;
@@ -10,6 +11,7 @@ class TerminalMouseOverlay extends StatefulWidget {
 
   const TerminalMouseOverlay({
     super.key,
+    this.overlayKey = const Key('terminal-mouse-overlay'),
     required this.terminal,
     required this.terminalViewKey,
     required this.scrollController,
@@ -29,7 +31,7 @@ class _TerminalMouseOverlayState extends State<TerminalMouseOverlay> {
     return MouseRegion(
       cursor: SystemMouseCursors.basic,
       child: Listener(
-        key: const Key('terminal-mouse-overlay'),
+        key: widget.overlayKey,
         behavior: HitTestBehavior.opaque,
         onPointerDown: _handlePointerDown,
         onPointerUp: _handlePointerUp,
