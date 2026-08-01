@@ -4,6 +4,7 @@ import 'package:xterm/xterm.dart';
 
 import '../services/terminal_backend.dart';
 import '../services/terminal_session.dart';
+import '../theme.dart';
 
 class TerminalPanelController extends ChangeNotifier {
   final TerminalBackendFactory backendFactory;
@@ -211,7 +212,7 @@ class _TerminalWorkspaceState extends State<TerminalWorkspace> {
                       },
                       child: Container(
                         width: 6,
-                        color: const Color(0xff31506d),
+                        color: TerminalMasterColors.border,
                       ),
                     ),
                   ),
@@ -220,7 +221,7 @@ class _TerminalWorkspaceState extends State<TerminalWorkspace> {
                     key: const Key('terminal-side-panel'),
                     width: panelWidth,
                     child: Material(
-                      color: const Color(0xff07111e),
+                      color: TerminalMasterColors.background,
                       child: TerminalPanel(controller: _controller),
                     ),
                   ),
@@ -248,7 +249,7 @@ class TerminalPanel extends StatelessWidget {
           builder: (context, child) => Container(
             height: 48,
             padding: const EdgeInsets.only(left: 14, right: 4),
-            color: const Color(0xff10263a),
+            color: TerminalMasterColors.surfaceRaised,
             child: Row(
               children: [
                 const Icon(Icons.terminal, size: 18),
@@ -256,7 +257,10 @@ class TerminalPanel extends StatelessWidget {
                 const Expanded(
                   child: Text(
                     'Terminal',
-                    style: TextStyle(fontWeight: FontWeight.bold),
+                    style: TextStyle(
+                      color: TerminalMasterColors.yellow,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
                 IconButton(
@@ -287,8 +291,8 @@ class TerminalPanel extends StatelessWidget {
         Container(
           padding: const EdgeInsets.fromLTRB(10, 8, 6, 10),
           decoration: const BoxDecoration(
-            color: Color(0xff0b1b2b),
-            border: Border(top: BorderSide(color: Color(0xff31506d))),
+            color: TerminalMasterColors.surface,
+            border: Border(top: BorderSide(color: TerminalMasterColors.border)),
           ),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.end,
@@ -368,19 +372,19 @@ class _TerminalPaneState extends State<TerminalPane> {
   TerminalSession get session => widget.session;
 
   static const _terminalTheme = TerminalTheme(
-    cursor: Color(0xff54f1b5),
+    cursor: TerminalMasterColors.green,
     selection: Color(0x663b82f6),
-    foreground: Color(0xff54f1b5),
-    background: Color(0xff07111e),
-    black: Color(0xff07111e),
+    foreground: TerminalMasterColors.green,
+    background: TerminalMasterColors.background,
+    black: TerminalMasterColors.background,
     red: Color(0xffff6b6b),
-    green: Color(0xff54f1b5),
-    yellow: Color(0xffffc857),
-    blue: Color(0xff63a4ff),
+    green: TerminalMasterColors.green,
+    yellow: TerminalMasterColors.yellow,
+    blue: TerminalMasterColors.blue,
     magenta: Color(0xffc792ea),
-    cyan: Color(0xff62d6e8),
-    white: Color(0xffdceaf4),
-    brightBlack: Color(0xff52677d),
+    cyan: TerminalMasterColors.cyan,
+    white: TerminalMasterColors.foreground,
+    brightBlack: TerminalMasterColors.muted,
     brightRed: Color(0xffff8b8b),
     brightGreen: Color(0xff7ff6c9),
     brightYellow: Color(0xffffd978),
@@ -388,9 +392,9 @@ class _TerminalPaneState extends State<TerminalPane> {
     brightMagenta: Color(0xffd9a8f1),
     brightCyan: Color(0xff8ce4f0),
     brightWhite: Color(0xffffffff),
-    searchHitBackground: Color(0xffffc857),
+    searchHitBackground: TerminalMasterColors.yellow,
     searchHitBackgroundCurrent: Color(0xffff8b3d),
-    searchHitForeground: Color(0xff07111e),
+    searchHitForeground: TerminalMasterColors.background,
   );
 
   @override
@@ -408,7 +412,7 @@ class _TerminalPaneState extends State<TerminalPane> {
           builder: (context, child) => Container(
             width: double.infinity,
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            color: const Color(0xff0b1b2b),
+            color: TerminalMasterColors.surface,
             child: Row(
               children: [
                 Icon(
@@ -422,7 +426,10 @@ class _TerminalPaneState extends State<TerminalPane> {
                     session.title ?? _statusText(session),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 11),
+                    style: const TextStyle(
+                      color: TerminalMasterColors.cyan,
+                      fontSize: 11,
+                    ),
                   ),
                 ),
               ],
@@ -542,7 +549,7 @@ class _TerminalPaneState extends State<TerminalPane> {
     return switch (status) {
       TerminalSessionStatus.idle => Colors.blueGrey,
       TerminalSessionStatus.starting => Colors.amber,
-      TerminalSessionStatus.running => const Color(0xff54f1b5),
+      TerminalSessionStatus.running => TerminalMasterColors.green,
       TerminalSessionStatus.exited => Colors.blueGrey,
       TerminalSessionStatus.failed => Colors.redAccent,
     };

@@ -94,11 +94,8 @@ class _MainPageState extends State<MainPage> {
             width: 200,
             child: TextField(
               controller: _controller,
-              style: const TextStyle(color: Colors.green),
-              cursorColor: Colors.green,
               decoration: const InputDecoration(
                 hintText: 'Suchen...',
-                hintStyle: TextStyle(color: Colors.green),
                 isDense: true,
                 border: InputBorder.none,
               ),
