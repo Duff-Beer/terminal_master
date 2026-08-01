@@ -160,14 +160,11 @@ void main() {
     session.sendTrackedCommand('printf hello');
     final successful = session.commandBlocks.single;
     expect(successful.status, TerminalCommandBlockStatus.running);
-    expect(
-      utf8.decode(factory.backends.single.writes.single),
-      contains('TERMINAL_MASTER_END_MARKER'),
-    );
-    expect(
-      utf8.decode(factory.backends.single.writes.single),
-      isNot(contains(successful.marker)),
-    );
+    final trackedPayload = factory.backends.single.writes
+        .map(utf8.decode)
+        .join();
+    expect(trackedPayload, contains('TERMINAL_MASTER_END_MARKER'));
+    expect(trackedPayload, isNot(contains(successful.marker)));
     expect(
       () => session.sendTrackedCommand('echo too-early'),
       throwsStateError,
@@ -179,7 +176,7 @@ void main() {
         'hello\r\n${successful.marker}:',
       ),
     );
-    factory.backends.single.emit(utf8.encode('0\r\nprompt '));
+    factory.backends.single.emit(utf8.encode('0\r\r\nprompt '));
     await Future<void>.delayed(Duration.zero);
 
     expect(successful.status, TerminalCommandBlockStatus.succeeded);
@@ -216,11 +213,47 @@ void main() {
 
     session.sendTrackedCommand('echo hello');
     final block = session.commandBlocks.single;
+    expect(factory.backends.single.writes.map(utf8.decode), [
+      'echo hello\r\n',
+      'echo %TERMINAL_MASTER_END_MARKER%:%errorlevel%\r\n',
+    ]);
     factory.backends.single.emit(
       utf8.encode(
         'C:\\>echo hello\r\n'
         'hello\r\n'
         'C:\\>echo %TERMINAL_MASTER_END_MARKER%:%errorlevel%\r\n'
+        '${block.marker}:0\r\n',
+      ),
+    );
+    await Future<void>.delayed(Duration.zero);
+
+    expect(block.status, TerminalCommandBlockStatus.succeeded);
+    expect(block.output, 'hello');
+    expect(session.terminal.buffer.getText(), isNot(contains(block.marker)));
+  });
+
+  test('ignores expanded Windows CMD marker command echoes', () async {
+    final factory = RecordingTerminalBackendFactory();
+    const profile = ShellProfile(
+      id: 'windows-cmd',
+      name: 'Windows CMD',
+      executable: 'cmd.exe',
+      dialect: ShellDialect.windowsCmd,
+    );
+    final session = TerminalSession(
+      backendFactory: factory.create,
+      profile: profile,
+    );
+    addTearDown(session.dispose);
+    await session.start();
+
+    session.sendTrackedCommand('echo hello');
+    final block = session.commandBlocks.single;
+    factory.backends.single.emit(
+      utf8.encode(
+        'C:\\>echo hello\r\n'
+        'hello\r\n'
+        'C:\\>echo ${block.marker}:0\r\n'
         '${block.marker}:0\r\n',
       ),
     );

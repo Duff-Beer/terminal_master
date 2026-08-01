@@ -169,13 +169,16 @@ class TerminalSession extends ChangeNotifier {
     _trackedEchoBuffer = '';
     _awaitingTrackedEcho = true;
     _trackedCommandEchoSeen = false;
-    final payload = switch (profile.dialect) {
-      ShellDialect.posix =>
+    final payloads = switch (profile.dialect) {
+      ShellDialect.posix => [
         _isFish ? _fishTrackedPayload(command) : _posixTrackedPayload(command),
+      ],
       ShellDialect.windowsCmd => _windowsTrackedPayload(command),
-      ShellDialect.powerShell => _powerShellTrackedPayload(command),
+      ShellDialect.powerShell => [_powerShellTrackedPayload(command)],
     };
-    backend.write(const Utf8Encoder().convert(payload));
+    for (final payload in payloads) {
+      backend.write(const Utf8Encoder().convert(payload));
+    }
     _notify();
   }
 
@@ -235,11 +238,20 @@ class TerminalSession extends ChangeNotifier {
     }
 
     var trackedData = data;
-    final pattern = RegExp('${RegExp.escape(block.marker)}:(-?\\d+)');
+    final pattern = RegExp(
+      '(?:^|\\n)${RegExp.escape(block.marker)}:(-?\\d+)\\r*\\n',
+    );
     if (_awaitingTrackedEcho) {
       _trackedEchoBuffer += trackedData;
-      if (pattern.hasMatch(_trackedEchoBuffer) &&
-          !_trackedEchoBuffer.contains(_commandMarkerVariable)) {
+      final bufferedCompletion = pattern.firstMatch(_trackedEchoBuffer);
+      final hasExpandedMarkerEcho =
+          bufferedCompletion != null &&
+          _trackedEchoBuffer
+              .substring(0, bufferedCompletion.start)
+              .contains(block.marker);
+      if (bufferedCompletion != null &&
+          !_trackedEchoBuffer.contains(_commandMarkerVariable) &&
+          !hasExpandedMarkerEcho) {
         trackedData = _trackedEchoBuffer;
         _trackedEchoBuffer = '';
         _awaitingTrackedEcho = false;
@@ -249,7 +261,8 @@ class TerminalSession extends ChangeNotifier {
           if (lineEnd < 0) return;
           final line = _trackedEchoBuffer.substring(0, lineEnd + 1);
           _trackedEchoBuffer = _trackedEchoBuffer.substring(lineEnd + 1);
-          if (line.contains(_commandMarkerVariable)) {
+          if (line.contains(_commandMarkerVariable) ||
+              (line.contains(block.marker) && !pattern.hasMatch(line))) {
             trackedData = _trackedEchoBuffer;
             _trackedEchoBuffer = '';
             _awaitingTrackedEcho = false;
@@ -279,9 +292,10 @@ class TerminalSession extends ChangeNotifier {
     _trackedOutputBuffer += trackedData;
     final match = pattern.firstMatch(_trackedOutputBuffer);
     if (match != null) {
-      _emitTrackedOutput(_trackedOutputBuffer.substring(0, match.start));
-      var remaining = _trackedOutputBuffer.substring(match.end);
-      remaining = remaining.replaceFirst(RegExp(r'^\r?\n'), '');
+      final matchedMarker = match.group(0)!;
+      final outputEnd = match.start + (matchedMarker.startsWith('\n') ? 1 : 0);
+      _emitTrackedOutput(_trackedOutputBuffer.substring(0, outputEnd));
+      final remaining = _trackedOutputBuffer.substring(match.end);
       _trackedOutputBuffer = '';
       block.finish(int.parse(match.group(1)!));
       _activeCommandBlock = null;
@@ -354,10 +368,10 @@ class TerminalSession extends ChangeNotifier {
         '"\$$_commandMarkerVariable" "\$__terminal_master_exit"\n';
   }
 
-  String _windowsTrackedPayload(String command) {
-    return '$command\r\n'
-        'echo %$_commandMarkerVariable%:%errorlevel%\r\n';
-  }
+  List<String> _windowsTrackedPayload(String command) => [
+    '$command\r\n',
+    'echo %$_commandMarkerVariable%:%errorlevel%\r\n',
+  ];
 
   String _fishTrackedPayload(String command) {
     final quoted = command.replaceAll('\\', '\\\\').replaceAll("'", "\\'");
