@@ -108,7 +108,7 @@ void main() {
           : "printf '%s\\n' '$outputMarker'",
     );
 
-    await completed.future.timeout(const Duration(seconds: 10));
+    await _waitForTrackedCommand(completed, session);
     final block = session.commandBlocks.single;
     expect(block.exitCode, 0);
     expect(block.output, contains(outputMarker));
@@ -151,7 +151,7 @@ void main() {
     expect(session.status, TerminalSessionStatus.running);
     session.sendTrackedCommand("Write-Output '$outputMarker'");
 
-    await completed.future.timeout(const Duration(seconds: 10));
+    await _waitForTrackedCommand(completed, session);
     final block = session.commandBlocks.single;
     expect(block.exitCode, 0);
     expect(block.output, contains(outputMarker));
@@ -159,4 +159,22 @@ void main() {
 
     await session.stop();
   });
+}
+
+Future<void> _waitForTrackedCommand(
+  Completer<void> completed,
+  TerminalSession session,
+) async {
+  try {
+    await completed.future.timeout(const Duration(seconds: 10));
+  } on TimeoutException {
+    final blocks = session.commandBlocks;
+    final block = blocks.isEmpty ? null : blocks.last;
+    fail(
+      'Tracked command timed out: session=${session.status.name}, '
+      'block=${block?.status.name}, exitCode=${block?.exitCode}, '
+      'capturedOutput=${jsonEncode(block?.output)}, '
+      'terminal=${jsonEncode(session.terminal.buffer.getText())}',
+    );
+  }
 }

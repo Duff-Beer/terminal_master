@@ -238,20 +238,11 @@ class TerminalSession extends ChangeNotifier {
     }
 
     var trackedData = data;
-    final pattern = RegExp(
-      '(?:^|\\n)${RegExp.escape(block.marker)}:(-?\\d+)\\r*\\n',
-    );
+    final pattern = RegExp('${RegExp.escape(block.marker)}:(-?\\d+)');
     if (_awaitingTrackedEcho) {
       _trackedEchoBuffer += trackedData;
-      final bufferedCompletion = pattern.firstMatch(_trackedEchoBuffer);
-      final hasExpandedMarkerEcho =
-          bufferedCompletion != null &&
-          _trackedEchoBuffer
-              .substring(0, bufferedCompletion.start)
-              .contains(block.marker);
-      if (bufferedCompletion != null &&
-          !_trackedEchoBuffer.contains(_commandMarkerVariable) &&
-          !hasExpandedMarkerEcho) {
+      if (pattern.hasMatch(_trackedEchoBuffer) &&
+          !_trackedEchoBuffer.contains(_commandMarkerVariable)) {
         trackedData = _trackedEchoBuffer;
         _trackedEchoBuffer = '';
         _awaitingTrackedEcho = false;
@@ -261,8 +252,7 @@ class TerminalSession extends ChangeNotifier {
           if (lineEnd < 0) return;
           final line = _trackedEchoBuffer.substring(0, lineEnd + 1);
           _trackedEchoBuffer = _trackedEchoBuffer.substring(lineEnd + 1);
-          if (line.contains(_commandMarkerVariable) ||
-              (line.contains(block.marker) && !pattern.hasMatch(line))) {
+          if (line.contains(_commandMarkerVariable)) {
             trackedData = _trackedEchoBuffer;
             _trackedEchoBuffer = '';
             _awaitingTrackedEcho = false;
@@ -292,10 +282,9 @@ class TerminalSession extends ChangeNotifier {
     _trackedOutputBuffer += trackedData;
     final match = pattern.firstMatch(_trackedOutputBuffer);
     if (match != null) {
-      final matchedMarker = match.group(0)!;
-      final outputEnd = match.start + (matchedMarker.startsWith('\n') ? 1 : 0);
-      _emitTrackedOutput(_trackedOutputBuffer.substring(0, outputEnd));
-      final remaining = _trackedOutputBuffer.substring(match.end);
+      _emitTrackedOutput(_trackedOutputBuffer.substring(0, match.start));
+      var remaining = _trackedOutputBuffer.substring(match.end);
+      remaining = remaining.replaceFirst(RegExp(r'^\r?\n'), '');
       _trackedOutputBuffer = '';
       block.finish(int.parse(match.group(1)!));
       _activeCommandBlock = null;
