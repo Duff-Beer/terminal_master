@@ -122,7 +122,15 @@ void main() {
 
   testWidgets('Windows CMD tracking captures output', (tester) async {
     await _withWindowsCmdTracking((session, outputMarker) async {
-      expect(session.commandBlocks.single.output, contains(outputMarker));
+      final block = session.commandBlocks.single;
+      expect(
+        block.output,
+        contains(outputMarker),
+        reason:
+            'marker=${jsonEncode(block.marker)}\n'
+            'output=${jsonEncode(block.output)}\n'
+            'terminal=${jsonEncode(session.terminal.buffer.getText())}',
+      );
     });
   });
 
