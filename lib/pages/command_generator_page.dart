@@ -38,6 +38,7 @@ class _CommandGeneratorPageState extends State<CommandGeneratorPage> {
         return switch (controller.activeProfile.dialect) {
           ShellDialect.posix => CommandShell.posix,
           ShellDialect.windowsCmd => CommandShell.windowsCmd,
+          ShellDialect.powerShell => CommandShell.powerShell,
         };
       }
     }

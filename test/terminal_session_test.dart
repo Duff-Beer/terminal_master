@@ -231,6 +231,50 @@ void main() {
     expect(session.terminal.buffer.getText(), isNot(contains(block.marker)));
   });
 
+  test('tracks PowerShell commands through an encoded script block', () async {
+    final factory = RecordingTerminalBackendFactory();
+    const profile = ShellProfile(
+      id: 'powershell',
+      name: 'PowerShell',
+      executable: 'pwsh',
+      dialect: ShellDialect.powerShell,
+    );
+    final session = TerminalSession(
+      backendFactory: factory.create,
+      profile: profile,
+    );
+    addTearDown(session.dispose);
+    await session.start();
+
+    const command = "Write-Output 'quoted'\nWrite-Error 'failed'";
+    session.sendTrackedCommand(command);
+    final block = session.commandBlocks.single;
+    final payload = utf8.decode(factory.backends.single.writes.single);
+    expect(payload, contains(base64Encode(utf8.encode(command))));
+    expect(payload, isNot(contains(command)));
+    expect(payload, contains(r'$global:LASTEXITCODE=0'));
+    expect(payload, contains(r'$__tm_success=$?'));
+    expect(payload, contains(r'catch { [Console]::Error.WriteLine'));
+    expect(payload, contains(r'$env:TERMINAL_MASTER_END_MARKER'));
+    expect(payload, contains(r'elseif ($LASTEXITCODE -ne 0)'));
+    expect(payload, contains(r'else { 1 }'));
+    expect(payload, endsWith(Platform.isWindows ? '\r\n' : '\n'));
+
+    factory.backends.single.emit(
+      utf8.encode(
+        r'$env:TERMINAL_MASTER_END_MARKER'
+        '\r\n'
+        'PowerShell output\r\n${block.marker}:1\r\n',
+      ),
+    );
+    await Future<void>.delayed(Duration.zero);
+
+    expect(block.status, TerminalCommandBlockStatus.failed);
+    expect(block.exitCode, 1);
+    expect(block.output, 'PowerShell output');
+    expect(session.terminal.buffer.getText(), isNot(contains(block.marker)));
+  });
+
   test('uses Fish status syntax for tracked commands', () async {
     final factory = RecordingTerminalBackendFactory();
     const profile = ShellProfile(

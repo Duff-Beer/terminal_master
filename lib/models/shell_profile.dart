@@ -1,6 +1,6 @@
 import 'dart:io';
 
-enum ShellDialect { posix, windowsCmd }
+enum ShellDialect { posix, windowsCmd, powerShell }
 
 class ShellProfile {
   final String id;
@@ -24,6 +24,23 @@ class ShellProfile {
   static List<ShellProfile> platformDefaults() {
     if (Platform.isWindows) {
       return [
+        if (_windowsExecutableExists('pwsh.exe'))
+          ShellProfile(
+            id: 'powershell',
+            name: 'PowerShell 7',
+            executable: 'pwsh.exe',
+            arguments: const ['-NoLogo'],
+            workingDirectory: Platform.environment['USERPROFILE'],
+            dialect: ShellDialect.powerShell,
+          ),
+        ShellProfile(
+          id: 'windows-powershell',
+          name: 'Windows PowerShell',
+          executable: 'powershell.exe',
+          arguments: const ['-NoLogo'],
+          workingDirectory: Platform.environment['USERPROFILE'],
+          dialect: ShellDialect.powerShell,
+        ),
         ShellProfile(
           id: 'command-prompt',
           name: 'Command Prompt',
@@ -68,6 +85,28 @@ class ShellProfile {
         ),
       );
     }
+    for (final executable in const [
+      '/usr/bin/pwsh',
+      '/usr/local/bin/pwsh',
+      '/opt/homebrew/bin/pwsh',
+      '/snap/bin/pwsh',
+    ]) {
+      if (!executables.add(executable) || !File(executable).existsSync()) {
+        continue;
+      }
+      profiles.add(
+        ShellProfile(
+          id: profiles.any((profile) => profile.id == 'powershell')
+              ? 'powershell-${profiles.length + 1}'
+              : 'powershell',
+          name: 'PowerShell',
+          executable: executable,
+          arguments: const ['-NoLogo'],
+          workingDirectory: home,
+          dialect: ShellDialect.powerShell,
+        ),
+      );
+    }
     if (profiles.isNotEmpty) return profiles;
     return [
       ShellProfile(
@@ -79,5 +118,19 @@ class ShellProfile {
         dialect: ShellDialect.posix,
       ),
     ];
+  }
+
+  static bool _windowsExecutableExists(String executable) {
+    final path =
+        Platform.environment['PATH'] ??
+        Platform.environment['Path'] ??
+        Platform.environment['path'];
+    if (path == null) return false;
+    return path.split(';').any((directory) {
+      final normalized = directory.trim().replaceAll('"', '');
+      if (normalized.isEmpty) return false;
+      final separator = normalized.endsWith('\\') ? '' : '\\';
+      return File('$normalized$separator$executable').existsSync();
+    });
   }
 }

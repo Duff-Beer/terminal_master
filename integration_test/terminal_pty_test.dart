@@ -116,4 +116,47 @@ void main() {
 
     await session.stop();
   });
+
+  testWidgets('tracks a command through Windows PowerShell', (tester) async {
+    if (!Platform.isWindows) return;
+
+    final outputMarker =
+        'POWERSHELL_OUTPUT_${DateTime.now().microsecondsSinceEpoch}';
+    final session = TerminalSession(
+      backendFactory: FlutterPtyBackend.start,
+      profile: ShellProfile(
+        id: 'windows-powershell',
+        name: 'Windows PowerShell',
+        executable: 'powershell.exe',
+        arguments: const ['-NoLogo'],
+        workingDirectory: Platform.environment['USERPROFILE'],
+        dialect: ShellDialect.powerShell,
+      ),
+    );
+    final completed = Completer<void>();
+    void onSessionChanged() {
+      if (session.commandBlocks.lastOrNull?.finishedAt != null &&
+          !completed.isCompleted) {
+        completed.complete();
+      }
+    }
+
+    session.addListener(onSessionChanged);
+    addTearDown(() {
+      session.removeListener(onSessionChanged);
+      session.dispose();
+    });
+
+    await session.start();
+    expect(session.status, TerminalSessionStatus.running);
+    session.sendTrackedCommand("Write-Output '$outputMarker'");
+
+    await completed.future.timeout(const Duration(seconds: 10));
+    final block = session.commandBlocks.single;
+    expect(block.exitCode, 0);
+    expect(block.output, contains(outputMarker));
+    expect(session.terminal.buffer.getText(), isNot(contains(block.marker)));
+
+    await session.stop();
+  });
 }

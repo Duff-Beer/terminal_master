@@ -29,6 +29,11 @@ integrated_terminal:
       environment:
         LANG: en_US.UTF-8
       dialect: posix
+    - id: powershell
+      name: PowerShell 7
+      executable: /usr/bin/pwsh
+      arguments: [-NoLogo]
+      dialect: powershell
 ''');
 
     SettingsLoader.initialize(directory.path);
@@ -37,7 +42,7 @@ integrated_terminal:
     expect(SettingsLoader.fileManagerCommand, 'example-manager');
     expect(
       SettingsLoader.integratedTerminalProfiles.map((profile) => profile.id),
-      ['ssh', 'local'],
+      ['ssh', 'local', 'powershell'],
     );
     final profile = SettingsLoader.integratedTerminalProfiles.first;
     expect(profile.name, 'Production SSH');
@@ -45,6 +50,9 @@ integrated_terminal:
     expect(profile.environment, {'LANG': 'en_US.UTF-8'});
     expect(profile.dialect, ShellDialect.posix);
     expect(profile.workingDirectory, endsWith('/projects'));
+    final powerShell = SettingsLoader.integratedTerminalProfiles.last;
+    expect(powerShell.arguments, ['-NoLogo']);
+    expect(powerShell.dialect, ShellDialect.powerShell);
   });
 
   test('rejects duplicate integrated terminal profile ids', () {

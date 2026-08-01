@@ -138,11 +138,7 @@ class TerminalSession extends ChangeNotifier {
     if (backend == null || _status != TerminalSessionStatus.running) {
       throw StateError('Die Terminal-Sitzung läuft nicht.');
     }
-    backend.write(
-      const Utf8Encoder().convert(
-        '$command${profile.dialect == ShellDialect.windowsCmd ? '\r\n' : '\n'}',
-      ),
-    );
+    backend.write(const Utf8Encoder().convert('$command$_lineEnding'));
   }
 
   void sendTrackedCommand(String command) {
@@ -177,6 +173,7 @@ class TerminalSession extends ChangeNotifier {
       ShellDialect.posix =>
         _isFish ? _fishTrackedPayload(command) : _posixTrackedPayload(command),
       ShellDialect.windowsCmd => _windowsTrackedPayload(command),
+      ShellDialect.powerShell => _powerShellTrackedPayload(command),
     };
     backend.write(const Utf8Encoder().convert(payload));
     _notify();
@@ -196,11 +193,7 @@ class TerminalSession extends ChangeNotifier {
 
     backend.write(Uint8List.fromList(const [0x03]));
     await Future<void>.delayed(const Duration(milliseconds: 100));
-    backend.write(
-      const Utf8Encoder().convert(
-        profile.dialect == ShellDialect.windowsCmd ? 'exit\r\n' : 'exit\n',
-      ),
-    );
+    backend.write(const Utf8Encoder().convert('exit$_lineEnding'));
     try {
       await backend.exitCode.timeout(const Duration(seconds: 1));
       return;
@@ -373,12 +366,35 @@ class TerminalSession extends ChangeNotifier {
         '"\$$_commandMarkerVariable" "\$__terminal_master_exit"\n';
   }
 
+  String _powerShellTrackedPayload(String command) {
+    final encoded = base64Encode(const Utf8Encoder().convert(command));
+    return '\$global:LASTEXITCODE=0; '
+        "\$__tm_script=[Text.Encoding]::UTF8.GetString("
+        "[Convert]::FromBase64String('$encoded')); "
+        '\$__tm_success=\$false; '
+        'try { & ([ScriptBlock]::Create(\$__tm_script)); '
+        '\$__tm_success=\$? } '
+        'catch { [Console]::Error.WriteLine([string]\$_) }; '
+        '\$__tm_exit=if (\$__tm_success) { 0 } '
+        'elseif (\$LASTEXITCODE -ne 0) { \$LASTEXITCODE } else { 1 }; '
+        '[Console]::Write("`r`n{0}:{1}`r`n", '
+        '\$env:$_commandMarkerVariable, \$__tm_exit)$_lineEnding';
+  }
+
   bool get _isFish {
     final executable = profile.executable.replaceAll('\\', '/');
     return executable
             .substring(executable.lastIndexOf('/') + 1)
             .toLowerCase() ==
         'fish';
+  }
+
+  String get _lineEnding {
+    if (profile.dialect == ShellDialect.windowsCmd ||
+        (profile.dialect == ShellDialect.powerShell && Platform.isWindows)) {
+      return '\r\n';
+    }
+    return '\n';
   }
 
   void _resize(int width, int height, int pixelWidth, int pixelHeight) {

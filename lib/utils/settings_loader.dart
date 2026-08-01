@@ -75,6 +75,7 @@ class SettingsLoader {
       final dialect = switch (entry['dialect']?.toString() ?? 'posix') {
         'posix' => ShellDialect.posix,
         'windows_cmd' => ShellDialect.windowsCmd,
+        'powershell' => ShellDialect.powerShell,
         final value => throw FormatException(
           'Unbekannter Shell-Dialekt für $id: $value',
         ),

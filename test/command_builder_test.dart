@@ -41,6 +41,24 @@ void main() {
       expect(command, "git clone 'repo; touch /tmp/injected' --depth 1");
     });
 
+    test('quotes PowerShell metacharacters and embedded apostrophes', () {
+      final config = ConfigLoader.loadConfig('data/git_clone.yaml');
+      final command = CommandBuilder(
+        config: config,
+        values: {
+          ...config.defaultValues,
+          'repository': r"repo's folder; Write-Output $env:PATH",
+          'depth': '1',
+        },
+        shell: CommandShell.powerShell,
+      ).build();
+
+      expect(
+        command,
+        r"git clone 'repo''s folder; Write-Output $env:PATH' --depth 1",
+      );
+    });
+
     test('renders configured multi-token options', () {
       final config = ConfigLoader.loadConfig('data/flutter.yaml');
       final command = CommandBuilder(

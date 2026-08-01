@@ -61,10 +61,18 @@ integrated_terminal:
       environment:
         LANG: en_US.UTF-8
       dialect: posix
+    - id: powershell
+      name: PowerShell 7
+      executable: /usr/bin/pwsh
+      arguments: [-NoLogo]
+      dialect: powershell
 ```
 
-Profile IDs must be unique. Supported command dialects are `posix` and
-`windows_cmd`; the selected dialect controls command quoting and line endings.
+Profile IDs must be unique. Supported command dialects are `posix`,
+`windows_cmd`, and `powershell`; the selected dialect controls command quoting,
+line endings, and Command Block exit-code tracking. Windows PowerShell is the
+default Windows profile when PowerShell 7 is unavailable; installed PowerShell
+7 executables are detected across supported desktop platforms.
 Terminal Master variables such as `TERM=xterm-256color` and
 `COLORTERM=truecolor` remain authoritative.
 

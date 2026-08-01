@@ -5,7 +5,7 @@ import 'package:process_run/shell.dart' show stringToArguments;
 
 import '../models/command_config.dart';
 
-enum CommandShell { posix, windowsCmd }
+enum CommandShell { posix, windowsCmd, powerShell }
 
 class CommandBuildException implements Exception {
   final String message;
@@ -246,6 +246,7 @@ class CommandBuilder {
     return switch (shell) {
       CommandShell.posix => _quotePosix(value),
       CommandShell.windowsCmd => _quoteWindows(value),
+      CommandShell.powerShell => _quotePowerShell(value),
     };
   }
 
@@ -268,6 +269,12 @@ class CommandBuilder {
       value = '$value$trailingBackslashes';
     }
     return '"$value"';
+  }
+
+  String _quotePowerShell(String value) {
+    if (value.isEmpty) return "''";
+    if (RegExp(r'^[A-Za-z0-9_@%+=:,./\\-]+$').hasMatch(value)) return value;
+    return "'${value.replaceAll("'", "''")}'";
   }
 
   bool _isActive(Object? value) => isCommandValueActive(value);
