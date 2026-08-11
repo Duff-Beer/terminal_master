@@ -3,13 +3,104 @@ import 'dart:convert';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:terminal_master/models/saved_terminal_tab.dart';
 import 'package:terminal_master/models/shell_profile.dart';
+import 'package:terminal_master/services/saved_terminal_tab_store.dart';
 import 'package:terminal_master/widgets/terminal_panel.dart';
 import 'package:xterm/xterm.dart';
 
 import 'support/fake_terminal_backend.dart';
 
 void main() {
+  test('serializes tab saves without losing snapshots', () async {
+    final store = MemorySavedTerminalTabStore();
+    const profile = ShellProfile(
+      id: 'primary',
+      name: 'Primary Shell',
+      executable: '/bin/primary',
+      dialect: ShellDialect.posix,
+    );
+    final controller = TerminalPanelController(
+      backendFactory: RecordingTerminalBackendFactory().create,
+      navigatorKey: GlobalKey<NavigatorState>(),
+      profiles: const [profile],
+      savedTabStore: store,
+    );
+    addTearDown(controller.dispose);
+    final firstSave = controller.saveActiveTab('First Snapshot');
+    await controller.createTab(profile);
+    final secondSave = controller.saveActiveTab('Second Snapshot');
+
+    await Future.wait([firstSave, secondSave]);
+    final snapshots = await store.load();
+
+    expect(snapshots.map((snapshot) => snapshot.name).toSet(), {
+      'First Snapshot',
+      'Second Snapshot',
+    });
+  });
+
+  test('rejects updates from a stale opened snapshot copy', () async {
+    final store = MemorySavedTerminalTabStore();
+    const profile = ShellProfile(
+      id: 'primary',
+      name: 'Primary Shell',
+      executable: '/bin/primary',
+      dialect: ShellDialect.posix,
+    );
+    final controller = TerminalPanelController(
+      backendFactory: RecordingTerminalBackendFactory().create,
+      navigatorKey: GlobalKey<NavigatorState>(),
+      profiles: const [profile],
+      savedTabStore: store,
+    );
+    addTearDown(controller.dispose);
+    final snapshot = await controller.saveActiveTab('Shared Snapshot');
+    await controller.openSavedTab(snapshot.id);
+    final firstCopyId = controller.activeTab.id;
+    await controller.openSavedTab(snapshot.id);
+    final staleCopyId = controller.activeTab.id;
+
+    await controller.selectTab(firstCopyId);
+    await controller.saveActiveTab('Updated Snapshot');
+    await controller.selectTab(staleCopyId);
+
+    await expectLater(
+      controller.saveActiveTab('Stale Update'),
+      throwsA(isA<StateError>()),
+    );
+    expect((await store.load()).single.name, 'Updated Snapshot');
+  });
+
+  testWidgets('does not overwrite snapshots after a load failure', (
+    tester,
+  ) async {
+    final store = _FailingSavedTerminalTabStore();
+    final navigatorKey = GlobalKey<NavigatorState>();
+    await tester.pumpWidget(
+      MaterialApp(
+        navigatorKey: navigatorKey,
+        home: TerminalWorkspace(
+          backendFactory: RecordingTerminalBackendFactory().create,
+          navigatorKey: navigatorKey,
+          savedTabStore: store,
+          child: const _FirstPage(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final controller = TerminalPanelScope.of(
+      tester.element(find.byType(_FirstPage)),
+    );
+
+    expect(controller.savedTabsError, isNotNull);
+    await expectLater(
+      controller.saveActiveTab('Must not overwrite'),
+      throwsA(isA<StateError>()),
+    );
+    expect(store.saveCalls, 0);
+  });
+
   testWidgets('keeps one terminal session while navigating between pages', (
     tester,
   ) async {
@@ -378,6 +469,171 @@ void main() {
     );
   });
 
+  testWidgets('opens a saved grid and directly replays its command', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1200, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final factory = RecordingTerminalBackendFactory();
+    final navigatorKey = GlobalKey<NavigatorState>();
+    final executedAt = DateTime.utc(2026, 8, 11, 18);
+    final savedCommand = SavedTerminalCommand(
+      command: 'echo restored',
+      executedAt: executedAt,
+      exitCode: 0,
+    );
+    final topLeftCommand = SavedTerminalCommand(
+      command: 'echo top left',
+      executedAt: executedAt.subtract(const Duration(minutes: 1)),
+      exitCode: 0,
+    );
+    final store = MemorySavedTerminalTabStore([
+      SavedTerminalTab(
+        id: 'saved-grid',
+        name: 'Saved Grid',
+        createdAt: executedAt,
+        updatedAt: executedAt,
+        verticalSplit: true,
+        horizontalSplit: true,
+        focusedRow: 1,
+        focusedColumn: 1,
+        panes: [
+          SavedTerminalPane(
+            row: 0,
+            column: 0,
+            profileId: 'primary',
+            commands: [topLeftCommand],
+          ),
+          const SavedTerminalPane(row: 0, column: 1, profileId: 'primary'),
+          const SavedTerminalPane(row: 1, column: 0, profileId: 'primary'),
+          SavedTerminalPane(
+            row: 1,
+            column: 1,
+            profileId: 'primary',
+            workingDirectory: '/restored',
+            draft: 'echo draft',
+            commands: [savedCommand],
+          ),
+        ],
+      ),
+    ]);
+    const profiles = [
+      ShellProfile(
+        id: 'primary',
+        name: 'Primary Shell',
+        executable: '/bin/primary',
+        dialect: ShellDialect.posix,
+      ),
+    ];
+
+    await tester.pumpWidget(
+      MaterialApp(
+        navigatorKey: navigatorKey,
+        home: TerminalWorkspace(
+          backendFactory: factory.create,
+          navigatorKey: navigatorKey,
+          profiles: profiles,
+          savedTabStore: store,
+          child: const _FirstPage(),
+        ),
+      ),
+    );
+    final controller = TerminalPanelScope.of(
+      tester.element(find.byType(_FirstPage)),
+    );
+    await controller.open();
+    await tester.pumpAndSettle();
+    expect(factory.backends, hasLength(1));
+
+    await tester.tap(find.byKey(const Key('open-saved-terminal-tab')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Saved Grid'));
+    await tester.pumpAndSettle();
+    expect(
+      tester
+          .widget<CheckboxListTile>(
+            find.byKey(const Key('execute-saved-commands-on-open')),
+          )
+          .value,
+      isFalse,
+    );
+    await tester.tap(find.byKey(const Key('confirm-open-saved-terminal-tab')));
+    await tester.pumpAndSettle();
+
+    expect(controller.activeTab.snapshotName, 'Saved Grid');
+    expect(controller.activeTab.visiblePanes, hasLength(4));
+    expect(controller.commandController.text, 'echo draft');
+    expect(factory.backends, hasLength(5));
+    expect(factory.backends.last.writes, isEmpty);
+    expect(factory.options.last.workingDirectory, '/restored');
+    expect(find.byType(TerminalPane).hitTestable(), findsNWidgets(4));
+
+    await tester.tap(find.byKey(const Key('terminal-command-history-toggle')));
+    await tester.pumpAndSettle();
+    expect(find.text('Gespeicherte Befehle'), findsOneWidget);
+    expect(find.text('echo restored'), findsOneWidget);
+
+    final commandKeySuffix =
+        '${executedAt.microsecondsSinceEpoch}-'
+        '${savedCommand.command.hashCode}';
+    await tester.tap(
+      find.byKey(Key('saved-terminal-command-menu-$commandKeySuffix')),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Bearbeiten'));
+    await tester.pumpAndSettle();
+    expect(controller.commandController.text, 'echo restored');
+
+    await tester.tap(
+      find.byKey(Key('run-saved-terminal-command-$commandKeySuffix')),
+    );
+    await tester.pump();
+    expect(
+      factory.backends.last.writes.map(utf8.decode).single,
+      contains('echo restored'),
+    );
+    expect(controller.session.commandBlocks.single.command, 'echo restored');
+
+    await tester.tap(find.byKey(const Key('save-terminal-tab')));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const Key('saved-terminal-tab-name')),
+      'Updated Grid',
+    );
+    await tester.tap(find.byKey(const Key('confirm-save-terminal-tab')));
+    await tester.pumpAndSettle();
+    final updatedSnapshots = await store.load();
+    expect(updatedSnapshots.single.name, 'Updated Grid');
+    expect(updatedSnapshots.single.panes, hasLength(4));
+    expect(
+      updatedSnapshots.single.panes.last.commands.single.command,
+      'echo restored',
+    );
+
+    await tester.tap(find.byKey(const Key('open-saved-terminal-tab')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Updated Grid').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('execute-saved-commands-on-open')));
+    await tester.tap(find.byKey(const Key('confirm-open-saved-terminal-tab')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('confirm-command-execution')), findsOneWidget);
+    await tester.tap(find.byKey(const Key('confirm-command-execution')));
+    await tester.pump();
+
+    expect(factory.backends, hasLength(9));
+    expect(
+      factory.backends[5].writes.map(utf8.decode).single,
+      contains('echo top left'),
+    );
+    expect(
+      factory.backends.last.writes.map(utf8.decode).single,
+      contains('echo restored'),
+    );
+  });
+
   testWidgets('keeps split terminal sessions isolated across tabs', (
     tester,
   ) async {
@@ -684,5 +940,19 @@ class _SecondPage extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+class _FailingSavedTerminalTabStore implements SavedTerminalTabStore {
+  var saveCalls = 0;
+
+  @override
+  Future<List<SavedTerminalTab>> load() async {
+    throw const FormatException('damaged snapshots');
+  }
+
+  @override
+  Future<void> save(List<SavedTerminalTab> tabs) async {
+    saveCalls++;
   }
 }

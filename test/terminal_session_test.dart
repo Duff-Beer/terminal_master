@@ -10,6 +10,27 @@ import 'package:xterm/xterm.dart';
 import 'support/fake_terminal_backend.dart';
 
 void main() {
+  test('interrupts an active tracked command when disposed', () async {
+    final factory = RecordingTerminalBackendFactory();
+    final session = TerminalSession(
+      backendFactory: factory.create,
+      profile: _testProfile,
+    );
+    await session.start();
+    session.sendTrackedCommand('sleep 10');
+    final block = session.commandBlocks.single;
+    var interruptionNotified = false;
+    session.addListener(() {
+      if (!session.hasActiveCommand) interruptionNotified = true;
+    });
+
+    session.dispose();
+
+    expect(block.status, TerminalCommandBlockStatus.interrupted);
+    expect(interruptionNotified, isTrue);
+    expect(factory.backends.single.wasKilled, isTrue);
+  });
+
   test('starts a shell, forwards input and tracks resize and exit', () async {
     final factory = RecordingTerminalBackendFactory();
     final session = TerminalSession(
@@ -96,11 +117,19 @@ void main() {
       );
       await Future<void>.delayed(Duration.zero);
       expect(session.workingDirectory, '/tmp/project');
+      expect(session.restorableWorkingDirectory, '/tmp/project');
       expect(
         session.hyperlinkAt(const CellOffset(2, 1)),
         Uri.parse('https://example.com/docs'),
       );
       expect(session.hyperlinkAt(const CellOffset(4, 1)), isNull);
+
+      factory.backends.single.emit(
+        utf8.encode('\x1b]7;file://remote-server/home/remote\x07'),
+      );
+      await Future<void>.delayed(Duration.zero);
+      expect(session.workingDirectory, '/home/remote');
+      expect(session.restorableWorkingDirectory, _testProfile.workingDirectory);
     },
   );
 

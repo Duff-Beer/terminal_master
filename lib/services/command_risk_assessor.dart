@@ -77,6 +77,17 @@ class CommandRiskAssessor {
       'mkfs',
       'shutdown',
       'reboot',
+      'del',
+      'erase',
+      'rmdir',
+      'rd',
+      'format',
+      'diskpart',
+      'remove-item',
+      'clear-disk',
+      'format-volume',
+      'initialize-disk',
+      'remove-partition',
     })) {
       level = CommandRiskLevel.destructive;
       reasons.add(
@@ -87,7 +98,7 @@ class CommandRiskAssessor {
       r'\b(?:git\s+push|rm|pishrink)\b[^\n;&|]*(?:^|\s)-f(?:\s|$)',
       multiLine: true,
     );
-    if (RegExp(r'(^|\s)--force(?:\s|$)').hasMatch(joined) ||
+    if (RegExp(r'(^|\s)--?force(?:\s|$)').hasMatch(joined) ||
         knownShortForce.hasMatch(joined)) {
       level = CommandRiskLevel.destructive;
       reasons.add('Mindestens ein Batch-Kommando verwendet eine Force-Option.');

@@ -1,5 +1,8 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'models/shell_profile.dart';
+import 'services/saved_terminal_tab_store.dart';
 import 'services/terminal_backend.dart';
 import 'theme.dart';
 import 'pages/main_page.dart';
@@ -36,6 +39,9 @@ class _MyAppState extends State<MyApp> {
         backendFactory: widget.terminalBackendFactory,
         navigatorKey: _navigatorKey,
         profiles: widget.shellProfiles,
+        savedTabStore: FileSavedTerminalTabStore(
+          Directory(widget.configDirectoryPath),
+        ),
         child: Navigator(
           onGenerateRoute: (settings) => MaterialPageRoute<void>(
             settings: settings,

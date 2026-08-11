@@ -86,5 +86,21 @@ void main() {
 
       expect(assessment.level, CommandRiskLevel.standard);
     });
+
+    test('detects destructive Windows and PowerShell commands', () {
+      for (final command in [
+        r'del /s /q C:\temp\*',
+        r'rmdir /s /q C:\temp',
+        'format D:',
+        r'Remove-Item C:\temp -Recurse -Force',
+        'Clear-Disk -Number 1 -RemoveData',
+      ]) {
+        expect(
+          CommandRiskAssessor.assessRawCommands([command]).level,
+          CommandRiskLevel.destructive,
+          reason: command,
+        );
+      }
+    });
   });
 }

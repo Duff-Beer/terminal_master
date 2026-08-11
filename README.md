@@ -89,6 +89,24 @@ can copy their command or output and export a Markdown report through the
 history button in the terminal status bar. Commands typed directly into the
 terminal remain untracked and behave like a normal shell session.
 
+## Saved Terminal Tabs
+
+The bookmark action in the terminal tab bar saves or updates a named tab
+snapshot. Snapshots preserve the one-to-four-pane layout, shell profile and last
+working directory of every pane, the focused pane, pending command drafts, and
+the latest 20 completed Command Block commands per pane. Terminal output and
+commands typed directly into the PTY are not persisted.
+
+The folder action opens a snapshot as a new tab with fresh PTY processes. Saved
+commands are listed separately in Command Blocks and can be copied, loaded into
+the editable command field, executed individually, or executed sequentially for
+their pane. Standard commands run from the explicit play action; elevated and
+destructive commands require the existing risk acknowledgement. Opening does
+not execute commands by default. An optional switch in the open dialog previews
+all saved commands and, after explicit confirmation, replays them sequentially
+per pane while separate panes may run in parallel. Snapshots are stored in
+`saved_terminal_tabs.json` in Terminal Master's application-support directory.
+
 <img src="assets/branding/terminal_master.png" alt="Terminal Master icon" width="180">
 
 ## Development

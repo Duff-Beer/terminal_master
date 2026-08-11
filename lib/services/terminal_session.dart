@@ -44,6 +44,7 @@ class TerminalSession extends ChangeNotifier {
   String? _error;
   String? _title;
   String? _workingDirectory;
+  bool _workingDirectoryIsRemote = false;
   int? _exitCode;
   CellAnchor? _pendingLinkStart;
   Uri? _pendingLinkUri;
@@ -70,6 +71,9 @@ class TerminalSession extends ChangeNotifier {
   String get shellName => profile.name;
 
   String? get workingDirectory => _workingDirectory;
+
+  String? get restorableWorkingDirectory =>
+      _workingDirectoryIsRemote ? profile.workingDirectory : _workingDirectory;
 
   int? get exitCode => _exitCode;
 
@@ -505,6 +509,11 @@ class TerminalSession extends ChangeNotifier {
   void _updateWorkingDirectory(String value) {
     final uri = Uri.tryParse(value);
     if (uri == null || uri.scheme != 'file' || uri.path.isEmpty) return;
+    final host = uri.host.toLowerCase();
+    _workingDirectoryIsRemote =
+        host.isNotEmpty &&
+        host != 'localhost' &&
+        host != Platform.localHostname.toLowerCase();
     var path = Uri.decodeComponent(uri.path);
     if (Platform.isWindows && RegExp(r'^/[A-Za-z]:/').hasMatch(path)) {
       path = path.substring(1).replaceAll('/', '\\');
@@ -625,6 +634,15 @@ class TerminalSession extends ChangeNotifier {
 
   @override
   void dispose() {
+    if (_disposed) return;
+    final shouldKill = isRunning;
+    _interruptTrackedCommand();
+    _processExited = true;
+    if (_status == TerminalSessionStatus.starting ||
+        _status == TerminalSessionStatus.running) {
+      _status = TerminalSessionStatus.exited;
+    }
+    notifyListeners();
     _disposed = true;
     terminal.onOutput = null;
     terminal.onResize = null;
@@ -636,7 +654,7 @@ class TerminalSession extends ChangeNotifier {
     }
     _hyperlinks.clear();
     _outputSubscription?.cancel();
-    if (isRunning) _backend?.kill();
+    if (shouldKill) _backend?.kill();
     super.dispose();
   }
 }

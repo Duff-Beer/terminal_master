@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
@@ -6,11 +7,15 @@ import 'package:flutter/services.dart';
 import 'package:xterm/xterm.dart';
 
 import '../models/shell_profile.dart';
+import '../models/saved_terminal_tab.dart';
 import '../models/terminal_command_block.dart';
+import '../services/command_risk_assessor.dart';
 import '../services/terminal_backend.dart';
 import '../services/external_url_launcher.dart';
+import '../services/saved_terminal_tab_store.dart';
 import '../services/terminal_session.dart';
 import '../theme.dart';
+import 'command_confirmation_dialog.dart';
 import 'terminal_mouse_overlay.dart';
 
 enum TerminalSplitOrientation { vertical, horizontal }
@@ -21,6 +26,7 @@ class TerminalPaneData {
   final int row;
   final int column;
   final TextEditingController commandController = TextEditingController();
+  final List<SavedTerminalCommand> savedCommands;
   TerminalSession session;
   bool isSearchOpen = false;
 
@@ -30,7 +36,8 @@ class TerminalPaneData {
     required this.row,
     required this.column,
     required this.session,
-  });
+    List<SavedTerminalCommand> savedCommands = const [],
+  }) : savedCommands = List.of(savedCommands);
 
   void dispose() {
     commandController.dispose();
@@ -45,6 +52,9 @@ class TerminalTab {
   bool isVerticallySplit = false;
   bool isHorizontallySplit = false;
   String? maximizedPaneId;
+  String? snapshotId;
+  String? snapshotName;
+  DateTime? snapshotUpdatedAt;
 
   TerminalTab({required this.id, required TerminalPaneData pane})
     : panes = [pane],
@@ -98,10 +108,12 @@ class TerminalPanelController extends ChangeNotifier {
   final TerminalBackendFactory backendFactory;
   final GlobalKey<NavigatorState> navigatorKey;
   final List<ShellProfile> profiles;
+  final SavedTerminalTabStore savedTabStore;
 
   TerminalPanelController({
     required this.backendFactory,
     required this.navigatorKey,
+    required this.savedTabStore,
     List<ShellProfile>? profiles,
   }) : profiles = List.unmodifiable(
          profiles == null || profiles.isEmpty
@@ -111,18 +123,25 @@ class TerminalPanelController extends ChangeNotifier {
     final tab = _newTab(this.profiles.first);
     _tabs.add(tab);
     _activeTabId = tab.id;
+    _savedTabsLoad = _loadSavedTabs();
   }
 
   final List<TerminalTab> _tabs = [];
+  final List<SavedTerminalTab> _savedTabs = [];
+  late final Future<void> _savedTabsLoad;
+  Future<void> _savedTabsMutation = Future.value();
   var _nextTabId = 1;
   var _nextPaneId = 1;
   late String _activeTabId;
   bool _isOpen = false;
   bool _isMaximized = false;
+  bool _isLoadingSavedTabs = true;
+  String? _savedTabsError;
   double _fontSize = defaultFontSize;
   bool _disposed = false;
 
   List<TerminalTab> get tabs => List.unmodifiable(_tabs);
+  List<SavedTerminalTab> get savedTabs => List.unmodifiable(_savedTabs);
   TerminalTab get activeTab => _tab(_activeTabId);
   TerminalPaneData get activePane => activeTab.activePane;
   TerminalPaneData get primaryPane => activeTab.primaryPane;
@@ -132,6 +151,8 @@ class TerminalPanelController extends ChangeNotifier {
   ShellProfile get activeProfile => activePane.profile;
 
   bool get isOpen => _isOpen;
+  bool get isLoadingSavedTabs => _isLoadingSavedTabs;
+  String? get savedTabsError => _savedTabsError;
   bool get isMaximized => _isMaximized;
   bool get isSearchOpen => activePane.isSearchOpen;
   bool get isSplit =>
@@ -193,6 +214,154 @@ class TerminalPanelController extends ChangeNotifier {
     }
     notifyListeners();
     if (_isOpen) await _startForDisplay(tab.primaryPane);
+  }
+
+  Future<void> _loadSavedTabs() async {
+    try {
+      _savedTabs
+        ..clear()
+        ..addAll(await savedTabStore.load());
+      _savedTabsError = null;
+    } on Object catch (error) {
+      _savedTabsError =
+          'Gespeicherte Tabs konnten nicht geladen werden: $error';
+    } finally {
+      _isLoadingSavedTabs = false;
+      notifyListeners();
+    }
+  }
+
+  Future<SavedTerminalTab> saveActiveTab(String name) {
+    final tab = activeTab;
+    return _mutateSavedTabs(() => _saveTab(tab, name));
+  }
+
+  Future<SavedTerminalTab> _saveTab(TerminalTab tab, String name) async {
+    await _savedTabsLoad;
+    if (_savedTabsError case final error?) throw StateError(error);
+    final normalizedName = name.trim();
+    if (normalizedName.isEmpty) {
+      throw ArgumentError.value(name, 'name', 'Der Name darf nicht leer sein.');
+    }
+    final now = DateTime.now().toUtc();
+    final existingIndex = tab.snapshotId == null
+        ? -1
+        : _savedTabs.indexWhere((snapshot) => snapshot.id == tab.snapshotId);
+    final existing = existingIndex < 0 ? null : _savedTabs[existingIndex];
+    final openedVersion = tab.snapshotUpdatedAt;
+    if (existing != null &&
+        openedVersion != null &&
+        !openedVersion.isAtSameMomentAs(existing.updatedAt)) {
+      throw StateError(
+        'Dieser gespeicherte Tab wurde zwischenzeitlich geändert. '
+        'Öffne die aktuelle Version erneut.',
+      );
+    }
+    final snapshot = SavedTerminalTab(
+      id: existing?.id ?? 'saved-${now.microsecondsSinceEpoch}',
+      name: normalizedName,
+      createdAt: existing?.createdAt ?? now,
+      updatedAt: now,
+      verticalSplit: tab.isVerticallySplit,
+      horizontalSplit: tab.isHorizontallySplit,
+      focusedRow: tab.activePane.row,
+      focusedColumn: tab.activePane.column,
+      panes: tab.panes.map((pane) {
+        SavedTerminalPane? existingPane;
+        for (final candidate
+            in existing?.panes ?? const <SavedTerminalPane>[]) {
+          if (candidate.row == pane.row && candidate.column == pane.column) {
+            existingPane = candidate;
+            break;
+          }
+        }
+        return _savedPane(pane, existingPane?.commands ?? const []);
+      }).toList(),
+    );
+    final updated = List<SavedTerminalTab>.of(_savedTabs);
+    if (existingIndex < 0) {
+      updated.insert(0, snapshot);
+    } else {
+      updated[existingIndex] = snapshot;
+      updated.sort((left, right) => right.updatedAt.compareTo(left.updatedAt));
+    }
+    await savedTabStore.save(updated);
+    _savedTabs
+      ..clear()
+      ..addAll(updated);
+    tab.snapshotId = snapshot.id;
+    tab.snapshotName = snapshot.name;
+    tab.snapshotUpdatedAt = snapshot.updatedAt;
+    _savedTabsError = null;
+    notifyListeners();
+    return snapshot;
+  }
+
+  Future<TerminalTab> openSavedTab(String snapshotId) async {
+    await _savedTabsLoad;
+    if (_savedTabsError case final error?) throw StateError(error);
+    final snapshot = _savedTabs.firstWhere((tab) => tab.id == snapshotId);
+    final sortedPanes = List<SavedTerminalPane>.of(snapshot.panes)
+      ..sort((left, right) {
+        final row = left.row.compareTo(right.row);
+        return row != 0 ? row : left.column.compareTo(right.column);
+      });
+    final primarySnapshot = sortedPanes.firstWhere(
+      (pane) => pane.row == 0 && pane.column == 0,
+    );
+    final primaryPane = _paneFromSnapshot(primarySnapshot);
+    final tab =
+        TerminalTab(id: 'terminal-tab-${_nextTabId++}', pane: primaryPane)
+          ..snapshotId = snapshot.id
+          ..snapshotName = snapshot.name
+          ..snapshotUpdatedAt = snapshot.updatedAt
+          ..isVerticallySplit = snapshot.verticalSplit
+          ..isHorizontallySplit = snapshot.horizontalSplit;
+    for (final paneSnapshot in sortedPanes) {
+      if (identical(paneSnapshot, primarySnapshot)) continue;
+      tab.panes.add(_paneFromSnapshot(paneSnapshot));
+    }
+    final focused = tab.paneAt(
+      row: snapshot.focusedRow,
+      column: snapshot.focusedColumn,
+    );
+    if (focused != null && tab.visiblePanes.contains(focused)) {
+      tab.focusedPaneId = focused.id;
+    }
+    _tabs.add(tab);
+    _activeTabId = tab.id;
+    _isOpen = true;
+    notifyListeners();
+    await Future.wait(tab.visiblePanes.map(_startForDisplay));
+    return tab;
+  }
+
+  Future<void> deleteSavedTab(String snapshotId) =>
+      _mutateSavedTabs(() => _deleteSavedTab(snapshotId));
+
+  Future<void> _deleteSavedTab(String snapshotId) async {
+    await _savedTabsLoad;
+    if (_savedTabsError case final error?) throw StateError(error);
+    final updated = _savedTabs
+        .where((snapshot) => snapshot.id != snapshotId)
+        .toList();
+    await savedTabStore.save(updated);
+    _savedTabs
+      ..clear()
+      ..addAll(updated);
+    notifyListeners();
+  }
+
+  Future<T> _mutateSavedTabs<T>(Future<T> Function() operation) {
+    final result = Completer<T>();
+    _savedTabsMutation = _savedTabsMutation.then((_) async {
+      try {
+        result.complete(await operation());
+      } on Object catch (error, stackTrace) {
+        result.completeError(error, stackTrace);
+      }
+    });
+    return result.future;
   }
 
   Future<void> selectTab(String tabId) async {
@@ -317,6 +486,53 @@ class TerminalPanelController extends ChangeNotifier {
     }
   }
 
+  Future<void> stageSavedCommand(String paneId, String command) async {
+    final pane = _pane(paneId);
+    _isOpen = true;
+    activeTab.focusedPaneId = pane.id;
+    pane.commandController
+      ..text = command
+      ..selection = TextSelection.collapsed(offset: command.length);
+    notifyListeners();
+    await _startForDisplay(pane);
+  }
+
+  Future<void> executeSavedCommand(String paneId, String command) async {
+    final pane = _pane(paneId);
+    final activeSession = await _ensureStarted(pane);
+    activeSession.sendTrackedCommand(command);
+  }
+
+  Future<void> executeSavedCommands(
+    String paneId,
+    Iterable<String> commands,
+  ) async {
+    final pane = _pane(paneId);
+    final activeSession = await _ensureStarted(pane);
+    for (final command in commands) {
+      if (activeSession.hasActiveCommand) {
+        await _waitForTrackedCommand(activeSession);
+      }
+      activeSession.sendTrackedCommand(command);
+      await _waitForTrackedCommand(activeSession);
+      if (activeSession.status != TerminalSessionStatus.running) break;
+    }
+  }
+
+  Future<void> executeSavedTabCommands(String tabId) async {
+    final tab = _tab(tabId);
+    await Future.wait(
+      tab.visiblePanes
+          .where((pane) => pane.savedCommands.isNotEmpty)
+          .map(
+            (pane) => executeSavedCommands(
+              pane.id,
+              pane.savedCommands.map((command) => command.command),
+            ),
+          ),
+    );
+  }
+
   Future<void> stopSession([String? paneId]) async {
     final activeSession = _pane(paneId ?? activePane.id).session;
     if (!activeSession.isRunning) return;
@@ -368,6 +584,87 @@ class TerminalPanelController extends ChangeNotifier {
       column: column,
       session: _newSession(profile),
     );
+  }
+
+  TerminalPaneData _paneFromSnapshot(SavedTerminalPane snapshot) {
+    final baseProfile = profiles.firstWhere(
+      (profile) => profile.id == snapshot.profileId,
+      orElse: () => profiles.first,
+    );
+    final profile = ShellProfile(
+      id: baseProfile.id,
+      name: baseProfile.name,
+      executable: baseProfile.executable,
+      arguments: baseProfile.arguments,
+      workingDirectory:
+          snapshot.workingDirectory ?? baseProfile.workingDirectory,
+      environment: baseProfile.environment,
+      dialect: baseProfile.dialect,
+    );
+    final pane = TerminalPaneData(
+      id: 'terminal-pane-${_nextPaneId++}',
+      profile: profile,
+      row: snapshot.row,
+      column: snapshot.column,
+      session: _newSession(profile),
+      savedCommands: snapshot.commands,
+    );
+    pane.commandController.text = snapshot.draft;
+    return pane;
+  }
+
+  SavedTerminalPane _savedPane(
+    TerminalPaneData pane,
+    List<SavedTerminalCommand> previousCommands,
+  ) {
+    final commandCandidates = <SavedTerminalCommand>[
+      ...previousCommands,
+      ...pane.savedCommands,
+      ...pane.session.commandBlocks
+          .where((block) => block.status != TerminalCommandBlockStatus.running)
+          .map(
+            (block) => SavedTerminalCommand(
+              command: block.command,
+              executedAt: block.startedAt,
+              exitCode: block.exitCode,
+            ),
+          ),
+    ];
+    final uniqueCommands = <String, SavedTerminalCommand>{};
+    for (final command in commandCandidates) {
+      final key =
+          '${command.executedAt.microsecondsSinceEpoch}\u0000'
+          '${command.exitCode}\u0000${command.command}';
+      uniqueCommands[key] = command;
+    }
+    final commands = uniqueCommands.values.toList()
+      ..sort((left, right) => left.executedAt.compareTo(right.executedAt));
+    final recentCommands = commands.length > 20
+        ? commands.sublist(commands.length - 20)
+        : commands;
+    return SavedTerminalPane(
+      row: pane.row,
+      column: pane.column,
+      profileId: pane.profile.id,
+      workingDirectory: pane.session.restorableWorkingDirectory,
+      draft: pane.commandController.text,
+      commands: List.unmodifiable(recentCommands),
+    );
+  }
+
+  Future<void> _waitForTrackedCommand(TerminalSession session) {
+    if (!session.hasActiveCommand) return Future.value();
+    final completer = Completer<void>();
+    void listener() {
+      if (!session.hasActiveCommand ||
+          session.status != TerminalSessionStatus.running) {
+        session.removeListener(listener);
+        if (!completer.isCompleted) completer.complete();
+      }
+    }
+
+    session.addListener(listener);
+    return completer.future;
   }
 
   TerminalSession _newSession(ShellProfile profile) {
@@ -450,6 +747,7 @@ class TerminalWorkspace extends StatefulWidget {
   final TerminalBackendFactory backendFactory;
   final GlobalKey<NavigatorState> navigatorKey;
   final List<ShellProfile>? profiles;
+  final SavedTerminalTabStore? savedTabStore;
   final Widget child;
 
   const TerminalWorkspace({
@@ -457,6 +755,7 @@ class TerminalWorkspace extends StatefulWidget {
     required this.backendFactory,
     required this.navigatorKey,
     this.profiles,
+    this.savedTabStore,
     required this.child,
   });
 
@@ -475,6 +774,7 @@ class _TerminalWorkspaceState extends State<TerminalWorkspace> {
       backendFactory: widget.backendFactory,
       navigatorKey: widget.navigatorKey,
       profiles: widget.profiles,
+      savedTabStore: widget.savedTabStore ?? MemorySavedTerminalTabStore(),
     );
   }
 
@@ -737,7 +1037,9 @@ class TerminalPanel extends StatelessWidget {
                             ConstrainedBox(
                               constraints: const BoxConstraints(maxWidth: 120),
                               child: Text(
-                                pane.session.title ?? pane.profile.name,
+                                tab.snapshotName ??
+                                    pane.session.title ??
+                                    pane.profile.name,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: TextStyle(
@@ -769,6 +1071,51 @@ class TerminalPanel extends StatelessWidget {
                 );
               }).toList(),
             ),
+          ),
+          IconButton(
+            key: const Key('save-terminal-tab'),
+            visualDensity: VisualDensity.compact,
+            tooltip: controller.activeTab.snapshotId == null
+                ? 'Terminal-Tab speichern'
+                : 'Gespeicherten Terminal-Tab aktualisieren',
+            onPressed: () => _saveTab(context),
+            icon: const Icon(Icons.bookmark_add_outlined, size: 19),
+          ),
+          PopupMenuButton<String>(
+            key: const Key('open-saved-terminal-tab'),
+            tooltip: 'Gespeicherten Terminal-Tab öffnen',
+            enabled: !controller.isLoadingSavedTabs,
+            icon: Icon(
+              Icons.folder_open_outlined,
+              size: 19,
+              color: controller.savedTabsError == null
+                  ? null
+                  : Theme.of(context).colorScheme.error,
+            ),
+            onSelected: (id) => _openSavedTab(context, id),
+            itemBuilder: (context) {
+              if (controller.savedTabsError case final error?) {
+                return [
+                  PopupMenuItem<String>(enabled: false, child: Text(error)),
+                ];
+              }
+              if (controller.savedTabs.isEmpty) {
+                return const [
+                  PopupMenuItem<String>(
+                    enabled: false,
+                    child: Text('Keine gespeicherten Tabs'),
+                  ),
+                ];
+              }
+              return controller.savedTabs
+                  .map(
+                    (snapshot) => PopupMenuItem<String>(
+                      value: snapshot.id,
+                      child: Text(snapshot.name),
+                    ),
+                  )
+                  .toList();
+            },
           ),
           PopupMenuButton<ShellProfile>(
             key: const Key('new-terminal-tab'),
@@ -871,6 +1218,172 @@ class TerminalPanel extends StatelessWidget {
         );
       },
     );
+  }
+
+  Future<void> _saveTab(BuildContext context) async {
+    var enteredName =
+        controller.activeTab.snapshotName ??
+        controller.activePane.session.title ??
+        controller.activeProfile.name;
+    final name = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(
+          controller.activeTab.snapshotId == null
+              ? 'Terminal-Tab speichern'
+              : 'Gespeicherten Tab aktualisieren',
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            TextFormField(
+              key: const Key('saved-terminal-tab-name'),
+              initialValue: enteredName,
+              autofocus: true,
+              decoration: const InputDecoration(labelText: 'Name'),
+              onChanged: (value) => enteredName = value,
+              onFieldSubmitted: (value) {
+                if (value.trim().isNotEmpty) Navigator.pop(context, value);
+              },
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              'Pro Pane werden bis zu 20 Command-Block-Befehle gespeichert. '
+              'Befehle können sensible Werte enthalten; Terminalausgaben '
+              'werden nicht gespeichert.',
+              style: TextStyle(fontSize: 11),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Abbrechen'),
+          ),
+          FilledButton(
+            key: const Key('confirm-save-terminal-tab'),
+            onPressed: () {
+              final value = enteredName.trim();
+              if (value.isNotEmpty) Navigator.pop(context, value);
+            },
+            child: const Text('Speichern'),
+          ),
+        ],
+      ),
+    );
+    if (name == null || !context.mounted) return;
+    try {
+      await controller.saveActiveTab(name);
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Terminal-Tab „$name“ wurde gespeichert.')),
+      );
+    } on Object catch (error) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Speichern fehlgeschlagen: $error')),
+      );
+    }
+  }
+
+  Future<void> _openSavedTab(BuildContext context, String snapshotId) async {
+    final snapshot = controller.savedTabs.firstWhere(
+      (snapshot) => snapshot.id == snapshotId,
+    );
+    final commands = snapshot.panes
+        .expand((pane) => pane.commands)
+        .map((command) => command.command)
+        .toList();
+    var executeCommands = false;
+    final dialogContext = controller.navigatorKey.currentContext ?? context;
+    final openWithCommands = await showDialog<bool>(
+      context: dialogContext,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: Text('„${snapshot.name}“ öffnen'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '${snapshot.panes.length} Terminal-Panes · '
+                '${commands.length} gespeicherte Befehle',
+              ),
+              const SizedBox(height: 12),
+              CheckboxListTile(
+                key: const Key('execute-saved-commands-on-open'),
+                contentPadding: EdgeInsets.zero,
+                controlAffinity: ListTileControlAffinity.leading,
+                title: const Text(
+                  'Gespeicherte Befehle nach dem Öffnen direkt ausführen',
+                ),
+                subtitle: const Text(
+                  'Die Befehle laufen je Pane nacheinander.',
+                ),
+                value: executeCommands,
+                onChanged: commands.isEmpty
+                    ? null
+                    : (value) => setDialogState(
+                        () => executeCommands = value ?? false,
+                      ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Abbrechen'),
+            ),
+            FilledButton(
+              key: const Key('confirm-open-saved-terminal-tab'),
+              onPressed: () => Navigator.pop(context, executeCommands),
+              child: const Text('Öffnen'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (openWithCommands == null || !context.mounted) return;
+    if (openWithCommands) {
+      final approved = await showCommandConfirmationDialog(
+        dialogContext,
+        commands: commands,
+        assessment: CommandRiskAssessor.assessRawCommands(
+          commands,
+          containsRawConfiguration: false,
+        ),
+      );
+      if (!approved || !context.mounted) return;
+    }
+    try {
+      final tab = await controller.openSavedTab(snapshotId);
+      if (!context.mounted) return;
+      if (openWithCommands) {
+        unawaited(_executeOpenedSavedTab(context, tab.id));
+      }
+    } on Object catch (error) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Öffnen fehlgeschlagen: $error')));
+    }
+  }
+
+  Future<void> _executeOpenedSavedTab(
+    BuildContext context,
+    String tabId,
+  ) async {
+    try {
+      await controller.executeSavedTabCommands(tabId);
+    } on Object catch (error) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Automatische Ausführung fehlgeschlagen: $error'),
+        ),
+      );
+    }
   }
 
   Future<void> _confirmStop(BuildContext context, String paneId) async {
@@ -1378,6 +1891,7 @@ class _TerminalPaneState extends State<TerminalPane> {
 
   Widget _buildCommandHistory() {
     final blocks = session.commandBlocks.reversed.toList();
+    final savedCommands = widget.pane.savedCommands.reversed.toList();
     return Container(
       key: _paneKey('terminal-command-history'),
       height: 190,
@@ -1402,7 +1916,10 @@ class _TerminalPaneState extends State<TerminalPane> {
                     ),
                   ),
                 ),
-                Text('${blocks.length}', style: const TextStyle(fontSize: 10)),
+                Text(
+                  '${blocks.length + savedCommands.length}',
+                  style: const TextStyle(fontSize: 10),
+                ),
                 _compactIconButton(
                   key: _paneKey('clear-command-history'),
                   tooltip: session.hasActiveCommand
@@ -1417,22 +1934,183 @@ class _TerminalPaneState extends State<TerminalPane> {
             ),
           ),
           Expanded(
-            child: blocks.isEmpty
+            child: blocks.isEmpty && savedCommands.isEmpty
                 ? const Center(
                     child: Text(
                       'Noch keine Befehle über Terminal Master gesendet.',
                       style: TextStyle(fontSize: 10),
                     ),
                   )
-                : ListView.builder(
-                    itemCount: blocks.length,
-                    itemBuilder: (context, index) =>
-                        _buildCommandBlock(blocks[index]),
+                : ListView(
+                    children: [
+                      if (savedCommands.isNotEmpty) ...[
+                        _commandHistorySection(
+                          title: 'Gespeicherte Befehle',
+                          trailing: TextButton.icon(
+                            key: _paneKey('run-all-saved-commands'),
+                            onPressed: session.hasActiveCommand
+                                ? null
+                                : () => _executeAllSavedCommands(savedCommands),
+                            icon: const Icon(Icons.playlist_play, size: 15),
+                            label: const Text('Alle'),
+                          ),
+                        ),
+                        for (final command in savedCommands)
+                          _buildSavedCommand(command),
+                      ],
+                      if (blocks.isNotEmpty) ...[
+                        if (savedCommands.isNotEmpty)
+                          _commandHistorySection(title: 'Aktuelle Sitzung'),
+                        for (final block in blocks) _buildCommandBlock(block),
+                      ],
+                    ],
                   ),
           ),
         ],
       ),
     );
+  }
+
+  Widget _commandHistorySection({required String title, Widget? trailing}) {
+    return SizedBox(
+      height: 30,
+      child: Row(
+        children: [
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              title,
+              style: const TextStyle(
+                color: TerminalMasterColors.cyan,
+                fontSize: 10,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+          if (trailing != null) trailing,
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSavedCommand(SavedTerminalCommand command) {
+    final keySuffix =
+        '${command.executedAt.microsecondsSinceEpoch}-'
+        '${command.command.hashCode}';
+    return ListTile(
+      key: Key('saved-terminal-command-$keySuffix'),
+      dense: true,
+      contentPadding: const EdgeInsets.only(left: 8, right: 2),
+      minLeadingWidth: 0,
+      horizontalTitleGap: 0,
+      title: Text(
+        command.command,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: const TextStyle(fontSize: 10),
+      ),
+      subtitle: Text(
+        '${_formatTimestamp(command.executedAt)} · Exit ${command.exitCode ?? '?'}',
+        style: const TextStyle(fontSize: 9),
+      ),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IconButton(
+            key: Key('run-saved-terminal-command-$keySuffix'),
+            tooltip: 'Direkt ausführen',
+            visualDensity: VisualDensity.compact,
+            constraints: const BoxConstraints.tightFor(width: 30, height: 30),
+            padding: EdgeInsets.zero,
+            onPressed: session.hasActiveCommand
+                ? null
+                : () => _executeSavedCommand(command),
+            icon: const Icon(Icons.play_arrow, size: 17),
+          ),
+          PopupMenuButton<String>(
+            key: Key('saved-terminal-command-menu-$keySuffix'),
+            tooltip: 'Weitere Aktionen',
+            padding: EdgeInsets.zero,
+            iconSize: 17,
+            onSelected: (action) {
+              switch (action) {
+                case 'edit':
+                  widget.panelController.stageSavedCommand(
+                    widget.pane.id,
+                    command.command,
+                  );
+                case 'copy':
+                  Clipboard.setData(ClipboardData(text: command.command));
+              }
+            },
+            itemBuilder: (context) => const [
+              PopupMenuItem(value: 'edit', child: Text('Bearbeiten')),
+              PopupMenuItem(value: 'copy', child: Text('Kopieren')),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _executeSavedCommand(SavedTerminalCommand command) async {
+    final assessment = CommandRiskAssessor.assessRawCommands([
+      command.command,
+    ], containsRawConfiguration: false);
+    if (assessment.requiresAcknowledgement) {
+      final dialogContext = widget.navigatorKey.currentContext;
+      if (dialogContext == null) return;
+      final approved = await showCommandConfirmationDialog(
+        dialogContext,
+        commands: [command.command],
+        assessment: assessment,
+      );
+      if (!approved) return;
+    }
+    try {
+      await widget.panelController.executeSavedCommand(
+        widget.pane.id,
+        command.command,
+      );
+    } on Object catch (error) {
+      _showCommandError(error);
+    }
+  }
+
+  Future<void> _executeAllSavedCommands(
+    List<SavedTerminalCommand> commands,
+  ) async {
+    final values = commands.reversed.map((command) => command.command).toList();
+    final dialogContext = widget.navigatorKey.currentContext;
+    if (dialogContext == null) return;
+    final approved = await showCommandConfirmationDialog(
+      dialogContext,
+      commands: values,
+      assessment: CommandRiskAssessor.assessRawCommands(
+        values,
+        containsRawConfiguration: false,
+      ),
+    );
+    if (!approved) return;
+    try {
+      await widget.panelController.executeSavedCommands(widget.pane.id, values);
+    } on Object catch (error) {
+      _showCommandError(error);
+    }
+  }
+
+  void _showCommandError(Object error) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text('Ausführen fehlgeschlagen: $error')));
+  }
+
+  String _formatTimestamp(DateTime value) {
+    final local = value.toLocal();
+    String twoDigits(int number) => number.toString().padLeft(2, '0');
+    return '${twoDigits(local.day)}.${twoDigits(local.month)}. '
+        '${twoDigits(local.hour)}:${twoDigits(local.minute)}';
   }
 
   Widget _buildCommandBlock(TerminalCommandBlock block) {
