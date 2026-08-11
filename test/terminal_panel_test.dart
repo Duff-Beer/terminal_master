@@ -443,27 +443,72 @@ void main() {
     );
     expect(factory.backends.last.writes, isEmpty);
 
-    await controller.toggleSplit();
-    await tester.pump();
+    expect(find.byKey(const Key('split-terminal-panel')), findsNothing);
+    final commandBlocks = find.byKey(
+      const Key('terminal-command-history-toggle'),
+    );
+    final verticalSplit = find.byKey(const Key('split-terminal-vertical'));
+    final horizontalSplit = find.byKey(const Key('split-terminal-horizontal'));
+    expect(
+      tester.getCenter(commandBlocks).dx,
+      lessThan(tester.getCenter(verticalSplit).dx),
+    );
+    expect(
+      tester.getCenter(verticalSplit).dx,
+      lessThan(tester.getCenter(horizontalSplit).dx),
+    );
+
+    await tester.tap(verticalSplit);
+    await tester.pumpAndSettle();
     expect(controller.isSplit, isTrue);
+    expect(controller.hasSplit(TerminalSplitOrientation.vertical), isTrue);
+    expect(controller.hasSplit(TerminalSplitOrientation.horizontal), isFalse);
     expect(controller.tabs, hasLength(2));
     expect(controller.activeTab.panes, hasLength(2));
     expect(factory.backends, hasLength(3));
     expect(find.byType(TerminalPane).hitTestable(), findsNWidgets(2));
+    var visiblePanes = find.byType(TerminalPane).hitTestable();
+    var firstPanePosition = tester.getTopLeft(visiblePanes.at(0));
+    var secondPanePosition = tester.getTopLeft(visiblePanes.at(1));
+    expect(firstPanePosition.dy, closeTo(secondPanePosition.dy, 0.1));
+    expect(firstPanePosition.dx, lessThan(secondPanePosition.dx));
 
-    final primarySplitPaneId = controller.secondaryPane!.id;
+    await tester.tap(find.byKey(const Key('split-terminal-horizontal')));
+    await tester.pumpAndSettle();
+    expect(controller.hasSplit(TerminalSplitOrientation.vertical), isTrue);
+    expect(controller.hasSplit(TerminalSplitOrientation.horizontal), isTrue);
+    expect(controller.activeTab.panes, hasLength(4));
+    expect(factory.backends, hasLength(5));
+    visiblePanes = find.byType(TerminalPane).hitTestable();
+    expect(visiblePanes, findsNWidgets(4));
+    final panePositions = List.generate(
+      4,
+      (index) => tester.getTopLeft(visiblePanes.at(index)),
+    );
+    expect(panePositions[0].dy, closeTo(panePositions[1].dy, 0.1));
+    expect(panePositions[0].dx, lessThan(panePositions[1].dx));
+    expect(panePositions[0].dx, closeTo(panePositions[2].dx, 0.1));
+    expect(panePositions[0].dy, lessThan(panePositions[2].dy));
+    expect(panePositions[2].dy, closeTo(panePositions[3].dy, 0.1));
+    expect(panePositions[2].dx, lessThan(panePositions[3].dx));
+
+    final primarySplitPaneId = controller.activeTab
+        .paneAt(row: 1, column: 1)!
+        .id;
     controller.focusPane(primarySplitPaneId);
     await tester.pump();
     expect(controller.commandController.text, isEmpty);
     await controller.insertCommand('echo primary split');
     await controller.sendPending();
     expect(
-      factory.backends[2].writes.map(utf8.decode).single,
+      factory.backends[4].writes.map(utf8.decode).single,
       contains('echo primary split'),
     );
 
-    factory.backends[0].emit(utf8.encode('PRIMARY_MAIN\r\n'));
-    factory.backends[2].emit(utf8.encode('PRIMARY_SPLIT\r\n'));
+    factory.backends[0].emit(utf8.encode('PRIMARY_TOP_LEFT\r\n'));
+    factory.backends[2].emit(utf8.encode('PRIMARY_TOP_RIGHT\r\n'));
+    factory.backends[3].emit(utf8.encode('PRIMARY_BOTTOM_LEFT\r\n'));
+    factory.backends[4].emit(utf8.encode('PRIMARY_BOTTOM_RIGHT\r\n'));
     await tester.pump();
     var visibleOutput = find
         .byType(TerminalView)
@@ -474,25 +519,44 @@ void main() {
               (element.widget as TerminalView).terminal.buffer.getText(),
         )
         .toList();
-    expect(visibleOutput, hasLength(2));
+    expect(visibleOutput, hasLength(4));
     expect(
-      visibleOutput.any((output) => output.contains('PRIMARY_MAIN')),
+      visibleOutput.any((output) => output.contains('PRIMARY_TOP_LEFT')),
       isTrue,
     );
     expect(
-      visibleOutput.any((output) => output.contains('PRIMARY_SPLIT')),
+      visibleOutput.any((output) => output.contains('PRIMARY_TOP_RIGHT')),
+      isTrue,
+    );
+    expect(
+      visibleOutput.any((output) => output.contains('PRIMARY_BOTTOM_LEFT')),
+      isTrue,
+    );
+    expect(
+      visibleOutput.any((output) => output.contains('PRIMARY_BOTTOM_RIGHT')),
       isTrue,
     );
 
+    await tester.tap(find.byKey(const Key('split-terminal-vertical')));
+    await tester.pumpAndSettle();
+    expect(controller.hasSplit(TerminalSplitOrientation.vertical), isFalse);
+    expect(controller.hasSplit(TerminalSplitOrientation.horizontal), isTrue);
+    expect(find.byType(TerminalPane).hitTestable(), findsNWidgets(2));
+    expect(factory.backends, hasLength(5));
+    await tester.tap(find.byKey(const Key('split-terminal-vertical')));
+    await tester.pumpAndSettle();
+    expect(find.byType(TerminalPane).hitTestable(), findsNWidgets(4));
+    expect(factory.backends, hasLength(5));
+
     await controller.selectTab(secondaryTabId);
-    await controller.toggleSplit();
+    await controller.toggleSplit(TerminalSplitOrientation.horizontal);
     await tester.pump();
     expect(controller.isSplit, isTrue);
     expect(controller.activeTab.panes, hasLength(2));
-    expect(factory.backends, hasLength(4));
+    expect(factory.backends, hasLength(6));
 
     factory.backends[1].emit(utf8.encode('SECONDARY_MAIN\r\n'));
-    factory.backends[3].emit(utf8.encode('SECONDARY_SPLIT\r\n'));
+    factory.backends[5].emit(utf8.encode('SECONDARY_SPLIT\r\n'));
     await tester.pump();
     visibleOutput = find
         .byType(TerminalView)
@@ -537,7 +601,7 @@ void main() {
     await tester.pump();
     expect(controller.tabs, hasLength(1));
     expect(factory.backends[1].wasKilled, isTrue);
-    expect(factory.backends[3].wasKilled, isTrue);
+    expect(factory.backends[5].wasKilled, isTrue);
   });
 }
 

@@ -13,9 +13,13 @@ import '../services/terminal_session.dart';
 import '../theme.dart';
 import 'terminal_mouse_overlay.dart';
 
+enum TerminalSplitOrientation { vertical, horizontal }
+
 class TerminalPaneData {
   final String id;
   final ShellProfile profile;
+  final int row;
+  final int column;
   final TextEditingController commandController = TextEditingController();
   TerminalSession session;
   bool isSearchOpen = false;
@@ -23,6 +27,8 @@ class TerminalPaneData {
   TerminalPaneData({
     required this.id,
     required this.profile,
+    required this.row,
+    required this.column,
     required this.session,
   });
 
@@ -36,18 +42,37 @@ class TerminalTab {
   final String id;
   final List<TerminalPaneData> panes;
   late String focusedPaneId;
-  bool isSplit = false;
+  bool isVerticallySplit = false;
+  bool isHorizontallySplit = false;
 
   TerminalTab({required this.id, required TerminalPaneData pane})
     : panes = [pane],
       focusedPaneId = pane.id;
 
   TerminalPaneData get primaryPane => panes.first;
-  TerminalPaneData? get secondaryPane => isSplit ? panes[1] : null;
+  List<TerminalPaneData> get visiblePanes => panes
+      .where(
+        (pane) =>
+            (pane.column == 0 || isVerticallySplit) &&
+            (pane.row == 0 || isHorizontallySplit),
+      )
+      .toList(growable: false);
   TerminalPaneData get activePane => panes.firstWhere(
     (pane) => pane.id == focusedPaneId,
     orElse: () => primaryPane,
   );
+
+  bool hasSplit(TerminalSplitOrientation orientation) => switch (orientation) {
+    TerminalSplitOrientation.vertical => isVerticallySplit,
+    TerminalSplitOrientation.horizontal => isHorizontallySplit,
+  };
+
+  TerminalPaneData? paneAt({required int row, required int column}) {
+    for (final pane in panes) {
+      if (pane.row == row && pane.column == column) return pane;
+    }
+    return null;
+  }
 
   void dispose() {
     for (final pane in panes) {
@@ -92,7 +117,7 @@ class TerminalPanelController extends ChangeNotifier {
   TerminalTab get activeTab => _tab(_activeTabId);
   TerminalPaneData get activePane => activeTab.activePane;
   TerminalPaneData get primaryPane => activeTab.primaryPane;
-  TerminalPaneData? get secondaryPane => activeTab.secondaryPane;
+  List<TerminalPaneData> get visiblePanes => activeTab.visiblePanes;
   TerminalSession get session => activePane.session;
   TextEditingController get commandController => activePane.commandController;
   ShellProfile get activeProfile => activePane.profile;
@@ -100,7 +125,10 @@ class TerminalPanelController extends ChangeNotifier {
   bool get isOpen => _isOpen;
   bool get isMaximized => _isMaximized;
   bool get isSearchOpen => activePane.isSearchOpen;
-  bool get isSplit => activeTab.isSplit;
+  bool get isSplit =>
+      activeTab.isVerticallySplit || activeTab.isHorizontallySplit;
+  bool hasSplit(TerminalSplitOrientation orientation) =>
+      activeTab.hasSplit(orientation);
   double get fontSize => _fontSize;
 
   Future<void> open() async {
@@ -108,10 +136,7 @@ class TerminalPanelController extends ChangeNotifier {
       _isOpen = true;
       notifyListeners();
     }
-    await Future.wait([
-      _startForDisplay(primaryPane),
-      if (secondaryPane case final pane?) _startForDisplay(pane),
-    ]);
+    await Future.wait(visiblePanes.map(_startForDisplay));
   }
 
   void hide() {
@@ -165,10 +190,7 @@ class TerminalPanelController extends ChangeNotifier {
     notifyListeners();
     if (_isOpen) {
       final tab = _tab(tabId);
-      await Future.wait([
-        _startForDisplay(tab.primaryPane),
-        if (tab.secondaryPane case final pane?) _startForDisplay(pane),
-      ]);
+      await Future.wait(tab.visiblePanes.map(_startForDisplay));
     }
   }
 
@@ -179,20 +201,31 @@ class TerminalPanelController extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> toggleSplit() async {
+  Future<void> toggleSplit(TerminalSplitOrientation orientation) async {
     final tab = activeTab;
-    if (tab.isSplit) {
-      tab.isSplit = false;
+    final enable = !tab.hasSplit(orientation);
+    switch (orientation) {
+      case TerminalSplitOrientation.vertical:
+        tab.isVerticallySplit = enable;
+      case TerminalSplitOrientation.horizontal:
+        tab.isHorizontallySplit = enable;
+    }
+    if (enable) {
+      if (tab.isVerticallySplit) {
+        _ensurePane(tab, row: 0, column: 1);
+      }
+      if (tab.isHorizontallySplit) {
+        _ensurePane(tab, row: 1, column: 0);
+      }
+      if (tab.isVerticallySplit && tab.isHorizontallySplit) {
+        _ensurePane(tab, row: 1, column: 1);
+      }
+    }
+    if (!tab.visiblePanes.any((pane) => pane.id == tab.focusedPaneId)) {
       tab.focusedPaneId = tab.primaryPane.id;
-      notifyListeners();
-      return;
     }
-    if (tab.panes.length == 1) {
-      tab.panes.add(_newPane(tab.primaryPane.profile));
-    }
-    tab.isSplit = true;
     notifyListeners();
-    if (_isOpen) await _startForDisplay(tab.secondaryPane!);
+    if (_isOpen) await Future.wait(tab.visiblePanes.map(_startForDisplay));
   }
 
   void closeTab(String tabId) {
@@ -289,14 +322,25 @@ class TerminalPanelController extends ChangeNotifier {
   TerminalTab _newTab(ShellProfile profile) {
     return TerminalTab(
       id: 'terminal-tab-${_nextTabId++}',
-      pane: _newPane(profile),
+      pane: _newPane(profile, row: 0, column: 0),
     );
   }
 
-  TerminalPaneData _newPane(ShellProfile profile) {
+  void _ensurePane(TerminalTab tab, {required int row, required int column}) {
+    if (tab.paneAt(row: row, column: column) != null) return;
+    tab.panes.add(_newPane(tab.primaryPane.profile, row: row, column: column));
+  }
+
+  TerminalPaneData _newPane(
+    ShellProfile profile, {
+    required int row,
+    required int column,
+  }) {
     return TerminalPaneData(
       id: 'terminal-pane-${_nextPaneId++}',
       profile: profile,
+      row: row,
+      column: column,
       session: _newSession(profile),
     );
   }
@@ -316,8 +360,7 @@ class TerminalPanelController extends ChangeNotifier {
       _tabs.expand((tab) => tab.panes).firstWhere((pane) => pane.id == id);
 
   bool _isVisiblePane(TerminalTab tab, String id) =>
-      tab.id == _activeTabId &&
-      (id == tab.primaryPane.id || id == tab.secondaryPane?.id);
+      tab.id == _activeTabId && tab.visiblePanes.any((pane) => pane.id == id);
 
   void _handleSessionUpdate() => notifyListeners();
 
@@ -533,23 +576,6 @@ class TerminalPanel extends StatelessWidget {
                   controller.isSearchOpen ? Icons.search_off : Icons.search,
                 ),
               ),
-              IconButton(
-                key: const Key('split-terminal-panel'),
-                visualDensity: VisualDensity.compact,
-                constraints: const BoxConstraints.tightFor(
-                  width: 40,
-                  height: 40,
-                ),
-                tooltip: controller.isSplit
-                    ? 'Geteilte Ansicht schließen'
-                    : 'Terminal vertikal teilen',
-                onPressed: controller.toggleSplit,
-                icon: Icon(
-                  controller.isSplit
-                      ? Icons.vertical_split_outlined
-                      : Icons.splitscreen_outlined,
-                ),
-              ),
               if ((session.status == TerminalSessionStatus.exited ||
                       session.status == TerminalSessionStatus.failed) &&
                   !session.isRunning)
@@ -740,33 +766,40 @@ class TerminalPanel extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final activeTabId = controller.activeTab.id;
-        final primaryId = controller.primaryPane.id;
-        final secondaryId = controller.secondaryPane?.id;
-        final splitOffset = constraints.maxHeight / 2;
+        final isVerticallySplit = controller.hasSplit(
+          TerminalSplitOrientation.vertical,
+        );
+        final isHorizontallySplit = controller.hasSplit(
+          TerminalSplitOrientation.horizontal,
+        );
+        final verticalOffset = constraints.maxWidth / 2;
+        final horizontalOffset = constraints.maxHeight / 2;
         return Stack(
           children: [
             for (final tab in controller.tabs)
               for (final pane in tab.panes)
                 Positioned(
                   key: Key('terminal-pane-position-${pane.id}'),
-                  top: pane.id == primaryId
-                      ? 0
-                      : pane.id == secondaryId
-                      ? splitOffset + 3
+                  top: pane.row == 1 && isHorizontallySplit
+                      ? horizontalOffset + 3
                       : 0,
-                  bottom: pane.id == primaryId && secondaryId != null
-                      ? splitOffset + 3
+                  bottom: pane.row == 0 && isHorizontallySplit
+                      ? horizontalOffset + 3
                       : 0,
-                  left: 0,
-                  right: 0,
+                  left: pane.column == 1 && isVerticallySplit
+                      ? verticalOffset + 3
+                      : 0,
+                  right: pane.column == 0 && isVerticallySplit
+                      ? verticalOffset + 3
+                      : 0,
                   child: Offstage(
                     offstage:
                         tab.id != activeTabId ||
-                        (pane.id != primaryId && pane.id != secondaryId),
+                        !tab.visiblePanes.contains(pane),
                     child: IgnorePointer(
                       ignoring:
                           tab.id != activeTabId ||
-                          (pane.id != primaryId && pane.id != secondaryId),
+                          !tab.visiblePanes.contains(pane),
                       child: Listener(
                         behavior: HitTestBehavior.translucent,
                         onPointerDown: (_) => controller.focusPane(pane.id),
@@ -789,12 +822,20 @@ class TerminalPanel extends StatelessWidget {
                     ),
                   ),
                 ),
-            if (secondaryId != null)
+            if (isHorizontallySplit)
               Positioned(
                 left: 0,
                 right: 0,
-                top: splitOffset,
+                top: horizontalOffset,
                 height: 6,
+                child: Container(color: TerminalMasterColors.border),
+              ),
+            if (isVerticallySplit)
+              Positioned(
+                top: 0,
+                bottom: 0,
+                left: verticalOffset,
+                width: 6,
                 child: Container(color: TerminalMasterColors.border),
               ),
           ],
@@ -983,116 +1024,173 @@ class _TerminalPaneState extends State<TerminalPane> {
             width: double.infinity,
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
             color: TerminalMasterColors.surface,
-            child: Row(
-              children: [
-                Icon(
-                  _statusIcon(session.status),
-                  size: 13,
-                  color: _statusColor(session.status),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Tooltip(
-                    message: _statusTooltip(),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          _statusTitle(),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: session.title == null
-                                ? TerminalMasterColors.cyan
-                                : TerminalMasterColors.yellow,
-                            fontSize: 11,
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final showSessionStatus = constraints.maxWidth >= 220;
+                final showIndicators = constraints.maxWidth >= 360;
+                final showZoomControls = constraints.maxWidth >= 480;
+                return Row(
+                  children: [
+                    if (showSessionStatus) ...[
+                      Icon(
+                        _statusIcon(session.status),
+                        size: 13,
+                        color: _statusColor(session.status),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Tooltip(
+                          message: _statusTooltip(),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                _statusTitle(),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: session.title == null
+                                      ? TerminalMasterColors.cyan
+                                      : TerminalMasterColors.yellow,
+                                  fontSize: 11,
+                                ),
+                              ),
+                              Text(
+                                _sessionDetails(),
+                                key: _paneKey('terminal-session-details'),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  color: TerminalMasterColors.muted,
+                                  fontSize: 9,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-                        Text(
-                          _sessionDetails(),
-                          key: _paneKey('terminal-session-details'),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: TerminalMasterColors.muted,
-                            fontSize: 9,
+                      ),
+                    ] else
+                      const Spacer(),
+                    if (showIndicators)
+                      Tooltip(
+                        message: 'xterm-256color mit 24-Bit-True-Color',
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 4),
+                          child: Icon(
+                            Icons.palette_outlined,
+                            key: _paneKey('terminal-true-color-indicator'),
+                            size: 14,
+                            color: TerminalMasterColors.cyan,
                           ),
                         ),
-                      ],
+                      ),
+                    if (showIndicators && session.terminal.isUsingAltBuffer)
+                      Tooltip(
+                        message: 'Alternate Screen aktiv',
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 4),
+                          child: Icon(
+                            Icons.layers_outlined,
+                            key: _paneKey('terminal-alt-screen-indicator'),
+                            size: 14,
+                            color: TerminalMasterColors.yellow,
+                          ),
+                        ),
+                      ),
+                    if (showIndicators &&
+                        session.terminal.mouseMode != MouseMode.none)
+                      Tooltip(
+                        message: 'Terminal-Maussteuerung aktiv',
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 4),
+                          child: Icon(
+                            Icons.mouse_outlined,
+                            key: _paneKey('terminal-mouse-mode-indicator'),
+                            size: 14,
+                            color: TerminalMasterColors.green,
+                          ),
+                        ),
+                      ),
+                    _compactIconButton(
+                      key: _paneKey('terminal-command-history-toggle'),
+                      tooltip:
+                          'Command Blocks (${session.commandBlocks.length})',
+                      icon: _showCommandHistory
+                          ? Icons.view_agenda
+                          : Icons.view_agenda_outlined,
+                      onPressed: () {
+                        setState(
+                          () => _showCommandHistory = !_showCommandHistory,
+                        );
+                      },
                     ),
-                  ),
-                ),
-                Tooltip(
-                  message: 'xterm-256color mit 24-Bit-True-Color',
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 4),
-                    child: Icon(
-                      Icons.palette_outlined,
-                      key: _paneKey('terminal-true-color-indicator'),
-                      size: 14,
-                      color: TerminalMasterColors.cyan,
-                    ),
-                  ),
-                ),
-                if (session.terminal.isUsingAltBuffer)
-                  Tooltip(
-                    message: 'Alternate Screen aktiv',
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 4),
-                      child: Icon(
-                        Icons.layers_outlined,
-                        key: _paneKey('terminal-alt-screen-indicator'),
-                        size: 14,
-                        color: TerminalMasterColors.yellow,
+                    _compactIconButton(
+                      key: _paneKey('split-terminal-vertical'),
+                      tooltip:
+                          widget.panelController.hasSplit(
+                            TerminalSplitOrientation.vertical,
+                          )
+                          ? 'Vertikale Teilung schließen'
+                          : 'Terminal vertikal teilen',
+                      icon: Icons.vertical_split_outlined,
+                      color:
+                          widget.panelController.hasSplit(
+                            TerminalSplitOrientation.vertical,
+                          )
+                          ? TerminalMasterColors.yellow
+                          : null,
+                      onPressed: () => widget.panelController.toggleSplit(
+                        TerminalSplitOrientation.vertical,
                       ),
                     ),
-                  ),
-                if (session.terminal.mouseMode != MouseMode.none)
-                  Tooltip(
-                    message: 'Terminal-Maussteuerung aktiv',
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 4),
-                      child: Icon(
-                        Icons.mouse_outlined,
-                        key: _paneKey('terminal-mouse-mode-indicator'),
-                        size: 14,
-                        color: TerminalMasterColors.green,
+                    _compactIconButton(
+                      key: _paneKey('split-terminal-horizontal'),
+                      tooltip:
+                          widget.panelController.hasSplit(
+                            TerminalSplitOrientation.horizontal,
+                          )
+                          ? 'Horizontale Teilung schließen'
+                          : 'Terminal horizontal teilen',
+                      icon: Icons.horizontal_split_outlined,
+                      color:
+                          widget.panelController.hasSplit(
+                            TerminalSplitOrientation.horizontal,
+                          )
+                          ? TerminalMasterColors.yellow
+                          : null,
+                      onPressed: () => widget.panelController.toggleSplit(
+                        TerminalSplitOrientation.horizontal,
                       ),
                     ),
-                  ),
-                _compactIconButton(
-                  key: _paneKey('terminal-command-history-toggle'),
-                  tooltip: 'Command Blocks (${session.commandBlocks.length})',
-                  icon: _showCommandHistory
-                      ? Icons.view_agenda
-                      : Icons.view_agenda_outlined,
-                  onPressed: () {
-                    setState(() => _showCommandHistory = !_showCommandHistory);
-                  },
-                ),
-                _compactIconButton(
-                  key: _paneKey('terminal-zoom-out'),
-                  tooltip: 'Verkleinern',
-                  icon: Icons.remove,
-                  onPressed: widget.panelController.zoomOut,
-                ),
-                TextButton(
-                  key: _paneKey('terminal-zoom-reset'),
-                  onPressed: widget.panelController.resetZoom,
-                  style: TextButton.styleFrom(
-                    minimumSize: const Size(42, 32),
-                    padding: const EdgeInsets.symmetric(horizontal: 4),
-                  ),
-                  child: Text('${widget.panelController.fontSize.round()} px'),
-                ),
-                _compactIconButton(
-                  key: _paneKey('terminal-zoom-in'),
-                  tooltip: 'Vergrößern',
-                  icon: Icons.add,
-                  onPressed: widget.panelController.zoomIn,
-                ),
-              ],
+                    if (showZoomControls) ...[
+                      _compactIconButton(
+                        key: _paneKey('terminal-zoom-out'),
+                        tooltip: 'Verkleinern',
+                        icon: Icons.remove,
+                        onPressed: widget.panelController.zoomOut,
+                      ),
+                      TextButton(
+                        key: _paneKey('terminal-zoom-reset'),
+                        onPressed: widget.panelController.resetZoom,
+                        style: TextButton.styleFrom(
+                          minimumSize: const Size(42, 32),
+                          padding: const EdgeInsets.symmetric(horizontal: 4),
+                        ),
+                        child: Text(
+                          '${widget.panelController.fontSize.round()} px',
+                        ),
+                      ),
+                      _compactIconButton(
+                        key: _paneKey('terminal-zoom-in'),
+                        tooltip: 'Vergrößern',
+                        icon: Icons.add,
+                        onPressed: widget.panelController.zoomIn,
+                      ),
+                    ],
+                  ],
+                );
+              },
             ),
           ),
         ),
@@ -1156,6 +1254,7 @@ class _TerminalPaneState extends State<TerminalPane> {
     required String tooltip,
     required IconData icon,
     required VoidCallback? onPressed,
+    Color? color,
   }) {
     return IconButton(
       key: key,
@@ -1164,7 +1263,7 @@ class _TerminalPaneState extends State<TerminalPane> {
       constraints: const BoxConstraints.tightFor(width: 32, height: 32),
       padding: EdgeInsets.zero,
       onPressed: onPressed,
-      icon: Icon(icon, size: 18),
+      icon: Icon(icon, size: 18, color: color),
     );
   }
 

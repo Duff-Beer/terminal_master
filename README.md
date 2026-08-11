@@ -16,9 +16,9 @@ Generated commands are collected in the panel's editable command field without
 an execution confirmation. This allows commands from multiple YAML definitions
 to be reviewed or combined before explicitly sending them to the focused
 terminal pane. Each tab owns an independent terminal workspace with its own PTY,
-scrollback, search state, and pending command draft. Splitting a tab adds a
-second independent PTY to that workspace; sessions in other tabs continue
-running in the background.
+scrollback, search state, and pending command draft. A tab can be split into
+side-by-side columns, stacked rows, or a combined 2x2 grid with up to four
+independent PTYs; sessions in other tabs continue running in the background.
 
 Terminal keyboard shortcuts use `Cmd` on macOS and `Ctrl` on Windows/Linux:
 
