@@ -18,7 +18,9 @@ to be reviewed or combined before explicitly sending them to the focused
 terminal pane. Each tab owns an independent terminal workspace with its own PTY,
 scrollback, search state, and pending command draft. A tab can be split into
 side-by-side columns, stacked rows, or a combined 2x2 grid with up to four
-independent PTYs; sessions in other tabs continue running in the background.
+independent PTYs. An individual split pane can temporarily fill the complete
+terminal workspace while the other sessions continue running in the
+background; sessions in other tabs remain active as well.
 
 Terminal keyboard shortcuts use `Cmd` on macOS and `Ctrl` on Windows/Linux:
 

@@ -44,6 +44,7 @@ class TerminalTab {
   late String focusedPaneId;
   bool isVerticallySplit = false;
   bool isHorizontallySplit = false;
+  String? maximizedPaneId;
 
   TerminalTab({required this.id, required TerminalPaneData pane})
     : panes = [pane],
@@ -57,6 +58,14 @@ class TerminalTab {
             (pane.row == 0 || isHorizontallySplit),
       )
       .toList(growable: false);
+  List<TerminalPaneData> get displayedPanes {
+    final maximizedId = maximizedPaneId;
+    if (maximizedId == null) return visiblePanes;
+    return visiblePanes
+        .where((pane) => pane.id == maximizedId)
+        .toList(growable: false);
+  }
+
   TerminalPaneData get activePane => panes.firstWhere(
     (pane) => pane.id == focusedPaneId,
     orElse: () => primaryPane,
@@ -127,8 +136,10 @@ class TerminalPanelController extends ChangeNotifier {
   bool get isSearchOpen => activePane.isSearchOpen;
   bool get isSplit =>
       activeTab.isVerticallySplit || activeTab.isHorizontallySplit;
+  String? get maximizedPaneId => activeTab.maximizedPaneId;
   bool hasSplit(TerminalSplitOrientation orientation) =>
       activeTab.hasSplit(orientation);
+  bool isPaneMaximized(String paneId) => activeTab.maximizedPaneId == paneId;
   double get fontSize => _fontSize;
 
   Future<void> open() async {
@@ -201,6 +212,14 @@ class TerminalPanelController extends ChangeNotifier {
     notifyListeners();
   }
 
+  void togglePaneMaximized(String paneId) {
+    final tab = activeTab;
+    if (!isSplit || !tab.visiblePanes.any((pane) => pane.id == paneId)) return;
+    tab.maximizedPaneId = tab.maximizedPaneId == paneId ? null : paneId;
+    tab.focusedPaneId = paneId;
+    notifyListeners();
+  }
+
   Future<void> toggleSplit(TerminalSplitOrientation orientation) async {
     final tab = activeTab;
     final enable = !tab.hasSplit(orientation);
@@ -223,6 +242,12 @@ class TerminalPanelController extends ChangeNotifier {
     }
     if (!tab.visiblePanes.any((pane) => pane.id == tab.focusedPaneId)) {
       tab.focusedPaneId = tab.primaryPane.id;
+    }
+    final maximizedPaneId = tab.maximizedPaneId;
+    if (!isSplit ||
+        (maximizedPaneId != null &&
+            !tab.visiblePanes.any((pane) => pane.id == maximizedPaneId))) {
+      tab.maximizedPaneId = null;
     }
     notifyListeners();
     if (_isOpen) await Future.wait(tab.visiblePanes.map(_startForDisplay));
@@ -360,7 +385,7 @@ class TerminalPanelController extends ChangeNotifier {
       _tabs.expand((tab) => tab.panes).firstWhere((pane) => pane.id == id);
 
   bool _isVisiblePane(TerminalTab tab, String id) =>
-      tab.id == _activeTabId && tab.visiblePanes.any((pane) => pane.id == id);
+      tab.id == _activeTabId && tab.displayedPanes.any((pane) => pane.id == id);
 
   void _handleSessionUpdate() => notifyListeners();
 
@@ -772,6 +797,7 @@ class TerminalPanel extends StatelessWidget {
         final isHorizontallySplit = controller.hasSplit(
           TerminalSplitOrientation.horizontal,
         );
+        final isPaneMaximized = controller.maximizedPaneId != null;
         final verticalOffset = constraints.maxWidth / 2;
         final horizontalOffset = constraints.maxHeight / 2;
         return Stack(
@@ -780,26 +806,29 @@ class TerminalPanel extends StatelessWidget {
               for (final pane in tab.panes)
                 Positioned(
                   key: Key('terminal-pane-position-${pane.id}'),
-                  top: pane.row == 1 && isHorizontallySplit
+                  top: !isPaneMaximized && pane.row == 1 && isHorizontallySplit
                       ? horizontalOffset + 3
                       : 0,
-                  bottom: pane.row == 0 && isHorizontallySplit
+                  bottom:
+                      !isPaneMaximized && pane.row == 0 && isHorizontallySplit
                       ? horizontalOffset + 3
                       : 0,
-                  left: pane.column == 1 && isVerticallySplit
+                  left:
+                      !isPaneMaximized && pane.column == 1 && isVerticallySplit
                       ? verticalOffset + 3
                       : 0,
-                  right: pane.column == 0 && isVerticallySplit
+                  right:
+                      !isPaneMaximized && pane.column == 0 && isVerticallySplit
                       ? verticalOffset + 3
                       : 0,
                   child: Offstage(
                     offstage:
                         tab.id != activeTabId ||
-                        !tab.visiblePanes.contains(pane),
+                        !tab.displayedPanes.contains(pane),
                     child: IgnorePointer(
                       ignoring:
                           tab.id != activeTabId ||
-                          !tab.visiblePanes.contains(pane),
+                          !tab.displayedPanes.contains(pane),
                       child: Listener(
                         behavior: HitTestBehavior.translucent,
                         onPointerDown: (_) => controller.focusPane(pane.id),
@@ -822,7 +851,7 @@ class TerminalPanel extends StatelessWidget {
                     ),
                   ),
                 ),
-            if (isHorizontallySplit)
+            if (isHorizontallySplit && !isPaneMaximized)
               Positioned(
                 left: 0,
                 right: 0,
@@ -830,7 +859,7 @@ class TerminalPanel extends StatelessWidget {
                 height: 6,
                 child: Container(color: TerminalMasterColors.border),
               ),
-            if (isVerticallySplit)
+            if (isVerticallySplit && !isPaneMaximized)
               Positioned(
                 top: 0,
                 bottom: 0,
@@ -1029,6 +1058,9 @@ class _TerminalPaneState extends State<TerminalPane> {
                 final showSessionStatus = constraints.maxWidth >= 220;
                 final showIndicators = constraints.maxWidth >= 360;
                 final showZoomControls = constraints.maxWidth >= 480;
+                final compactActionSize = constraints.maxWidth < 160
+                    ? 28.0
+                    : 32.0;
                 return Row(
                   children: [
                     if (showSessionStatus) ...[
@@ -1119,6 +1151,7 @@ class _TerminalPaneState extends State<TerminalPane> {
                       icon: _showCommandHistory
                           ? Icons.view_agenda
                           : Icons.view_agenda_outlined,
+                      size: compactActionSize,
                       onPressed: () {
                         setState(
                           () => _showCommandHistory = !_showCommandHistory,
@@ -1134,6 +1167,7 @@ class _TerminalPaneState extends State<TerminalPane> {
                           ? 'Vertikale Teilung schließen'
                           : 'Terminal vertikal teilen',
                       icon: Icons.vertical_split_outlined,
+                      size: compactActionSize,
                       color:
                           widget.panelController.hasSplit(
                             TerminalSplitOrientation.vertical,
@@ -1153,6 +1187,7 @@ class _TerminalPaneState extends State<TerminalPane> {
                           ? 'Horizontale Teilung schließen'
                           : 'Terminal horizontal teilen',
                       icon: Icons.horizontal_split_outlined,
+                      size: compactActionSize,
                       color:
                           widget.panelController.hasSplit(
                             TerminalSplitOrientation.horizontal,
@@ -1163,6 +1198,31 @@ class _TerminalPaneState extends State<TerminalPane> {
                         TerminalSplitOrientation.horizontal,
                       ),
                     ),
+                    if (widget.panelController.isSplit)
+                      _compactIconButton(
+                        key: _paneKey('maximize-terminal-pane'),
+                        tooltip:
+                            widget.panelController.isPaneMaximized(
+                              widget.pane.id,
+                            )
+                            ? 'Geteilte Ansicht wiederherstellen'
+                            : 'Terminal-Pane maximieren',
+                        icon:
+                            widget.panelController.isPaneMaximized(
+                              widget.pane.id,
+                            )
+                            ? Icons.close_fullscreen
+                            : Icons.open_in_full,
+                        color:
+                            widget.panelController.isPaneMaximized(
+                              widget.pane.id,
+                            )
+                            ? TerminalMasterColors.yellow
+                            : null,
+                        size: compactActionSize,
+                        onPressed: () => widget.panelController
+                            .togglePaneMaximized(widget.pane.id),
+                      ),
                     if (showZoomControls) ...[
                       _compactIconButton(
                         key: _paneKey('terminal-zoom-out'),
@@ -1255,15 +1315,16 @@ class _TerminalPaneState extends State<TerminalPane> {
     required IconData icon,
     required VoidCallback? onPressed,
     Color? color,
+    double size = 32,
   }) {
     return IconButton(
       key: key,
       tooltip: tooltip,
       visualDensity: VisualDensity.compact,
-      constraints: const BoxConstraints.tightFor(width: 32, height: 32),
+      constraints: BoxConstraints.tightFor(width: size, height: size),
       padding: EdgeInsets.zero,
       onPressed: onPressed,
-      icon: Icon(icon, size: 18, color: color),
+      icon: Icon(icon, size: size < 32 ? 16 : 18, color: color),
     );
   }
 

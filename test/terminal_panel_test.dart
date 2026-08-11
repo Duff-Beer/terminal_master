@@ -444,6 +444,7 @@ void main() {
     expect(factory.backends.last.writes, isEmpty);
 
     expect(find.byKey(const Key('split-terminal-panel')), findsNothing);
+    expect(find.byKey(const Key('maximize-terminal-pane')), findsNothing);
     final commandBlocks = find.byKey(
       const Key('terminal-command-history-toggle'),
     );
@@ -505,12 +506,47 @@ void main() {
       contains('echo primary split'),
     );
 
+    final panePosition = find.byKey(
+      Key('terminal-pane-position-$primarySplitPaneId'),
+    );
+    final splitPaneSize = tester.getSize(panePosition);
+    final maximizePane = find.byKey(const Key('maximize-terminal-pane'));
+    expect(maximizePane, findsOneWidget);
+    expect(
+      tester.getCenter(find.byKey(const Key('split-terminal-horizontal'))).dx,
+      lessThan(tester.getCenter(maximizePane).dx),
+    );
+    await tester.tap(maximizePane);
+    await tester.pumpAndSettle();
+    expect(controller.isPaneMaximized(primarySplitPaneId), isTrue);
+    expect(find.byType(TerminalPane).hitTestable(), findsOneWidget);
+    final maximizedPaneSize = tester.getSize(panePosition);
+    expect(maximizedPaneSize.width, greaterThan(splitPaneSize.width));
+    expect(maximizedPaneSize.height, greaterThan(splitPaneSize.height));
+    expect(factory.backends, hasLength(5));
+
     factory.backends[0].emit(utf8.encode('PRIMARY_TOP_LEFT\r\n'));
     factory.backends[2].emit(utf8.encode('PRIMARY_TOP_RIGHT\r\n'));
     factory.backends[3].emit(utf8.encode('PRIMARY_BOTTOM_LEFT\r\n'));
     factory.backends[4].emit(utf8.encode('PRIMARY_BOTTOM_RIGHT\r\n'));
     await tester.pump();
     var visibleOutput = find
+        .byType(TerminalView)
+        .hitTestable()
+        .evaluate()
+        .map(
+          (element) =>
+              (element.widget as TerminalView).terminal.buffer.getText(),
+        )
+        .toList();
+    expect(visibleOutput, hasLength(1));
+    expect(visibleOutput.single, contains('PRIMARY_BOTTOM_RIGHT'));
+
+    await tester.tap(find.byKey(const Key('maximize-terminal-pane')));
+    await tester.pumpAndSettle();
+    expect(controller.maximizedPaneId, isNull);
+    expect(find.byType(TerminalPane).hitTestable(), findsNWidgets(4));
+    visibleOutput = find
         .byType(TerminalView)
         .hitTestable()
         .evaluate()
