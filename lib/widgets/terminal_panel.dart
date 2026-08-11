@@ -13,18 +13,46 @@ import '../services/terminal_session.dart';
 import '../theme.dart';
 import 'terminal_mouse_overlay.dart';
 
-class TerminalTab {
+class TerminalPaneData {
   final String id;
   final ShellProfile profile;
   final TextEditingController commandController = TextEditingController();
   TerminalSession session;
   bool isSearchOpen = false;
 
-  TerminalTab({required this.id, required this.profile, required this.session});
+  TerminalPaneData({
+    required this.id,
+    required this.profile,
+    required this.session,
+  });
 
   void dispose() {
     commandController.dispose();
     session.dispose();
+  }
+}
+
+class TerminalTab {
+  final String id;
+  final List<TerminalPaneData> panes;
+  late String focusedPaneId;
+  bool isSplit = false;
+
+  TerminalTab({required this.id, required TerminalPaneData pane})
+    : panes = [pane],
+      focusedPaneId = pane.id;
+
+  TerminalPaneData get primaryPane => panes.first;
+  TerminalPaneData? get secondaryPane => isSplit ? panes[1] : null;
+  TerminalPaneData get activePane => panes.firstWhere(
+    (pane) => pane.id == focusedPaneId,
+    orElse: () => primaryPane,
+  );
+
+  void dispose() {
+    for (final pane in panes) {
+      pane.dispose();
+    }
   }
 }
 
@@ -48,33 +76,31 @@ class TerminalPanelController extends ChangeNotifier {
        ) {
     final tab = _newTab(this.profiles.first);
     _tabs.add(tab);
-    _primaryTabId = tab.id;
-    _focusedTabId = tab.id;
+    _activeTabId = tab.id;
   }
 
   final List<TerminalTab> _tabs = [];
   var _nextTabId = 1;
-  late String _primaryTabId;
-  late String _focusedTabId;
-  String? _secondaryTabId;
+  var _nextPaneId = 1;
+  late String _activeTabId;
   bool _isOpen = false;
   bool _isMaximized = false;
   double _fontSize = defaultFontSize;
   bool _disposed = false;
 
   List<TerminalTab> get tabs => List.unmodifiable(_tabs);
-  TerminalTab get activeTab => _tab(_focusedTabId);
-  TerminalTab get primaryTab => _tab(_primaryTabId);
-  TerminalTab? get secondaryTab =>
-      _secondaryTabId == null ? null : _tab(_secondaryTabId!);
-  TerminalSession get session => activeTab.session;
-  TextEditingController get commandController => activeTab.commandController;
-  ShellProfile get activeProfile => activeTab.profile;
+  TerminalTab get activeTab => _tab(_activeTabId);
+  TerminalPaneData get activePane => activeTab.activePane;
+  TerminalPaneData get primaryPane => activeTab.primaryPane;
+  TerminalPaneData? get secondaryPane => activeTab.secondaryPane;
+  TerminalSession get session => activePane.session;
+  TextEditingController get commandController => activePane.commandController;
+  ShellProfile get activeProfile => activePane.profile;
 
   bool get isOpen => _isOpen;
   bool get isMaximized => _isMaximized;
-  bool get isSearchOpen => activeTab.isSearchOpen;
-  bool get isSplit => _secondaryTabId != null;
+  bool get isSearchOpen => activePane.isSearchOpen;
+  bool get isSplit => activeTab.isSplit;
   double get fontSize => _fontSize;
 
   Future<void> open() async {
@@ -83,8 +109,8 @@ class TerminalPanelController extends ChangeNotifier {
       notifyListeners();
     }
     await Future.wait([
-      _startForDisplay(primaryTab),
-      if (secondaryTab case final tab?) _startForDisplay(tab),
+      _startForDisplay(primaryPane),
+      if (secondaryPane case final pane?) _startForDisplay(pane),
     ]);
   }
 
@@ -103,23 +129,23 @@ class TerminalPanelController extends ChangeNotifier {
     notifyListeners();
   }
 
-  void toggleSearch([String? tabId]) {
-    final tab = _tab(tabId ?? _focusedTabId);
-    tab.isSearchOpen = !tab.isSearchOpen;
+  void toggleSearch([String? paneId]) {
+    final pane = _pane(paneId ?? activePane.id);
+    pane.isSearchOpen = !pane.isSearchOpen;
     notifyListeners();
   }
 
-  void openSearch([String? tabId]) {
-    final tab = _tab(tabId ?? _focusedTabId);
-    if (tab.isSearchOpen) return;
-    tab.isSearchOpen = true;
+  void openSearch([String? paneId]) {
+    final pane = _pane(paneId ?? activePane.id);
+    if (pane.isSearchOpen) return;
+    pane.isSearchOpen = true;
     notifyListeners();
   }
 
-  void closeSearch([String? tabId]) {
-    final tab = _tab(tabId ?? _focusedTabId);
-    if (!tab.isSearchOpen) return;
-    tab.isSearchOpen = false;
+  void closeSearch([String? paneId]) {
+    final pane = _pane(paneId ?? activePane.id);
+    if (!pane.isSearchOpen) return;
+    pane.isSearchOpen = false;
     notifyListeners();
   }
 
@@ -127,70 +153,69 @@ class TerminalPanelController extends ChangeNotifier {
     final tab = _newTab(profile);
     _tabs.add(tab);
     if (activate) {
-      _primaryTabId = tab.id;
-      _focusedTabId = tab.id;
+      _activeTabId = tab.id;
     }
     notifyListeners();
-    if (_isOpen) await _startForDisplay(tab);
+    if (_isOpen) await _startForDisplay(tab.primaryPane);
   }
 
   Future<void> selectTab(String tabId) async {
     if (!_tabs.any((tab) => tab.id == tabId)) return;
-    if (_secondaryTabId == tabId) {
-      final previousPrimary = _primaryTabId;
-      _primaryTabId = tabId;
-      _secondaryTabId = previousPrimary;
-    } else {
-      _primaryTabId = tabId;
-    }
-    _focusedTabId = tabId;
+    _activeTabId = tabId;
     notifyListeners();
-    if (_isOpen) await _startForDisplay(_tab(tabId));
+    if (_isOpen) {
+      final tab = _tab(tabId);
+      await Future.wait([
+        _startForDisplay(tab.primaryPane),
+        if (tab.secondaryPane case final pane?) _startForDisplay(pane),
+      ]);
+    }
   }
 
-  void focusTab(String tabId) {
-    if (_focusedTabId == tabId || !_isVisible(tabId)) return;
-    _focusedTabId = tabId;
+  void focusPane(String paneId) {
+    final tab = activeTab;
+    if (tab.focusedPaneId == paneId || !_isVisiblePane(tab, paneId)) return;
+    tab.focusedPaneId = paneId;
     notifyListeners();
   }
 
   Future<void> toggleSplit() async {
-    if (_secondaryTabId != null) {
-      _secondaryTabId = null;
-      _focusedTabId = _primaryTabId;
+    final tab = activeTab;
+    if (tab.isSplit) {
+      tab.isSplit = false;
+      tab.focusedPaneId = tab.primaryPane.id;
       notifyListeners();
       return;
     }
-    if (_tabs.length == 1) {
-      await createTab(primaryTab.profile, activate: false);
+    if (tab.panes.length == 1) {
+      tab.panes.add(_newPane(tab.primaryPane.profile));
     }
-    _secondaryTabId = _tabs.firstWhere((tab) => tab.id != _primaryTabId).id;
+    tab.isSplit = true;
     notifyListeners();
-    if (_isOpen) await _startForDisplay(secondaryTab!);
+    if (_isOpen) await _startForDisplay(tab.secondaryPane!);
   }
 
   void closeTab(String tabId) {
     if (_tabs.length == 1) return;
     final tab = _tab(tabId);
-    tab.session.removeListener(_handleSessionUpdate);
+    for (final pane in tab.panes) {
+      pane.session.removeListener(_handleSessionUpdate);
+    }
     _tabs.remove(tab);
     tab.dispose();
-    if (_secondaryTabId == tabId) _secondaryTabId = null;
-    if (_primaryTabId == tabId) _primaryTabId = _tabs.first.id;
-    if (_secondaryTabId == _primaryTabId) _secondaryTabId = null;
-    if (_focusedTabId == tabId || !_isVisible(_focusedTabId)) {
-      _focusedTabId = _primaryTabId;
-    }
+    if (_activeTabId == tabId) _activeTabId = _tabs.first.id;
     notifyListeners();
   }
 
-  Future<void> restartTab(String tabId) async {
-    final tab = _tab(tabId);
-    tab.session.removeListener(_handleSessionUpdate);
-    tab.session.dispose();
-    tab.session = _newSession(tab.profile);
+  Future<void> restartPane(String paneId) async {
+    final pane = _pane(paneId);
+    pane.session.removeListener(_handleSessionUpdate);
+    pane.session.dispose();
+    pane.session = _newSession(pane.profile);
     notifyListeners();
-    if (_isOpen && _isVisible(tabId)) await _startForDisplay(tab);
+    if (_isOpen && _isVisiblePane(activeTab, paneId)) {
+      await _startForDisplay(pane);
+    }
   }
 
   void zoomIn() => _setFontSize(_fontSize + 1);
@@ -207,24 +232,24 @@ class TerminalPanelController extends ChangeNotifier {
   }
 
   Future<void> insertCommand(String command) async {
-    final tab = activeTab;
+    final pane = activePane;
     _isOpen = true;
-    final controller = tab.commandController;
+    final controller = pane.commandController;
     final current = controller.text;
     controller.text = current.isEmpty ? command : '$current\n$command';
     controller.selection = TextSelection.collapsed(
       offset: controller.text.length,
     );
     notifyListeners();
-    await _startForDisplay(tab);
+    await _startForDisplay(pane);
   }
 
   Future<void> sendPending() async {
-    final tab = activeTab;
-    final controller = tab.commandController;
+    final pane = activePane;
+    final controller = pane.commandController;
     final command = controller.text;
     if (command.trim().isEmpty) return;
-    final activeSession = await _ensureStarted(tab);
+    final activeSession = await _ensureStarted(pane);
     controller.clear();
     try {
       activeSession.sendTrackedCommand(command);
@@ -234,14 +259,14 @@ class TerminalPanelController extends ChangeNotifier {
     }
   }
 
-  Future<void> stopSession([String? tabId]) async {
-    final activeSession = _tab(tabId ?? _focusedTabId).session;
+  Future<void> stopSession([String? paneId]) async {
+    final activeSession = _pane(paneId ?? activePane.id).session;
     if (!activeSession.isRunning) return;
     await activeSession.stop();
   }
 
-  Future<TerminalSession> _ensureStarted(TerminalTab tab) async {
-    final activeSession = tab.session;
+  Future<TerminalSession> _ensureStarted(TerminalPaneData pane) async {
+    final activeSession = pane.session;
     if (activeSession.status == TerminalSessionStatus.idle) {
       await activeSession.start();
     }
@@ -253,21 +278,27 @@ class TerminalPanelController extends ChangeNotifier {
     return activeSession;
   }
 
-  Future<void> _startForDisplay(TerminalTab tab) async {
+  Future<void> _startForDisplay(TerminalPaneData pane) async {
     try {
-      await _ensureStarted(tab);
+      await _ensureStarted(pane);
     } on Object {
       // Startup failures are rendered in the corresponding terminal pane.
     }
   }
 
   TerminalTab _newTab(ShellProfile profile) {
-    final tab = TerminalTab(
-      id: 'terminal-${_nextTabId++}',
+    return TerminalTab(
+      id: 'terminal-tab-${_nextTabId++}',
+      pane: _newPane(profile),
+    );
+  }
+
+  TerminalPaneData _newPane(ShellProfile profile) {
+    return TerminalPaneData(
+      id: 'terminal-pane-${_nextPaneId++}',
       profile: profile,
       session: _newSession(profile),
     );
-    return tab;
   }
 
   TerminalSession _newSession(ShellProfile profile) {
@@ -281,7 +312,12 @@ class TerminalPanelController extends ChangeNotifier {
 
   TerminalTab _tab(String id) => _tabs.firstWhere((tab) => tab.id == id);
 
-  bool _isVisible(String id) => id == _primaryTabId || id == _secondaryTabId;
+  TerminalPaneData _pane(String id) =>
+      _tabs.expand((tab) => tab.panes).firstWhere((pane) => pane.id == id);
+
+  bool _isVisiblePane(TerminalTab tab, String id) =>
+      tab.id == _activeTabId &&
+      (id == tab.primaryPane.id || id == tab.secondaryPane?.id);
 
   void _handleSessionUpdate() => notifyListeners();
 
@@ -289,7 +325,9 @@ class TerminalPanelController extends ChangeNotifier {
   void dispose() {
     _disposed = true;
     for (final tab in _tabs) {
-      tab.session.removeListener(_handleSessionUpdate);
+      for (final pane in tab.panes) {
+        pane.session.removeListener(_handleSessionUpdate);
+      }
       tab.dispose();
     }
     _tabs.clear();
@@ -459,7 +497,7 @@ class TerminalPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final tab = controller.activeTab;
+    final pane = controller.activePane;
     final session = controller.session;
     return Column(
       children: [
@@ -523,7 +561,7 @@ class TerminalPanel extends StatelessWidget {
                     height: 40,
                   ),
                   tooltip: 'Sitzung neu starten',
-                  onPressed: () => controller.restartTab(tab.id),
+                  onPressed: () => controller.restartPane(pane.id),
                   icon: const Icon(Icons.restart_alt),
                 ),
               IconButton(
@@ -553,7 +591,7 @@ class TerminalPanel extends StatelessWidget {
                   ),
                   tooltip: 'Terminal-Sitzung beenden',
                   onPressed: session.isRunning
-                      ? () => _confirmStop(context, tab.id)
+                      ? () => _confirmStop(context, pane.id)
                       : null,
                   icon: const Icon(Icons.stop_circle_outlined),
                 ),
@@ -622,6 +660,7 @@ class TerminalPanel extends StatelessWidget {
               scrollDirection: Axis.horizontal,
               children: controller.tabs.map((tab) {
                 final selected = controller.activeTab.id == tab.id;
+                final pane = tab.activePane;
                 return Padding(
                   padding: const EdgeInsets.only(left: 4, top: 4, bottom: 4),
                   child: Material(
@@ -639,15 +678,15 @@ class TerminalPanel extends StatelessWidget {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             Icon(
-                              _tabStatusIcon(tab.session.status),
+                              _tabStatusIcon(pane.session.status),
                               size: 11,
-                              color: _tabStatusColor(tab.session.status),
+                              color: _tabStatusColor(pane.session.status),
                             ),
                             const SizedBox(width: 5),
                             ConstrainedBox(
                               constraints: const BoxConstraints(maxWidth: 120),
                               child: Text(
-                                tab.session.title ?? tab.profile.name,
+                                pane.session.title ?? pane.profile.name,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: TextStyle(
@@ -700,50 +739,56 @@ class TerminalPanel extends StatelessWidget {
   Widget _buildPanes() {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final primaryId = controller.primaryTab.id;
-        final secondaryId = controller.secondaryTab?.id;
+        final activeTabId = controller.activeTab.id;
+        final primaryId = controller.primaryPane.id;
+        final secondaryId = controller.secondaryPane?.id;
         final splitOffset = constraints.maxHeight / 2;
         return Stack(
           children: [
             for (final tab in controller.tabs)
-              Positioned(
-                key: Key('terminal-pane-position-${tab.id}'),
-                top: tab.id == primaryId
-                    ? 0
-                    : tab.id == secondaryId
-                    ? splitOffset + 3
-                    : 0,
-                bottom: tab.id == primaryId && secondaryId != null
-                    ? splitOffset + 3
-                    : 0,
-                left: 0,
-                right: 0,
-                child: Offstage(
-                  offstage: tab.id != primaryId && tab.id != secondaryId,
-                  child: IgnorePointer(
-                    ignoring: tab.id != primaryId && tab.id != secondaryId,
-                    child: Listener(
-                      behavior: HitTestBehavior.translucent,
-                      onPointerDown: (_) => controller.focusTab(tab.id),
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          border: Border.all(
-                            color: controller.activeTab.id == tab.id
-                                ? TerminalMasterColors.green
-                                : Colors.transparent,
+              for (final pane in tab.panes)
+                Positioned(
+                  key: Key('terminal-pane-position-${pane.id}'),
+                  top: pane.id == primaryId
+                      ? 0
+                      : pane.id == secondaryId
+                      ? splitOffset + 3
+                      : 0,
+                  bottom: pane.id == primaryId && secondaryId != null
+                      ? splitOffset + 3
+                      : 0,
+                  left: 0,
+                  right: 0,
+                  child: Offstage(
+                    offstage:
+                        tab.id != activeTabId ||
+                        (pane.id != primaryId && pane.id != secondaryId),
+                    child: IgnorePointer(
+                      ignoring:
+                          tab.id != activeTabId ||
+                          (pane.id != primaryId && pane.id != secondaryId),
+                      child: Listener(
+                        behavior: HitTestBehavior.translucent,
+                        onPointerDown: (_) => controller.focusPane(pane.id),
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            border: Border.all(
+                              color: controller.activePane.id == pane.id
+                                  ? TerminalMasterColors.green
+                                  : Colors.transparent,
+                            ),
                           ),
-                        ),
-                        child: TerminalPane(
-                          key: ValueKey(tab.session),
-                          tab: tab,
-                          panelController: controller,
-                          navigatorKey: controller.navigatorKey,
+                          child: TerminalPane(
+                            key: ValueKey(pane.session),
+                            pane: pane,
+                            panelController: controller,
+                            navigatorKey: controller.navigatorKey,
+                          ),
                         ),
                       ),
                     ),
                   ),
                 ),
-              ),
             if (secondaryId != null)
               Positioned(
                 left: 0,
@@ -758,7 +803,7 @@ class TerminalPanel extends StatelessWidget {
     );
   }
 
-  Future<void> _confirmStop(BuildContext context, String tabId) async {
+  Future<void> _confirmStop(BuildContext context, String paneId) async {
     final dialogContext = controller.navigatorKey.currentContext;
     if (dialogContext == null) return;
     final approved =
@@ -783,11 +828,11 @@ class TerminalPanel extends StatelessWidget {
           ),
         ) ??
         false;
-    if (approved) await controller.stopSession(tabId);
+    if (approved) await controller.stopSession(paneId);
   }
 
   Future<void> _confirmClose(BuildContext context, TerminalTab tab) async {
-    if (!tab.session.isRunning) {
+    if (!tab.panes.any((pane) => pane.session.isRunning)) {
       controller.closeTab(tab.id);
       return;
     }
@@ -798,8 +843,8 @@ class TerminalPanel extends StatelessWidget {
           context: dialogContext,
           builder: (context) => AlertDialog(
             title: const Text('Terminal-Tab schließen?'),
-            content: Text(
-              'Die laufende Sitzung „${tab.profile.name}“ wird beendet.',
+            content: const Text(
+              'Alle laufenden Sitzungen dieses Tabs werden beendet.',
             ),
             actions: [
               TextButton(
@@ -839,13 +884,13 @@ class TerminalPanel extends StatelessWidget {
 }
 
 class TerminalPane extends StatefulWidget {
-  final TerminalTab tab;
+  final TerminalPaneData pane;
   final TerminalPanelController panelController;
   final GlobalKey<NavigatorState> navigatorKey;
 
   const TerminalPane({
     super.key,
-    required this.tab,
+    required this.pane,
     required this.panelController,
     required this.navigatorKey,
   });
@@ -868,7 +913,7 @@ class _TerminalPaneState extends State<TerminalPane> {
   bool _searchRefreshScheduled = false;
   bool _showCommandHistory = false;
 
-  TerminalSession get session => widget.tab.session;
+  TerminalSession get session => widget.pane.session;
 
   static const _terminalTheme = TerminalTheme(
     cursor: TerminalMasterColors.green,
@@ -922,7 +967,7 @@ class _TerminalPaneState extends State<TerminalPane> {
 
   @override
   Widget build(BuildContext context) {
-    final isSearchOpen = widget.tab.isSearchOpen;
+    final isSearchOpen = widget.pane.isSearchOpen;
     if (isSearchOpen && !_wasSearchOpen) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) _searchFocusNode.requestFocus();
@@ -1164,7 +1209,7 @@ class _TerminalPaneState extends State<TerminalPane> {
             key: _paneKey('terminal-search-close'),
             tooltip: 'Suche schließen',
             icon: Icons.close,
-            onPressed: () => widget.panelController.closeSearch(widget.tab.id),
+            onPressed: () => widget.panelController.closeSearch(widget.pane.id),
           ),
         ],
       ),
@@ -1514,7 +1559,7 @@ class _TerminalPaneState extends State<TerminalPane> {
     final query = selection.trim().split(RegExp(r'[\r\n]')).first;
     if (query.isEmpty) return;
     _searchController.text = query;
-    widget.panelController.openSearch(widget.tab.id);
+    widget.panelController.openSearch(widget.pane.id);
     _runSearch();
   }
 
@@ -1537,7 +1582,7 @@ class _TerminalPaneState extends State<TerminalPane> {
       return KeyEventResult.handled;
     }
     if (isShortcut && key == LogicalKeyboardKey.keyF) {
-      widget.panelController.openSearch(widget.tab.id);
+      widget.panelController.openSearch(widget.pane.id);
       return KeyEventResult.handled;
     }
     if (isShortcut &&
@@ -1786,9 +1831,9 @@ class _TerminalPaneState extends State<TerminalPane> {
   }
 
   Key _paneKey(String value) =>
-      widget.panelController.activeTab.id == widget.tab.id
+      widget.panelController.activePane.id == widget.pane.id
       ? Key(value)
-      : Key('$value-${widget.tab.id}');
+      : Key('$value-${widget.pane.id}');
 
   IconData _statusIcon(TerminalSessionStatus status) {
     return switch (status) {

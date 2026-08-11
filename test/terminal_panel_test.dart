@@ -378,7 +378,7 @@ void main() {
     );
   });
 
-  testWidgets('keeps drafts isolated across tabs and supports split view', (
+  testWidgets('keeps split terminal sessions isolated across tabs', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(1200, 800);
@@ -419,21 +419,21 @@ void main() {
 
     await controller.insertCommand('echo primary');
     await tester.pumpAndSettle();
-    final primaryId = controller.activeTab.id;
+    final primaryTabId = controller.activeTab.id;
     expect(factory.backends, hasLength(1));
 
     await tester.tap(find.byKey(const Key('new-terminal-tab')));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Secondary Shell'));
     await tester.pumpAndSettle();
-    final secondaryId = controller.activeTab.id;
+    final secondaryTabId = controller.activeTab.id;
     expect(factory.backends, hasLength(2));
 
     await controller.insertCommand('echo secondary');
     await tester.pump();
     expect(controller.commandController.text, 'echo secondary');
 
-    await controller.selectTab(primaryId);
+    await controller.selectTab(primaryTabId);
     await tester.pump();
     expect(controller.commandController.text, 'echo primary');
     await controller.sendPending();
@@ -446,21 +446,98 @@ void main() {
     await controller.toggleSplit();
     await tester.pump();
     expect(controller.isSplit, isTrue);
+    expect(controller.tabs, hasLength(2));
+    expect(controller.activeTab.panes, hasLength(2));
+    expect(factory.backends, hasLength(3));
     expect(find.byType(TerminalPane).hitTestable(), findsNWidgets(2));
 
-    controller.focusTab(secondaryId);
+    final primarySplitPaneId = controller.secondaryPane!.id;
+    controller.focusPane(primarySplitPaneId);
     await tester.pump();
-    expect(controller.commandController.text, 'echo secondary');
+    expect(controller.commandController.text, isEmpty);
+    await controller.insertCommand('echo primary split');
     await controller.sendPending();
     expect(
-      factory.backends.last.writes.map(utf8.decode).single,
-      contains('echo secondary'),
+      factory.backends[2].writes.map(utf8.decode).single,
+      contains('echo primary split'),
     );
 
-    controller.closeTab(secondaryId);
+    factory.backends[0].emit(utf8.encode('PRIMARY_MAIN\r\n'));
+    factory.backends[2].emit(utf8.encode('PRIMARY_SPLIT\r\n'));
+    await tester.pump();
+    var visibleOutput = find
+        .byType(TerminalView)
+        .hitTestable()
+        .evaluate()
+        .map(
+          (element) =>
+              (element.widget as TerminalView).terminal.buffer.getText(),
+        )
+        .toList();
+    expect(visibleOutput, hasLength(2));
+    expect(
+      visibleOutput.any((output) => output.contains('PRIMARY_MAIN')),
+      isTrue,
+    );
+    expect(
+      visibleOutput.any((output) => output.contains('PRIMARY_SPLIT')),
+      isTrue,
+    );
+
+    await controller.selectTab(secondaryTabId);
+    await controller.toggleSplit();
+    await tester.pump();
+    expect(controller.isSplit, isTrue);
+    expect(controller.activeTab.panes, hasLength(2));
+    expect(factory.backends, hasLength(4));
+
+    factory.backends[1].emit(utf8.encode('SECONDARY_MAIN\r\n'));
+    factory.backends[3].emit(utf8.encode('SECONDARY_SPLIT\r\n'));
+    await tester.pump();
+    visibleOutput = find
+        .byType(TerminalView)
+        .hitTestable()
+        .evaluate()
+        .map(
+          (element) =>
+              (element.widget as TerminalView).terminal.buffer.getText(),
+        )
+        .toList();
+    expect(visibleOutput, hasLength(2));
+    expect(
+      visibleOutput.any((output) => output.contains('SECONDARY_MAIN')),
+      isTrue,
+    );
+    expect(
+      visibleOutput.any((output) => output.contains('SECONDARY_SPLIT')),
+      isTrue,
+    );
+    expect(
+      visibleOutput.every((output) => !output.contains('PRIMARY_')),
+      isTrue,
+    );
+
+    await controller.selectTab(primaryTabId);
+    await tester.pump();
+    visibleOutput = find
+        .byType(TerminalView)
+        .hitTestable()
+        .evaluate()
+        .map(
+          (element) =>
+              (element.widget as TerminalView).terminal.buffer.getText(),
+        )
+        .toList();
+    expect(
+      visibleOutput.every((output) => !output.contains('SECONDARY_')),
+      isTrue,
+    );
+
+    controller.closeTab(secondaryTabId);
     await tester.pump();
     expect(controller.tabs, hasLength(1));
-    expect(factory.backends.last.wasKilled, isTrue);
+    expect(factory.backends[1].wasKilled, isTrue);
+    expect(factory.backends[3].wasKilled, isTrue);
   });
 }
 
