@@ -2,6 +2,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
 import '../models/command_config.dart';
+import 'searchable_options_field.dart';
 
 class ParameterInput extends StatefulWidget {
   final CommandParameter param;
@@ -53,7 +54,6 @@ class _ParameterInputState extends State<ParameterInput> {
   @override
   Widget build(BuildContext context) {
     final param = widget.param;
-    final unsetOption = _unsetOptionFor(param);
     return switch (param.type) {
       CommandParameterType.filepath => Row(
         children: [
@@ -75,36 +75,13 @@ class _ParameterInputState extends State<ParameterInput> {
         value: widget.value as bool? ?? false,
         onChanged: widget.onChanged,
       ),
-      CommandParameterType.options => DropdownButtonFormField<String>(
-        key: ValueKey(
-          '${widget.param.name}-${widget.value}-${widget.required}',
-        ),
-        isExpanded: true,
-        decoration: InputDecoration(
-          labelText: _label(param.name),
-          helperText: param.description,
-        ),
-        initialValue:
-            widget.value as String? ?? (widget.required ? null : unsetOption),
-        items: [
-          if (!widget.required)
-            DropdownMenuItem(
-              value: unsetOption,
-              child: const Text('Nicht verwenden'),
-            ),
-          ...param.options.map(
-            (option) => DropdownMenuItem(
-              value: option.value,
-              child: Text(
-                '${option.value}: ${option.description}',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-          ),
-        ],
-        onChanged: (value) =>
-            widget.onChanged(value == unsetOption ? null : value),
+      CommandParameterType.options => SearchableOptionsField(
+        label: _label(param.name),
+        description: param.description,
+        options: param.options,
+        value: widget.value as String?,
+        required: widget.required,
+        onChanged: widget.onChanged,
       ),
       CommandParameterType.button => ElevatedButton(
         onPressed: widget.onAction,
@@ -139,14 +116,6 @@ class _ParameterInputState extends State<ParameterInput> {
   List<String> _listValues(Object? value) {
     if (value is! Iterable) return const [];
     return value.map((entry) => entry.toString()).toList(growable: false);
-  }
-
-  String _unsetOptionFor(CommandParameter parameter) {
-    var value = '__terminal_master_unset_option__';
-    while (parameter.options.any((option) => option.value == value)) {
-      value = '${value}_';
-    }
-    return value;
   }
 
   Future<void> _pickPath() async {

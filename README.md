@@ -79,6 +79,21 @@ default Windows profile when PowerShell 7 is unavailable; installed PowerShell
 Terminal Master variables such as `TERM=xterm-256color` and
 `COLORTERM=truecolor` remain authoritative.
 
+## SSH Command Generator
+
+The bundled `ssh.yaml` provides an SSH command form with a required host
+dropdown. Its initial entries are `localhost` and reserved staging/production
+example domains. Replace these entries in the installed `ssh.yaml` with real
+hostnames, IP addresses, or aliases from `~/.ssh/config`. The form also supports
+username, port, identity file, ProxyJump host, IPv4/IPv6, compression, agent and
+X11 forwarding, batch mode, host-key policy, verbosity, and an optional remote
+command.
+
+Every YAML `options` field uses the same searchable selection dialog. It filters
+case-insensitively across both the configured value and description, supports
+arrow-key/Enter/Escape navigation, and keeps `Nicht verwenden` available for
+optional fields.
+
 ## Command Blocks
 
 Commands sent through a tab's Terminal Master input field are tracked as

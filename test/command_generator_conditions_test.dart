@@ -69,12 +69,39 @@ parameters:
 
     await tester.tap(find.text('Nicht verwenden'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('basic: Basic mode').last);
+    expect(find.byKey(const Key('searchable-options-query')), findsOneWidget);
+    await tester.enterText(
+      find.byKey(const Key('searchable-options-query')),
+      'BASIC MODE',
+    );
+    await tester.pump();
+    expect(find.text('basic'), findsOneWidget);
+    expect(find.text('__terminal_master_unset_option__'), findsNothing);
+    await tester.tap(find.text('basic'));
     await tester.pumpAndSettle();
     expect(find.text('basic: Basic mode'), findsOneWidget);
 
     await tester.tap(find.text('basic: Basic mode'));
     await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const Key('searchable-options-query')),
+      'reserved-looking',
+    );
+    await tester.pump();
+    expect(find.text('__terminal_master_unset_option__'), findsOneWidget);
+    expect(find.text('basic'), findsNothing);
+    await tester.enterText(
+      find.byKey(const Key('searchable-options-query')),
+      'no such option',
+    );
+    await tester.pump();
+    expect(find.text('Keine Treffer'), findsOneWidget);
+    expect(find.text('Nicht verwenden'), findsOneWidget);
+    await tester.enterText(
+      find.byKey(const Key('searchable-options-query')),
+      '',
+    );
+    await tester.pump();
     await tester.tap(find.text('Nicht verwenden').last);
     await tester.pumpAndSettle();
     expect(find.text('Nicht verwenden'), findsOneWidget);

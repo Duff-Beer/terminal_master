@@ -17,7 +17,7 @@ void main() {
           )
           .toList();
 
-      expect(files, hasLength(14));
+      expect(files, hasLength(15));
       for (final file in files) {
         expect(
           () => ConfigLoader.loadConfig(file.path),
@@ -40,6 +40,24 @@ void main() {
         items.map((item) => item.command),
         containsAll(['Nmap Advanced', 'Nmap Basic']),
       );
+    });
+
+    test('loads SSH hosts as a required dropdown', () {
+      final ssh = ConfigLoader.loadConfig('data/ssh.yaml');
+      final host = ssh.parameters.singleWhere(
+        (parameter) => parameter.name == 'host',
+      );
+
+      expect(ssh.command, 'ssh');
+      expect(ssh.displayName, 'SSH-Verbindung');
+      expect(host.type, CommandParameterType.options);
+      expect(host.required, isTrue);
+      expect(host.defaultValue, 'localhost');
+      expect(host.options.map((option) => option.value), [
+        'localhost',
+        'staging.example.com',
+        'production.example.com',
+      ]);
     });
 
     test('preserves defaults, picker modes and button actions', () {

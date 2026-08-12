@@ -1,0 +1,133 @@
+schema_version: 1
+command: ssh
+display_name: SSH-Verbindung
+description: Erstellt eine SSH-Verbindung zu einem vordefinierten Host
+parameters:
+  - name: username
+    type: text
+    flag: -l
+    description: Benutzername auf dem entfernten System
+    example: deploy
+    order: 10
+
+  - name: port
+    type: text
+    flag: -p
+    description: SSH-Port des Zielsystems
+    example: "22"
+    order: 20
+
+  - name: identity_file
+    type: filepath
+    mode: file
+    flag: -i
+    description: Privater SSH-Schlüssel für die Anmeldung
+    example: ~/.ssh/id_ed25519
+    order: 30
+
+  - name: jump_host
+    type: text
+    flag: -J
+    description: Optionaler ProxyJump- oder Bastion-Host
+    example: bastion.example.com
+    order: 40
+
+  - name: force_ipv4
+    type: boolean
+    flag: "-4"
+    description: Ausschließlich IPv4 verwenden
+    conflicts_with: [force_ipv6]
+    default: false
+    order: 50
+
+  - name: force_ipv6
+    type: boolean
+    flag: "-6"
+    description: Ausschließlich IPv6 verwenden
+    conflicts_with: [force_ipv4]
+    default: false
+    order: 51
+
+  - name: compression
+    type: boolean
+    flag: -C
+    description: Komprimierung für die Verbindung aktivieren
+    default: false
+    order: 60
+
+  - name: agent_forwarding
+    type: boolean
+    flag: -A
+    description: Weiterleitung des lokalen SSH-Agenten aktivieren
+    default: false
+    order: 70
+
+  - name: x11_forwarding
+    type: boolean
+    flag: -X
+    description: X11-Weiterleitung aktivieren
+    default: false
+    order: 71
+
+  - name: batch_mode
+    type: boolean
+    flag: -o BatchMode=yes
+    description: Interaktive Passwort- und Bestätigungsabfragen deaktivieren
+    default: false
+    order: 80
+
+  - name: host_key_checking
+    type: options
+    flag: ""
+    description: Verhalten bei unbekannten oder geänderten Host-Schlüsseln
+    order: 90
+    options:
+      - value: -o StrictHostKeyChecking=yes
+        description: Nur bereits bekannte, unveränderte Host-Schlüssel zulassen
+      - value: -o StrictHostKeyChecking=accept-new
+        description: Neue Host-Schlüssel akzeptieren, geänderte ablehnen
+
+  - name: verbosity
+    type: options
+    flag: ""
+    description: Umfang der SSH-Diagnoseausgabe
+    order: 95
+    options:
+      - value: -v
+        description: Ausführliche Diagnoseausgabe
+      - value: -vv
+        description: Sehr ausführliche Diagnoseausgabe
+      - value: -vvv
+        description: Maximale Diagnoseausgabe
+
+  - name: host
+    type: options
+    flag: ""
+    description: Zielhost oder Alias aus ~/.ssh/config
+    required: true
+    default: localhost
+    order: 100
+    options:
+      - value: localhost
+        description: Lokaler SSH-Server
+      - value: staging.example.com
+        description: Beispielhost für eine Staging-Umgebung
+      - value: production.example.com
+        description: Beispielhost für eine Produktionsumgebung
+
+  - name: remote_command
+    type: text
+    flag: ""
+    description: Optionaler Befehl, der nach dem Verbinden ausgeführt wird
+    example: uptime && whoami
+    order: 110
+
+help_text: |
+  Wähle den Zielhost im Dropdown aus. Ersetze die Beispielhosts in ssh.yaml
+  durch reale Hostnamen, IP-Adressen oder Aliase aus ~/.ssh/config.
+
+  Beispiele:
+  - Verbindung: `ssh production.example.com`
+  - Mit Benutzer und Port: `ssh -l deploy -p 2222 production.example.com`
+  - Über Bastion-Host: `ssh -J bastion.example.com production.example.com`
+  - Remote-Befehl: `ssh production.example.com 'uptime && whoami'`

@@ -6,6 +6,37 @@ import 'package:terminal_master/utils/config_loader.dart';
 
 void main() {
   group('CommandBuilder', () {
+    test('builds an SSH command from the host dropdown and options', () {
+      final config = ConfigLoader.loadConfig('data/ssh.yaml');
+      final command = CommandBuilder(
+        config: config,
+        values: {
+          ...config.defaultValues,
+          'username': 'deploy',
+          'port': '2222',
+          'identity_file': '/tmp/id key',
+          'jump_host': 'bastion.example.com',
+          'force_ipv4': true,
+          'compression': true,
+          'agent_forwarding': true,
+          'batch_mode': true,
+          'host_key_checking': '-o StrictHostKeyChecking=accept-new',
+          'verbosity': '-vv',
+          'host': 'production.example.com',
+          'remote_command': 'uptime && whoami',
+        },
+        shell: CommandShell.posix,
+      ).build();
+
+      expect(
+        command,
+        "ssh -l deploy -p 2222 -i '/tmp/id key' "
+        '-J bastion.example.com -4 -C -A -o BatchMode=yes '
+        '-o StrictHostKeyChecking=accept-new -vv production.example.com '
+        "'uptime && whoami'",
+      );
+    });
+
     test('renders attached dd flags and defaults', () {
       final config = ConfigLoader.loadConfig('data/dd.yaml');
       final command = CommandBuilder(
