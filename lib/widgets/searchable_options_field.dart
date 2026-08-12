@@ -10,6 +10,7 @@ class SearchableOptionsField extends StatelessWidget {
   final String? value;
   final bool required;
   final ValueChanged<String?> onChanged;
+  final Future<CommandOption?> Function()? onAddOption;
 
   const SearchableOptionsField({
     super.key,
@@ -19,6 +20,7 @@ class SearchableOptionsField extends StatelessWidget {
     required this.value,
     required this.required,
     required this.onChanged,
+    this.onAddOption,
   });
 
   @override
@@ -66,6 +68,7 @@ class SearchableOptionsField extends StatelessWidget {
         options: options,
         selectedValue: value,
         required: required,
+        onAddOption: onAddOption,
       ),
     );
     if (!context.mounted || result == null) return;
@@ -84,12 +87,14 @@ class _SearchableOptionsDialog extends StatefulWidget {
   final List<CommandOption> options;
   final String? selectedValue;
   final bool required;
+  final Future<CommandOption?> Function()? onAddOption;
 
   const _SearchableOptionsDialog({
     required this.title,
     required this.options,
     required this.selectedValue,
     required this.required,
+    this.onAddOption,
   });
 
   @override
@@ -247,6 +252,13 @@ class _SearchableOptionsDialogState extends State<_SearchableOptionsDialog> {
             ),
           ),
           actions: [
+            if (widget.onAddOption != null)
+              TextButton.icon(
+                key: const Key('add-searchable-option'),
+                onPressed: _addOption,
+                icon: const Icon(Icons.add),
+                label: const Text('Eintrag hinzufügen'),
+              ),
             TextButton(
               onPressed: () => Navigator.pop(context),
               child: const Text('Abbrechen'),
@@ -311,6 +323,12 @@ class _SearchableOptionsDialogState extends State<_SearchableOptionsDialog> {
       return;
     }
     final option = options[_highlightedIndex - (widget.required ? 0 : 1)];
+    Navigator.pop(context, _OptionSelection(option.value));
+  }
+
+  Future<void> _addOption() async {
+    final option = await widget.onAddOption?.call();
+    if (!mounted || option == null) return;
     Navigator.pop(context, _OptionSelection(option.value));
   }
 }

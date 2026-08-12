@@ -92,7 +92,10 @@ command.
 Every YAML `options` field uses the same searchable selection dialog. It filters
 case-insensitively across both the configured value and description, supports
 arrow-key/Enter/Escape navigation, and keeps `Nicht verwenden` available for
-optional fields.
+optional fields. `Eintrag hinzufügen` stores a new value and description
+directly in the current YAML options list, creates a `.bak` backup, validates the
+updated file, and selects the new entry immediately. Concurrent external changes
+and duplicate values are rejected instead of being overwritten.
 
 ## Command Blocks
 

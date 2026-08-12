@@ -7,6 +7,7 @@ import '../models/command_config.dart';
 import '../models/shell_profile.dart';
 import '../services/command_builder.dart';
 import '../services/command_executor.dart';
+import '../services/command_option_store.dart';
 import '../services/command_risk_assessor.dart';
 import '../utils/config_loader.dart';
 import '../widgets/command_confirmation_dialog.dart';
@@ -29,6 +30,7 @@ class _CommandGeneratorPageState extends State<CommandGeneratorPage> {
   bool _isExecuting = false;
   CommandConfig? _config;
   String? _loadError;
+  late String _configSource;
   final Map<String, Object?> _values = {};
 
   CommandShell get _shell {
@@ -50,9 +52,81 @@ class _CommandGeneratorPageState extends State<CommandGeneratorPage> {
     super.initState();
     try {
       _config = ConfigLoader.loadConfig(widget.configPath);
+      _configSource = File(widget.configPath).readAsStringSync();
       _values.addAll(_config!.defaultValues);
     } on Object catch (error) {
       _loadError = error.toString();
+    }
+  }
+
+  Future<CommandOption?> _addOption(CommandParameter parameter) async {
+    var enteredValue = '';
+    var enteredDescription = '';
+    final option = await showDialog<CommandOption>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Eintrag zu ${parameter.name} hinzufügen'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              key: const Key('new-option-value'),
+              autofocus: true,
+              decoration: const InputDecoration(labelText: 'Wert'),
+              onChanged: (value) => enteredValue = value,
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              key: const Key('new-option-description'),
+              decoration: const InputDecoration(labelText: 'Beschreibung'),
+              onChanged: (value) => enteredDescription = value,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Abbrechen'),
+          ),
+          FilledButton(
+            key: const Key('confirm-add-option'),
+            onPressed: () {
+              final value = enteredValue.trim();
+              final description = enteredDescription.trim();
+              if (value.isEmpty || description.isEmpty) return;
+              Navigator.pop(
+                context,
+                CommandOption(value: value, description: description),
+              );
+            },
+            child: const Text('Hinzufügen'),
+          ),
+        ],
+      ),
+    );
+    if (option == null || !mounted) return null;
+    try {
+      await CommandOptionStore.addOption(
+        filePath: widget.configPath,
+        parameterName: parameter.name,
+        option: option,
+        expectedContent: _configSource,
+      );
+      if (!mounted) return null;
+      final updatedConfig = ConfigLoader.loadConfig(widget.configPath);
+      setState(() {
+        _config = updatedConfig;
+        _configSource = File(widget.configPath).readAsStringSync();
+        _values[parameter.name] = option.value;
+      });
+      return option;
+    } on Object catch (error) {
+      if (!mounted) return null;
+      showOutputDialog(
+        context,
+        'Eintrag konnte nicht gespeichert werden: $error',
+      );
+      return null;
     }
   }
 
@@ -161,6 +235,9 @@ class _CommandGeneratorPageState extends State<CommandGeneratorPage> {
                         _onParameterChanged(parameter.name, value),
                     onAction: parameter.type == CommandParameterType.button
                         ? () => _executeAction(parameter)
+                        : null,
+                    onAddOption: parameter.type == CommandParameterType.options
+                        ? () => _addOption(parameter)
                         : null,
                     required: config.isParameterRequired(parameter, _values),
                   ),

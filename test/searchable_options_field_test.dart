@@ -81,6 +81,44 @@ void main() {
     expect(selected, 'stage.local');
   });
 
+  testWidgets('adds and immediately selects a persistent option', (
+    tester,
+  ) async {
+    String? selected;
+    var addCalls = 0;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SearchableOptionsField(
+            label: 'host *',
+            description: 'Target host',
+            options: const [
+              CommandOption(value: 'localhost', description: 'Local host'),
+            ],
+            value: selected,
+            required: true,
+            onChanged: (value) => selected = value,
+            onAddOption: () async {
+              addCalls++;
+              return const CommandOption(
+                value: 'new.example.com',
+                description: 'New host',
+              );
+            },
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.byKey(const Key('searchable-options-field-host *')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('add-searchable-option')));
+    await tester.pumpAndSettle();
+
+    expect(addCalls, 1);
+    expect(selected, 'new.example.com');
+  });
+
   testWidgets('shows no matches and remains usable in a short window', (
     tester,
   ) async {
