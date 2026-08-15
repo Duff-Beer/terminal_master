@@ -38,7 +38,7 @@ class SearchableOptionsField extends StatelessWidget {
         borderRadius: BorderRadius.circular(4),
         onTap: () => _showOptions(context),
         child: InputDecorator(
-          isEmpty: selected == null,
+          isEmpty: false,
           decoration: InputDecoration(
             labelText: label,
             helperText: description,

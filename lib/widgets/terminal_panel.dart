@@ -987,8 +987,12 @@ class TerminalPanel extends StatelessWidget {
               IconButton.filled(
                 key: const Key('send-terminal-input'),
                 tooltip: 'An Terminal senden',
+                style: IconButton.styleFrom(
+                  backgroundColor: TerminalMasterColors.green,
+                  foregroundColor: TerminalMasterColors.background,
+                ),
                 onPressed: controller.sendPending,
-                icon: const Icon(Icons.send),
+                icon: const Icon(Icons.send_rounded),
               ),
             ],
           ),

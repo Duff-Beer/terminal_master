@@ -149,6 +149,13 @@ void main() {
     );
     expect(input.controller!.text, 'echo first\necho second');
 
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('send-terminal-input')),
+        matching: find.byIcon(Icons.send_rounded),
+      ),
+      findsOneWidget,
+    );
     await tester.tap(find.byKey(const Key('send-terminal-input')));
     await tester.pump();
     final writes = factory.backends.single.writes.map(utf8.decode).toList();

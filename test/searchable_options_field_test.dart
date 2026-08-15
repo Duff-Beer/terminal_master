@@ -5,6 +5,32 @@ import 'package:terminal_master/models/command_config.dart';
 import 'package:terminal_master/widgets/searchable_options_field.dart';
 
 void main() {
+  testWidgets('does not overlap the label and empty optional value', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SearchableOptionsField(
+            label: 'username',
+            description: 'Optional username',
+            options: const [
+              CommandOption(value: 'admin', description: 'Administrator'),
+            ],
+            value: null,
+            required: false,
+            onChanged: (_) {},
+          ),
+        ),
+      ),
+    );
+
+    final labelRect = tester.getRect(find.text('username'));
+    final valueRect = tester.getRect(find.text('Nicht verwenden'));
+
+    expect(labelRect.bottom, lessThanOrEqualTo(valueRect.top));
+  });
+
   testWidgets('filters by value and description and selects with keyboard', (
     tester,
   ) async {
