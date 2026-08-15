@@ -1,12 +1,16 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+
 import '../models/batch_command.dart';
+import '../services/batch_command_store.dart';
 import '../services/command_executor.dart';
 import '../services/command_risk_assessor.dart';
 import '../utils/config_loader.dart';
 import '../widgets/command_confirmation_dialog.dart';
 import '../widgets/output_dialog.dart';
 import '../widgets/terminal_panel.dart';
-import 'package:flutter/services.dart';
 
 class BatchCommandPage extends StatefulWidget {
   final String filePath;
@@ -23,7 +27,9 @@ class _BatchCommandPageState extends State<BatchCommandPage> {
   bool _runInSameTerminal = false;
   bool _useIntegratedTerminal = true;
   bool _isExecuting = false;
+  bool _isMutating = false;
   String? _loadError;
+  late String _configSource;
 
   @override
   void initState() {
@@ -34,8 +40,145 @@ class _BatchCommandPageState extends State<BatchCommandPage> {
   void _loadBatchFile() {
     try {
       _commands = ConfigLoader.loadBatchConfig(widget.filePath).commands;
+      _configSource = File(widget.filePath).readAsStringSync();
+      _loadError = null;
     } on Object catch (error) {
       _loadError = error.toString();
+    }
+  }
+
+  Future<void> _addCommand() async {
+    var title = '';
+    var description = '';
+    var commandText = '';
+    final command = await showDialog<BatchCommand>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Batch Command hinzufügen'),
+        content: SizedBox(
+          width: 520,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                key: const Key('new-batch-command-title'),
+                autofocus: true,
+                decoration: const InputDecoration(labelText: 'Titel *'),
+                onChanged: (value) => title = value,
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                key: const Key('new-batch-command-description'),
+                decoration: const InputDecoration(labelText: 'Beschreibung'),
+                onChanged: (value) => description = value,
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                key: const Key('new-batch-command-command'),
+                minLines: 1,
+                maxLines: 4,
+                decoration: const InputDecoration(labelText: 'Befehl *'),
+                onChanged: (value) => commandText = value,
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Abbrechen'),
+          ),
+          FilledButton(
+            key: const Key('confirm-add-batch-command'),
+            onPressed: () {
+              if (title.trim().isEmpty || commandText.trim().isEmpty) return;
+              Navigator.pop(
+                context,
+                BatchCommand(
+                  title: title.trim(),
+                  description: description.trim(),
+                  command: commandText.trim(),
+                ),
+              );
+            },
+            child: const Text('Hinzufügen'),
+          ),
+        ],
+      ),
+    );
+    if (command == null || !mounted) return;
+
+    setState(() => _isMutating = true);
+    try {
+      await BatchCommandStore.addCommand(
+        filePath: widget.filePath,
+        command: command,
+        expectedContent: _configSource,
+      );
+      if (!mounted) return;
+      setState(() {
+        _loadBatchFile();
+        _selectedIndexes.add(_commands.length - 1);
+      });
+    } on Object catch (error) {
+      if (!mounted) return;
+      showOutputDialog(
+        context,
+        'Befehl konnte nicht gespeichert werden: $error',
+      );
+    } finally {
+      if (mounted) setState(() => _isMutating = false);
+    }
+  }
+
+  Future<void> _deleteCommand(int index) async {
+    final command = _commands[index];
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Batch Command löschen?'),
+        content: Text('Soll „${command.title}“ dauerhaft gelöscht werden?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Abbrechen'),
+          ),
+          FilledButton(
+            key: const Key('confirm-delete-batch-command'),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Löschen'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _isMutating = true);
+    try {
+      await BatchCommandStore.deleteCommand(
+        filePath: widget.filePath,
+        commandIndex: index,
+        expectedContent: _configSource,
+      );
+      if (!mounted) return;
+      final selected = _selectedIndexes
+          .where((selectedIndex) => selectedIndex != index)
+          .map(
+            (selectedIndex) =>
+                selectedIndex > index ? selectedIndex - 1 : selectedIndex,
+          )
+          .toSet();
+      setState(() {
+        _loadBatchFile();
+        _selectedIndexes
+          ..clear()
+          ..addAll(selected);
+      });
+    } on Object catch (error) {
+      if (!mounted) return;
+      showOutputDialog(context, 'Befehl konnte nicht gelöscht werden: $error');
+    } finally {
+      if (mounted) setState(() => _isMutating = false);
     }
   }
 
@@ -97,7 +240,15 @@ class _BatchCommandPageState extends State<BatchCommandPage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Batch Commands'),
-        actions: const [TerminalPanelToggleButton()],
+        actions: [
+          IconButton(
+            key: const Key('add-batch-command'),
+            tooltip: 'Batch Command hinzufügen',
+            onPressed: _isExecuting || _isMutating ? null : _addCommand,
+            icon: const Icon(Icons.add),
+          ),
+          const TerminalPanelToggleButton(),
+        ],
       ),
       body: _commands.isEmpty
           ? const Center(child: Text('Keine Befehle gefunden.'))
@@ -164,17 +315,34 @@ class _BatchCommandPageState extends State<BatchCommandPage> {
                             }
                           });
                         },
-                  secondary: IconButton(
-                    icon: const Icon(Icons.copy),
-                    tooltip: 'Befehl kopieren',
-                    onPressed: () {
-                      Clipboard.setData(ClipboardData(text: command.command));
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Befehl in die Zwischenablage kopiert'),
-                        ),
-                      );
-                    },
+                  secondary: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.copy),
+                        tooltip: 'Befehl kopieren',
+                        onPressed: () {
+                          Clipboard.setData(
+                            ClipboardData(text: command.command),
+                          );
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                'Befehl in die Zwischenablage kopiert',
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                      IconButton(
+                        key: Key('delete-batch-command-$index'),
+                        icon: const Icon(Icons.delete_outline),
+                        tooltip: 'Batch Command löschen',
+                        onPressed: _isExecuting || _isMutating
+                            ? null
+                            : () => _deleteCommand(index),
+                      ),
+                    ],
                   ),
                 );
               },

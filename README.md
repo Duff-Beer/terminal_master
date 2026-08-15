@@ -100,6 +100,11 @@ entries can be permanently removed with the delete action after confirmation;
 the last remaining option and entries referenced by defaults or conditions are
 protected from deletion.
 
+Batch command views also support persistent editing. The add action stores a
+title, optional description, and command in the current batch YAML file. Each
+row provides a delete action with confirmation. Both operations validate the
+updated YAML and preserve the previous source in a `.bak` file.
+
 ## Command Blocks
 
 Commands sent through a tab's Terminal Master input field are tracked as

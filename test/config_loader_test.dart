@@ -330,6 +330,27 @@ commands:
       );
     });
 
+    test('creates a readable batch name from the file name', () {
+      final directory = Directory.systemTemp.createTempSync(
+        'terminal-master-batch-name-',
+      );
+      addTearDown(() => directory.deleteSync(recursive: true));
+      File(
+        '${directory.path}${Platform.pathSeparator}-server_wartung.yaml',
+      ).writeAsStringSync('''
+schema_version: 1
+commands:
+  - title: Status
+    command: uptime
+''');
+
+      final item = ConfigLoader.loadConfigs(directory.path).single;
+
+      expect(item.command, 'Server Wartung');
+      expect(item.description, '1 Befehl in dieser Datei');
+      expect(item.isBatch, isTrue);
+    });
+
     test('loads the fast local network discovery batch', () {
       final config = ConfigLoader.loadBatchConfig('data/-netzwerk.yaml');
 

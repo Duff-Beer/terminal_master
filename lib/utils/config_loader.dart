@@ -38,8 +38,10 @@ class ConfigLoader {
           final batch = _parseBatchDocument(doc, file.path);
           items.add(
             ConfigItem(
-              command: 'Batch: ${name.replaceFirst('-', '')}',
-              description: '${batch.commands.length} Befehle in dieser Datei',
+              command: _batchDisplayName(name),
+              description: batch.commands.length == 1
+                  ? '1 Befehl in dieser Datei'
+                  : '${batch.commands.length} Befehle in dieser Datei',
               filePath: file.path,
               isBatch: true,
             ),
@@ -76,6 +78,17 @@ class ConfigLoader {
 
     items.sort((a, b) => a.command.compareTo(b.command));
     return items;
+  }
+
+  static String _batchDisplayName(String fileName) {
+    final name = fileName
+        .replaceFirst('-', '')
+        .replaceFirst(RegExp(r'\.(?:yaml|yml)$', caseSensitive: false), '');
+    return name
+        .split(RegExp(r'[_\-\s]+'))
+        .where((part) => part.isNotEmpty)
+        .map((part) => '${part[0].toUpperCase()}${part.substring(1)}')
+        .join(' ');
   }
 
   static CommandConfig loadConfig(String filePath) {
