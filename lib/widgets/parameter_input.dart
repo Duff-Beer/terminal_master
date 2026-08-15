@@ -10,6 +10,7 @@ class ParameterInput extends StatefulWidget {
   final ValueChanged<Object?> onChanged;
   final VoidCallback? onAction;
   final Future<CommandOption?> Function()? onAddOption;
+  final Future<bool> Function(CommandOption option)? onDeleteOption;
   final bool required;
 
   const ParameterInput({
@@ -19,6 +20,7 @@ class ParameterInput extends StatefulWidget {
     required this.onChanged,
     this.onAction,
     this.onAddOption,
+    this.onDeleteOption,
     this.required = false,
   });
 
@@ -85,6 +87,7 @@ class _ParameterInputState extends State<ParameterInput> {
         required: widget.required,
         onChanged: widget.onChanged,
         onAddOption: widget.onAddOption,
+        onDeleteOption: widget.onDeleteOption,
       ),
       CommandParameterType.button => ElevatedButton(
         onPressed: widget.onAction,

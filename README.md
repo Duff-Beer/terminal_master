@@ -95,7 +95,10 @@ arrow-key/Enter/Escape navigation, and keeps `Nicht verwenden` available for
 optional fields. `Eintrag hinzufügen` stores a new value and description
 directly in the current YAML options list, creates a `.bak` backup, validates the
 updated file, and selects the new entry immediately. Concurrent external changes
-and duplicate values are rejected instead of being overwritten.
+and duplicate values are rejected instead of being overwritten. Individual
+entries can be permanently removed with the delete action after confirmation;
+the last remaining option and entries referenced by defaults or conditions are
+protected from deletion.
 
 ## Command Blocks
 
@@ -159,7 +162,11 @@ The release workflow creates these unsigned artifacts:
 - macOS: DMG and ZIP
 - Windows: Inno Setup installer and ZIP
 - Linux: DEB, AppImage, and tarball
-- Linux package manifests: Arch `PKGBUILD` and Nix `flake.nix`
+- Linux package manifests: Arch `PKGBUILD` and a native Nix `flake.nix`
+
+The Nix package installs and patches the release tarball directly instead of
+running the AppImage through an FHS sandbox. This keeps host facilities such as
+NixOS's `/run/wrappers/bin/sudo` available to the integrated terminal.
 
 Push a tag matching the semantic version in `pubspec.yaml`, for example `v1.0.0`,
 or run the Release workflow manually. The workflow creates a draft GitHub release

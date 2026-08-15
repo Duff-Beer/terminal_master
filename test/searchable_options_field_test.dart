@@ -119,6 +119,49 @@ void main() {
     expect(selected, 'new.example.com');
   });
 
+  testWidgets('confirms deletion and clears a deleted selection', (
+    tester,
+  ) async {
+    String? selected = 'stage.local';
+    CommandOption? deletedOption;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SearchableOptionsField(
+            label: 'host *',
+            description: 'Target host',
+            options: const [
+              CommandOption(value: 'dev.local', description: 'Development'),
+              CommandOption(value: 'stage.local', description: 'Staging'),
+            ],
+            value: selected,
+            required: true,
+            onChanged: (value) => selected = value,
+            onDeleteOption: (option) async {
+              deletedOption = option;
+              return true;
+            },
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.byKey(const Key('searchable-options-field-host *')));
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.byKey(const Key('delete-searchable-option-stage.local')),
+    );
+    await tester.pumpAndSettle();
+    expect(selected, 'stage.local');
+    await tester.tap(find.byKey(const Key('confirm-delete-option')));
+    await tester.pumpAndSettle();
+
+    expect(deletedOption?.value, 'stage.local');
+    expect(selected, isNull);
+    expect(find.text('stage.local'), findsNothing);
+    expect(find.text('dev.local'), findsOneWidget);
+  });
+
   testWidgets('shows no matches and remains usable in a short window', (
     tester,
   ) async {

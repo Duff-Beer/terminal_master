@@ -23,8 +23,16 @@ if [[ -z "$appimagetool" || ! -x "$appimagetool" ]]; then
 fi
 
 rm -rf "$work_dir"
-mkdir -p "$work_dir/terminal-master" "$dist_dir"
+mkdir -p \
+  "$work_dir/terminal-master/share/applications" \
+  "$work_dir/terminal-master/share/icons/hicolor/512x512/apps" \
+  "$dist_dir"
 cp -a "$bundle_dir/." "$work_dir/terminal-master/"
+install -m 0644 \
+  "$root_dir/packaging/linux/io.github.duffbeer.terminalmaster.desktop" \
+  "$work_dir/terminal-master/share/applications/io.github.duffbeer.terminalmaster.desktop"
+install -m 0644 "$root_dir/packaging/linux/terminal_master.png" \
+  "$work_dir/terminal-master/share/icons/hicolor/512x512/apps/terminal_master.png"
 
 tar -C "$work_dir" -czf \
   "$dist_dir/terminal-master-$version-linux-x86_64.tar.gz" terminal-master

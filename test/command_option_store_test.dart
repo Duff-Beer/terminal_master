@@ -134,4 +134,123 @@ parameters:
       ),
     );
   });
+
+  test('deletes one option and preserves the remaining YAML', () async {
+    final directory = await Directory.systemTemp.createTemp(
+      'terminal-master-options-',
+    );
+    addTearDown(() => directory.delete(recursive: true));
+    final file = File('${directory.path}/config.yaml');
+    await file.writeAsString('''
+# keep root comment
+schema_version: 1
+command: demo
+parameters:
+  - name: mode
+    type: options
+    options:
+      - value: basic
+        description: Basic mode
+      - value: advanced
+        description: Advanced mode
+    # keep parameter comment
+help_text: keep this text
+''');
+    final originalContent = await file.readAsString();
+
+    await CommandOptionStore.deleteOption(
+      filePath: file.path,
+      parameterName: 'mode',
+      optionValue: 'advanced',
+      expectedContent: originalContent,
+    );
+
+    final content = await file.readAsString();
+    expect(content, contains('# keep root comment'));
+    expect(content, contains('# keep parameter comment'));
+    expect(content, contains('help_text: keep this text'));
+    expect(content, isNot(contains('value: advanced')));
+    expect(
+      ConfigLoader.loadConfig(file.path).parameters.single.options.single.value,
+      'basic',
+    );
+    expect(await File('${file.path}.bak').readAsString(), originalContent);
+  });
+
+  test(
+    'rejects deleting the last option or an externally changed file',
+    () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'terminal-master-options-',
+      );
+      addTearDown(() => directory.delete(recursive: true));
+      final file = File('${directory.path}/config.yaml');
+      await file.writeAsString('''
+schema_version: 1
+command: demo
+parameters:
+  - name: mode
+    type: options
+    options:
+      - value: basic
+        description: Basic mode
+''');
+      final originalContent = await file.readAsString();
+
+      await expectLater(
+        CommandOptionStore.deleteOption(
+          filePath: file.path,
+          parameterName: 'mode',
+          optionValue: 'basic',
+          expectedContent: originalContent,
+        ),
+        throwsA(isA<CommandOptionStoreException>()),
+      );
+      await file.writeAsString('$originalContent# external\n');
+      await expectLater(
+        CommandOptionStore.deleteOption(
+          filePath: file.path,
+          parameterName: 'mode',
+          optionValue: 'basic',
+          expectedContent: originalContent,
+        ),
+        throwsA(isA<CommandOptionStoreException>()),
+      );
+    },
+  );
+
+  test('rejects deleting an option referenced by a default', () async {
+    final directory = await Directory.systemTemp.createTemp(
+      'terminal-master-options-',
+    );
+    addTearDown(() => directory.delete(recursive: true));
+    final file = File('${directory.path}/config.yaml');
+    await file.writeAsString('''
+schema_version: 1
+command: demo
+parameters:
+  - name: mode
+    type: options
+    default: advanced
+    options:
+      - value: basic
+        description: Basic mode
+      - value: advanced
+        description: Advanced mode
+''');
+    final originalContent = await file.readAsString();
+
+    await expectLater(
+      CommandOptionStore.deleteOption(
+        filePath: file.path,
+        parameterName: 'mode',
+        optionValue: 'advanced',
+        expectedContent: originalContent,
+      ),
+      throwsA(isA<ConfigFormatException>()),
+    );
+
+    expect(await file.readAsString(), originalContent);
+    expect(await File('${file.path}.bak').exists(), isFalse);
+  });
 }

@@ -130,6 +130,31 @@ class _CommandGeneratorPageState extends State<CommandGeneratorPage> {
     }
   }
 
+  Future<bool> _deleteOption(
+    CommandParameter parameter,
+    CommandOption option,
+  ) async {
+    try {
+      await CommandOptionStore.deleteOption(
+        filePath: widget.configPath,
+        parameterName: parameter.name,
+        optionValue: option.value,
+        expectedContent: _configSource,
+      );
+      if (!mounted) return false;
+      final updatedConfig = ConfigLoader.loadConfig(widget.configPath);
+      setState(() {
+        _config = updatedConfig;
+        _configSource = File(widget.configPath).readAsStringSync();
+      });
+      return true;
+    } on Object catch (error) {
+      if (!mounted) return false;
+      showOutputDialog(context, 'Eintrag konnte nicht gelöscht werden: $error');
+      return false;
+    }
+  }
+
   void _onParameterChanged(String name, Object? value) {
     setState(() => _values[name] = value);
   }
@@ -238,6 +263,10 @@ class _CommandGeneratorPageState extends State<CommandGeneratorPage> {
                         : null,
                     onAddOption: parameter.type == CommandParameterType.options
                         ? () => _addOption(parameter)
+                        : null,
+                    onDeleteOption:
+                        parameter.type == CommandParameterType.options
+                        ? (option) => _deleteOption(parameter, option)
                         : null,
                     required: config.isParameterRequired(parameter, _values),
                   ),

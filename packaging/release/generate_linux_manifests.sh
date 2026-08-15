@@ -11,15 +11,22 @@ repository="$2"
 asset_dir="$3"
 appimage_name="terminal-master-$version-linux-x86_64.AppImage"
 appimage_path="$asset_dir/$appimage_name"
+tarball_name="terminal-master-$version-linux-x86_64.tar.gz"
+tarball_path="$asset_dir/$tarball_name"
 
 if [[ ! -f "$appimage_path" ]]; then
   echo "AppImage not found at $appimage_path" >&2
   exit 1
 fi
+if [[ ! -f "$tarball_path" ]]; then
+  echo "Linux tarball not found at $tarball_path" >&2
+  exit 1
+fi
 
 sha256="$(sha256sum "$appimage_path" | cut -d ' ' -f1)"
-sri="sha256-$(openssl dgst -sha256 -binary "$appimage_path" | base64 | tr -d '\n')"
 release_url="https://github.com/$repository/releases/download/v$version/$appimage_name"
+tarball_sri="sha256-$(openssl dgst -sha256 -binary "$tarball_path" | base64 | tr -d '\n')"
+tarball_release_url="https://github.com/$repository/releases/download/v$version/$tarball_name"
 
 cat > "$asset_dir/PKGBUILD" <<EOF
 pkgname=terminal-master-bin
@@ -64,29 +71,72 @@ cat > "$asset_dir/flake.nix" <<EOF
       pname = "terminal-master";
       version = "$version";
       src = pkgs.fetchurl {
-        url = "$release_url";
-        hash = "$sri";
+        url = "$tarball_release_url";
+        hash = "$tarball_sri";
       };
-      contents = pkgs.appimageTools.extractType2 {
+
+      package = pkgs.stdenv.mkDerivation {
         inherit pname version src;
-      };
-      package = pkgs.appimageTools.wrapType2 {
-        inherit pname version src;
-        extraInstallCommands = ''
-          install -m 444 -D \
-            \${contents}/io.github.duffbeer.terminalmaster.desktop \
+
+        nativeBuildInputs = with pkgs; [
+          autoPatchelfHook
+          makeWrapper
+          wrapGAppsHook3
+        ];
+
+        buildInputs = with pkgs; [
+          atk
+          cairo
+          gdk-pixbuf
+          glib
+          gtk3
+          harfbuzz
+          libepoxy
+          pango
+          stdenv.cc.cc.lib
+        ];
+
+        sourceRoot = "terminal-master";
+        dontBuild = true;
+
+        installPhase = ''
+          runHook preInstall
+
+          mkdir -p \$out/lib/terminal-master \$out/bin
+          cp -a . \$out/lib/terminal-master/
+
+          install -Dm444 \
+            share/applications/io.github.duffbeer.terminalmaster.desktop \
             \$out/share/applications/io.github.duffbeer.terminalmaster.desktop
-          install -m 444 -D \
-            \${contents}/terminal_master.png \
+          install -Dm444 \
+            share/icons/hicolor/512x512/apps/terminal_master.png \
             \$out/share/icons/hicolor/512x512/apps/terminal_master.png
+          rm -rf \$out/lib/terminal-master/share
+
           substituteInPlace \
             \$out/share/applications/io.github.duffbeer.terminalmaster.desktop \
             --replace-fail "Exec=terminal_master" \
-              "Exec=\$out/bin/terminal-master"
+              "Exec=terminal-master"
+
+          makeWrapper \
+            \$out/lib/terminal-master/terminal_master \
+            \$out/bin/terminal-master
+
+          runHook postInstall
         '';
+
+        meta = {
+          description = "Validated terminal command builder";
+          homepage = "https://github.com/$repository";
+          mainProgram = "terminal-master";
+          platforms = [ "x86_64-linux" ];
+        };
       };
     in {
-      packages.\${system}.default = package;
+      packages.\${system} = {
+        terminal-master = package;
+        default = package;
+      };
       apps.\${system}.default = {
         type = "app";
         program = "\${package}/bin/terminal-master";
