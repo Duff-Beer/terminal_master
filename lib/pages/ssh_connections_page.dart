@@ -37,11 +37,38 @@ class SshConnectionsPage extends StatefulWidget {
 }
 
 class _SshConnectionsPageState extends State<SshConnectionsPage> {
+  final _searchController = TextEditingController();
   List<SshConnectionProfile> _profiles = const [];
   bool _loading = true;
   String? _error;
   String? _busyProfileId;
   bool _isTransferring = false;
+
+  List<SshConnectionProfile> get _filteredProfiles {
+    final terms = _searchController.text
+        .trim()
+        .toLowerCase()
+        .split(RegExp(r'\s+'))
+        .where((term) => term.isNotEmpty);
+    if (terms.isEmpty) return _profiles;
+    return _profiles
+        .where((profile) {
+          final authentication =
+              profile.authenticationType == SshAuthenticationType.privateKey
+              ? 'ssh-key key schlüssel private key'
+              : 'passwort password';
+          final searchable = [
+            profile.name,
+            profile.host,
+            profile.username,
+            profile.port.toString(),
+            profile.endpoint,
+            authentication,
+          ].join(' ').toLowerCase();
+          return terms.every(searchable.contains);
+        })
+        .toList(growable: false);
+  }
 
   SshBackupService get _backupService =>
       SshBackupService(credentialStore: widget.credentialStore);
@@ -55,6 +82,12 @@ class _SshConnectionsPageState extends State<SshConnectionsPage> {
   void initState() {
     super.initState();
     _load();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
   Future<void> _load() async {
@@ -518,6 +551,7 @@ class _SshConnectionsPageState extends State<SshConnectionsPage> {
 
   @override
   Widget build(BuildContext context) {
+    final filteredProfiles = _filteredProfiles;
     return Scaffold(
       appBar: AppBar(
         title: const Text('SSH-Verbindungen'),
@@ -555,103 +589,147 @@ class _SshConnectionsPageState extends State<SshConnectionsPage> {
           ? const Center(
               child: Text('Noch keine SSH-Verbindungen gespeichert.'),
             )
-          : ListView.separated(
-              padding: const EdgeInsets.all(16),
-              itemCount: _profiles.length,
-              separatorBuilder: (_, _) => const Divider(),
-              itemBuilder: (context, index) {
-                final profile = _profiles[index];
-                final busy = _busyProfileId == profile.id;
-                final actionsDisabled =
-                    _busyProfileId != null || _isTransferring;
-                return Card(
-                  key: Key('ssh-profile-${profile.id}'),
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            const Icon(Icons.dns_outlined),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    profile.name,
-                                    style: Theme.of(
-                                      context,
-                                    ).textTheme.titleMedium,
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(profile.endpoint),
-                                  Text(
-                                    profile.authenticationType ==
-                                            SshAuthenticationType.privateKey
-                                        ? 'Authentifizierung: SSH-Key'
-                                        : 'Authentifizierung: Passwort',
-                                  ),
-                                  Text(
-                                    profile.hostKeyFingerprint == null
-                                        ? 'Host-Key nicht bestätigt'
-                                        : 'Host-Key bestätigt',
-                                  ),
-                                ],
-                              ),
+          : Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+                  child: TextField(
+                    key: const Key('search-ssh-profiles'),
+                    controller: _searchController,
+                    textInputAction: TextInputAction.search,
+                    decoration: InputDecoration(
+                      hintText: 'SSH-Verbindungen durchsuchen',
+                      prefixIcon: const Icon(Icons.search),
+                      suffixIcon: _searchController.text.isEmpty
+                          ? null
+                          : IconButton(
+                              key: const Key('clear-ssh-profile-search'),
+                              tooltip: 'Suche löschen',
+                              onPressed: () {
+                                _searchController.clear();
+                                setState(() {});
+                              },
+                              icon: const Icon(Icons.close),
                             ),
-                          ],
-                        ),
-                        const SizedBox(height: 12),
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: [
-                            OutlinedButton.icon(
-                              onPressed: actionsDisabled
-                                  ? null
-                                  : () => _test(profile),
-                              icon: const Icon(Icons.network_check),
-                              label: const Text('Testen'),
-                            ),
-                            OutlinedButton.icon(
-                              onPressed: actionsDisabled
-                                  ? null
-                                  : () => _edit(profile),
-                              icon: const Icon(Icons.edit_outlined),
-                              label: const Text('Bearbeiten'),
-                            ),
-                            OutlinedButton.icon(
-                              key: Key('delete-ssh-profile-${profile.id}'),
-                              onPressed: actionsDisabled
-                                  ? null
-                                  : () => _delete(profile),
-                              icon: const Icon(Icons.delete_outline),
-                              label: const Text('Löschen'),
-                            ),
-                            FilledButton.icon(
-                              key: Key('connect-ssh-profile-${profile.id}'),
-                              onPressed: actionsDisabled
-                                  ? null
-                                  : () => _connect(profile),
-                              icon: busy
-                                  ? const SizedBox.square(
-                                      dimension: 16,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                      ),
-                                    )
-                                  : const Icon(Icons.terminal),
-                              label: const Text('Verbinden'),
-                            ),
-                          ],
-                        ),
-                      ],
                     ),
+                    onChanged: (_) => setState(() {}),
                   ),
-                );
-              },
+                ),
+                Expanded(
+                  child: filteredProfiles.isEmpty
+                      ? const Center(
+                          child: Text('Keine SSH-Verbindungen gefunden.'),
+                        )
+                      : ListView.separated(
+                          padding: const EdgeInsets.all(16),
+                          itemCount: filteredProfiles.length,
+                          separatorBuilder: (_, _) => const Divider(),
+                          itemBuilder: (context, index) {
+                            final profile = filteredProfiles[index];
+                            final busy = _busyProfileId == profile.id;
+                            final actionsDisabled =
+                                _busyProfileId != null || _isTransferring;
+                            return Card(
+                              key: Key('ssh-profile-${profile.id}'),
+                              child: Padding(
+                                padding: const EdgeInsets.all(16),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        const Icon(Icons.dns_outlined),
+                                        const SizedBox(width: 12),
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                profile.name,
+                                                style: Theme.of(
+                                                  context,
+                                                ).textTheme.titleMedium,
+                                              ),
+                                              const SizedBox(height: 4),
+                                              Text(profile.endpoint),
+                                              Text(
+                                                profile.authenticationType ==
+                                                        SshAuthenticationType
+                                                            .privateKey
+                                                    ? 'Authentifizierung: SSH-Key'
+                                                    : 'Authentifizierung: Passwort',
+                                              ),
+                                              Text(
+                                                profile.hostKeyFingerprint ==
+                                                        null
+                                                    ? 'Host-Key nicht bestätigt'
+                                                    : 'Host-Key bestätigt',
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 12),
+                                    Wrap(
+                                      spacing: 8,
+                                      runSpacing: 8,
+                                      children: [
+                                        OutlinedButton.icon(
+                                          onPressed: actionsDisabled
+                                              ? null
+                                              : () => _test(profile),
+                                          icon: const Icon(Icons.network_check),
+                                          label: const Text('Testen'),
+                                        ),
+                                        OutlinedButton.icon(
+                                          onPressed: actionsDisabled
+                                              ? null
+                                              : () => _edit(profile),
+                                          icon: const Icon(Icons.edit_outlined),
+                                          label: const Text('Bearbeiten'),
+                                        ),
+                                        OutlinedButton.icon(
+                                          key: Key(
+                                            'delete-ssh-profile-${profile.id}',
+                                          ),
+                                          onPressed: actionsDisabled
+                                              ? null
+                                              : () => _delete(profile),
+                                          icon: const Icon(
+                                            Icons.delete_outline,
+                                          ),
+                                          label: const Text('Löschen'),
+                                        ),
+                                        FilledButton.icon(
+                                          key: Key(
+                                            'connect-ssh-profile-${profile.id}',
+                                          ),
+                                          onPressed: actionsDisabled
+                                              ? null
+                                              : () => _connect(profile),
+                                          icon: busy
+                                              ? const SizedBox.square(
+                                                  dimension: 16,
+                                                  child:
+                                                      CircularProgressIndicator(
+                                                        strokeWidth: 2,
+                                                      ),
+                                                )
+                                              : const Icon(Icons.terminal),
+                                          label: const Text('Verbinden'),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                ),
+              ],
             ),
       floatingActionButton: FloatingActionButton.extended(
         key: const Key('add-ssh-profile'),

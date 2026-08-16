@@ -103,6 +103,70 @@ void main() {
     expect(await credentials.readPassword(profile.credentialId), isNull);
   });
 
+  testWidgets('filters SSH profiles by endpoint and authentication', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(700, 1000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final profiles = MemorySshConnectionProfileStore(const [
+      SshConnectionProfile(
+        id: 'production',
+        name: 'Production',
+        host: 'prod.example.com',
+        username: 'deploy',
+      ),
+      SshConnectionProfile(
+        id: 'staging',
+        name: 'Staging',
+        host: 'staging.example.com',
+        username: 'admin',
+        authenticationType: SshAuthenticationType.privateKey,
+        privateKeyPath: '/home/user/.ssh/id_ed25519',
+      ),
+      SshConnectionProfile(
+        id: 'backup',
+        name: 'Backup',
+        host: 'backup.example.com',
+        port: 2222,
+        username: 'operator',
+      ),
+    ]);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: SshConnectionsPage(
+          profileStore: profiles,
+          credentialStore: MemorySshCredentialStore(),
+          hostKeyVerifier: const TrustAllSshHostKeyVerifier(),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    final search = find.byKey(const Key('search-ssh-profiles'));
+    expect(search, findsOneWidget);
+    await tester.enterText(search, 'ADMIN ssh-key');
+    await tester.pump();
+    expect(find.text('Staging'), findsOneWidget);
+    expect(find.text('Production'), findsNothing);
+    expect(find.text('Backup'), findsNothing);
+
+    await tester.tap(find.byKey(const Key('clear-ssh-profile-search')));
+    await tester.pump();
+    expect(find.text('Production'), findsOneWidget);
+    expect(find.text('Backup'), findsOneWidget);
+
+    await tester.enterText(search, '2222');
+    await tester.pump();
+    expect(find.text('Backup'), findsOneWidget);
+    expect(find.text('Staging'), findsNothing);
+
+    await tester.enterText(search, 'nicht-vorhanden');
+    await tester.pump();
+    expect(find.text('Keine SSH-Verbindungen gefunden.'), findsOneWidget);
+  });
+
   testWidgets('previews and replaces a conflicting encrypted import', (
     tester,
   ) async {
