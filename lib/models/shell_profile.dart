@@ -10,6 +10,7 @@ class ShellProfile {
   final String? workingDirectory;
   final Map<String, String> environment;
   final ShellDialect dialect;
+  final String? sshConnectionProfileId;
 
   const ShellProfile({
     required this.id,
@@ -19,7 +20,10 @@ class ShellProfile {
     this.workingDirectory,
     this.environment = const {},
     required this.dialect,
+    this.sshConnectionProfileId,
   });
+
+  bool get isSsh => sshConnectionProfileId != null;
 
   static List<ShellProfile> platformDefaults() {
     if (Platform.isWindows) {

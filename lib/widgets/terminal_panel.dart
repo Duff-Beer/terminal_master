@@ -8,6 +8,7 @@ import 'package:xterm/xterm.dart';
 
 import '../models/shell_profile.dart';
 import '../models/saved_terminal_tab.dart';
+import '../models/ssh_connection_profile.dart';
 import '../models/terminal_command_block.dart';
 import '../services/command_risk_assessor.dart';
 import '../services/terminal_backend.dart';
@@ -216,6 +217,18 @@ class TerminalPanelController extends ChangeNotifier {
     if (_isOpen) await _startForDisplay(tab.primaryPane);
   }
 
+  Future<void> createSshTab(SshConnectionProfile connection) {
+    return createTab(
+      ShellProfile(
+        id: 'ssh:${connection.id}',
+        name: connection.name,
+        executable: 'ssh',
+        dialect: ShellDialect.posix,
+        sshConnectionProfileId: connection.id,
+      ),
+    );
+  }
+
   Future<void> _loadSavedTabs() async {
     try {
       _savedTabs
@@ -239,6 +252,12 @@ class TerminalPanelController extends ChangeNotifier {
   Future<SavedTerminalTab> _saveTab(TerminalTab tab, String name) async {
     await _savedTabsLoad;
     if (_savedTabsError case final error?) throw StateError(error);
+    if (tab.panes.any((pane) => pane.profile.isSsh)) {
+      throw StateError(
+        'SSH-Terminal-Tabs können aus Sicherheitsgründen nicht als '
+        'Terminal-Snapshot gespeichert werden.',
+      );
+    }
     final normalizedName = name.trim();
     if (normalizedName.isEmpty) {
       throw ArgumentError.value(name, 'name', 'Der Name darf nicht leer sein.');
@@ -587,10 +606,15 @@ class TerminalPanelController extends ChangeNotifier {
   }
 
   TerminalPaneData _paneFromSnapshot(SavedTerminalPane snapshot) {
-    final baseProfile = profiles.firstWhere(
+    final matchingProfiles = profiles.where(
       (profile) => profile.id == snapshot.profileId,
-      orElse: () => profiles.first,
     );
+    if (matchingProfiles.isEmpty) {
+      throw StateError(
+        'Das Shell-Profil "${snapshot.profileId}" ist nicht verfügbar.',
+      );
+    }
+    final baseProfile = matchingProfiles.first;
     final profile = ShellProfile(
       id: baseProfile.id,
       name: baseProfile.name,
@@ -600,6 +624,7 @@ class TerminalPanelController extends ChangeNotifier {
           snapshot.workingDirectory ?? baseProfile.workingDirectory,
       environment: baseProfile.environment,
       dialect: baseProfile.dialect,
+      sshConnectionProfileId: baseProfile.sshConnectionProfileId,
     );
     final pane = TerminalPaneData(
       id: 'terminal-pane-${_nextPaneId++}',

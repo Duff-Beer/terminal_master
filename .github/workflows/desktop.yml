@@ -38,10 +38,12 @@ jobs:
             os: macos-14
             command: flutter build macos --release
             integration_command: flutter test integration_test/terminal_pty_test.dart -d macos
+            credential_command: flutter test integration_test/ssh_credential_test.dart -d macos
           - name: Windows
             os: windows-2022
             command: flutter build windows --release
             integration_command: flutter test integration_test/terminal_pty_test.dart -d windows
+            credential_command: flutter test integration_test/ssh_credential_test.dart -d windows
           - name: Linux
             os: ubuntu-22.04
             command: flutter build linux --release
@@ -51,7 +53,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Install Linux dependencies
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y ninja-build libgtk-3-dev xvfb
+        run: sudo apt-get update && sudo apt-get install -y ninja-build libgtk-3-dev libsecret-1-dev xvfb
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
@@ -61,3 +63,6 @@ jobs:
       - run: ${{ matrix.command }}
       - name: Test native PTY
         run: ${{ matrix.integration_command }}
+      - name: Test secure credential store
+        if: runner.os != 'Linux'
+        run: ${{ matrix.credential_command }}

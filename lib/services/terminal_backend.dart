@@ -8,6 +8,7 @@ class TerminalLaunchOptions {
   final Map<String, String>? environment;
   final int rows;
   final int columns;
+  final String? sshConnectionProfileId;
 
   const TerminalLaunchOptions({
     required this.executable,
@@ -16,6 +17,7 @@ class TerminalLaunchOptions {
     this.environment,
     required this.rows,
     required this.columns,
+    this.sshConnectionProfileId,
   });
 }
 
@@ -32,7 +34,7 @@ abstract interface class TerminalBackend {
 }
 
 typedef TerminalBackendFactory =
-    TerminalBackend Function(TerminalLaunchOptions options);
+    FutureOr<TerminalBackend> Function(TerminalLaunchOptions options);
 
 TerminalBackend unavailableTerminalBackendFactory(
   TerminalLaunchOptions options,

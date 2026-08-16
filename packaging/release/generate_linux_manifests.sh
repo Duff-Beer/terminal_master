@@ -36,7 +36,7 @@ pkgdesc='Validated terminal command builder'
 arch=('x86_64')
 url='https://github.com/$repository'
 license=('custom')
-depends=('gtk3')
+depends=('gtk3' 'libsecret')
 options=('!strip')
 source_x86_64=('$appimage_name::$release_url')
 sha256sums_x86_64=('$sha256')
@@ -92,6 +92,7 @@ cat > "$asset_dir/flake.nix" <<EOF
           gtk3
           harfbuzz
           libepoxy
+          libsecret
           pango
           stdenv.cc.cc.lib
         ];

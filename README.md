@@ -79,6 +79,22 @@ default Windows profile when PowerShell 7 is unavailable; installed PowerShell
 Terminal Master variables such as `TERM=xterm-256color` and
 `COLORTERM=truecolor` remain authoritative.
 
+## SSH Connections
+
+The SSH connections page stores reusable server profiles with a display name,
+host, port, and username. Passwords are kept separately in the operating
+system's secure credential store: Keychain on macOS, Credential Manager on
+Windows, and Secret Service on Linux. They are never written to YAML, profile
+metadata, terminal snapshots, or application logs.
+
+Connections use an interactive `xterm-256color` remote PTY. The first connection
+shows the server's SHA-256 host-key fingerprint and requires explicit trust for
+one connection or permanent storage. A changed trusted host key is always
+blocked. Profiles can be added, edited, tested, connected in a new terminal tab,
+and deleted together with their stored password. Linux systems need a running
+Secret Service provider such as GNOME Keyring or KWallet; without one, secure
+password storage reports an error instead of falling back to plaintext.
+
 ## SSH Command Generator
 
 The bundled `ssh.yaml` provides an SSH command form with a required host

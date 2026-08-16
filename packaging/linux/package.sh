@@ -59,7 +59,7 @@ Section: devel
 Priority: optional
 Architecture: amd64
 Installed-Size: $installed_size
-Depends: libgtk-3-0, libstdc++6
+Depends: libgtk-3-0, libsecret-1-0, libstdc++6
 Maintainer: Terminal Master project <noreply@github.com>
 Homepage: https://github.com/Duff-Beer/terminal_master
 Description: Validated terminal command builder

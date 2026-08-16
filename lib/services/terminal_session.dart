@@ -110,16 +110,23 @@ class TerminalSession extends ChangeNotifier {
 
     try {
       _validateProfile();
-      final backend = backendFactory(
-        TerminalLaunchOptions(
-          executable: profile.executable,
-          arguments: profile.arguments,
-          workingDirectory: profile.workingDirectory,
-          environment: _environment,
-          rows: terminal.viewHeight,
-          columns: terminal.viewWidth,
+      final backend = await Future.sync(
+        () => backendFactory(
+          TerminalLaunchOptions(
+            executable: profile.executable,
+            arguments: profile.arguments,
+            workingDirectory: profile.workingDirectory,
+            environment: profile.isSsh ? _terminalEnvironment : _environment,
+            rows: terminal.viewHeight,
+            columns: terminal.viewWidth,
+            sshConnectionProfileId: profile.sshConnectionProfileId,
+          ),
         ),
       );
+      if (_disposed) {
+        backend.kill();
+        return;
+      }
       _backend = backend;
       _outputSubscription = backend.output
           .cast<List<int>>()
@@ -408,9 +415,12 @@ class TerminalSession extends ChangeNotifier {
 
   String _posixTrackedPayload(String command) {
     final quoted = command.replaceAll("'", "'\"'\"'");
+    final marker = profile.isSsh
+        ? "'$_commandEndMarker'"
+        : '"\$$_commandMarkerVariable"';
     return "eval '$quoted'; __terminal_master_exit=\$?; "
         "printf '\\r\\n%s:%s\\r\\n' "
-        '"\$$_commandMarkerVariable" "\$__terminal_master_exit"\n';
+        '$marker "\$__terminal_master_exit"\n';
   }
 
   List<String> _windowsTrackedPayload(String command) => [
@@ -421,9 +431,12 @@ class TerminalSession extends ChangeNotifier {
 
   String _fishTrackedPayload(String command) {
     final quoted = command.replaceAll('\\', '\\\\').replaceAll("'", "\\'");
+    final marker = profile.isSsh
+        ? "'$_commandEndMarker'"
+        : '"\$$_commandMarkerVariable"';
     return "eval '$quoted'; set __terminal_master_exit \$status; "
         "printf '\\r\\n%s:%s\\r\\n' "
-        '"\$$_commandMarkerVariable" "\$__terminal_master_exit"\n';
+        '$marker "\$__terminal_master_exit"\n';
   }
 
   String _powerShellTrackedPayload(String command) {
@@ -607,7 +620,7 @@ class TerminalSession extends ChangeNotifier {
         'Das Shell-Programm darf nicht leer sein.',
       );
     }
-    if (!Platform.isWindows) return;
+    if (!Platform.isWindows || profile.isSsh) return;
     final values = <String>[
       profile.executable,
       ...profile.arguments,
