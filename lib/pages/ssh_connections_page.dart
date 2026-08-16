@@ -1,6 +1,13 @@
+import 'dart:convert';
+import 'dart:io';
+import 'dart:typed_data';
+
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
 import '../models/ssh_connection_profile.dart';
+import '../services/ssh_backup_import_service.dart';
+import '../services/ssh_backup_service.dart';
 import '../services/ssh_connection_profile_store.dart';
 import '../services/ssh_credential_store.dart';
 import '../services/ssh_host_key_verifier.dart';
@@ -12,12 +19,16 @@ class SshConnectionsPage extends StatefulWidget {
   final SshConnectionProfileStore profileStore;
   final SshCredentialStore credentialStore;
   final SshHostKeyVerifier hostKeyVerifier;
+  final Future<String?> Function()? exportPathPicker;
+  final Future<String?> Function()? importPathPicker;
 
   const SshConnectionsPage({
     super.key,
     required this.profileStore,
     required this.credentialStore,
     required this.hostKeyVerifier,
+    this.exportPathPicker,
+    this.importPathPicker,
   });
 
   @override
@@ -29,6 +40,15 @@ class _SshConnectionsPageState extends State<SshConnectionsPage> {
   bool _loading = true;
   String? _error;
   String? _busyProfileId;
+  bool _isTransferring = false;
+
+  SshBackupService get _backupService =>
+      SshBackupService(credentialStore: widget.credentialStore);
+
+  SshBackupImportService get _importService => SshBackupImportService(
+    profileStore: widget.profileStore,
+    credentialStore: widget.credentialStore,
+  );
 
   @override
   void initState() {
@@ -262,12 +282,180 @@ class _SshConnectionsPageState extends State<SshConnectionsPage> {
     }
   }
 
+  Future<void> _exportBackup() async {
+    if (_profiles.isEmpty || _isTransferring || _busyProfileId != null) return;
+    final request = await showDialog<_SshBackupExportRequest>(
+      context: context,
+      builder: (context) => _SshBackupExportDialog(profiles: _profiles),
+    );
+    if (request == null || !mounted) return;
+
+    setState(() => _isTransferring = true);
+    Uint8List? backupBytes;
+    try {
+      final selected = _profiles
+          .where((profile) => request.profileIds.contains(profile.id))
+          .toList(growable: false);
+      final backup = await _backupService.exportEncrypted(
+        selected,
+        request.password,
+      );
+      backupBytes = Uint8List.fromList(utf8.encode(backup));
+      final pickerWritesFile =
+          widget.exportPathPicker == null &&
+          (Platform.isAndroid || Platform.isIOS);
+      final path =
+          await (widget.exportPathPicker?.call() ??
+              FilePicker.platform.saveFile(
+                dialogTitle: 'Verschlüsseltes SSH-Backup exportieren',
+                fileName:
+                    'terminal-master-ssh.${SshBackupService.fileExtension}',
+                type: FileType.custom,
+                allowedExtensions: const [SshBackupService.fileExtension],
+                bytes: pickerWritesFile ? backupBytes : null,
+              ));
+      if (path == null || !mounted) return;
+      final outputPath =
+          path.toLowerCase().endsWith('.${SshBackupService.fileExtension}')
+          ? path
+          : '$path.${SshBackupService.fileExtension}';
+      if (!pickerWritesFile) {
+        await _writeBackupAtomically(outputPath, backupBytes);
+      }
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              '${selected.length} SSH-Verbindungen verschlüsselt exportiert.',
+            ),
+          ),
+        );
+      }
+    } on Object catch (error) {
+      if (mounted) {
+        showOutputDialog(context, 'SSH-Export fehlgeschlagen: $error');
+      }
+    } finally {
+      backupBytes?.fillRange(0, backupBytes.length, 0);
+      if (mounted) setState(() => _isTransferring = false);
+    }
+  }
+
+  Future<void> _importBackup() async {
+    if (_isTransferring || _busyProfileId != null) return;
+    String? path;
+    try {
+      path = await (widget.importPathPicker?.call() ?? _pickImportPath());
+    } on Object catch (error) {
+      if (mounted) {
+        showOutputDialog(
+          context,
+          'Backup-Datei konnte nicht gewählt werden: $error',
+        );
+      }
+      return;
+    }
+    if (path == null || !mounted) return;
+    final password = await showDialog<String>(
+      context: context,
+      builder: (context) => const _SshBackupPasswordDialog(),
+    );
+    if (password == null || !mounted) return;
+
+    setState(() => _isTransferring = true);
+    try {
+      final entries = await _backupService.decrypt(
+        await _readBackupFile(File(path)),
+        password,
+      );
+      final expectedProfiles = await widget.profileStore.load();
+      if (!mounted) return;
+      final planned = _importService.plan(entries, expectedProfiles);
+      final decisions = await showDialog<List<SshBackupImportItem>>(
+        context: context,
+        builder: (context) => _SshBackupImportPreviewDialog(items: planned),
+      );
+      if (decisions == null || !mounted) return;
+      final result = await _importService.apply(decisions, expectedProfiles);
+      await _load();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            '${result.imported} importiert, ${result.replaced} ersetzt, '
+            '${result.skipped} übersprungen.',
+          ),
+        ),
+      );
+      if (result.cleanupWarnings.isNotEmpty) {
+        showOutputDialog(context, result.cleanupWarnings.join('\n'));
+      }
+    } on Object catch (error) {
+      if (mounted) {
+        showOutputDialog(context, 'SSH-Import fehlgeschlagen: $error');
+      }
+    } finally {
+      if (mounted) setState(() => _isTransferring = false);
+    }
+  }
+
+  Future<String?> _pickImportPath() async {
+    final selection = await FilePicker.platform.pickFiles(
+      dialogTitle: 'Verschlüsseltes SSH-Backup importieren',
+      type: FileType.custom,
+      allowedExtensions: const [SshBackupService.fileExtension],
+    );
+    return selection?.files.single.path;
+  }
+
+  Future<String> _readBackupFile(File file) async {
+    final bytes = BytesBuilder(copy: false);
+    await for (final chunk in file.openRead()) {
+      if (bytes.length + chunk.length > SshBackupService.maximumFileBytes) {
+        throw const SshBackupException('Die Backup-Datei ist zu groß.');
+      }
+      bytes.add(chunk);
+    }
+    return utf8.decode(bytes.takeBytes());
+  }
+
+  Future<void> _writeBackupAtomically(String path, Uint8List bytes) async {
+    final temporary = File(
+      '$path.tmp-$pid-${DateTime.now().microsecondsSinceEpoch}',
+    );
+    try {
+      await temporary.writeAsBytes(bytes, flush: true);
+      await temporary.rename(path);
+    } finally {
+      if (await temporary.exists()) await temporary.delete();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('SSH-Verbindungen'),
-        actions: const [TerminalPanelToggleButton()],
+        actions: [
+          IconButton(
+            key: const Key('import-ssh-backup'),
+            tooltip: 'Verschlüsseltes Backup importieren',
+            onPressed: _isTransferring || _busyProfileId != null
+                ? null
+                : _importBackup,
+            icon: const Icon(Icons.file_download_outlined),
+          ),
+          IconButton(
+            key: const Key('export-ssh-backup'),
+            tooltip: 'Verschlüsseltes Backup exportieren',
+            onPressed:
+                _profiles.isEmpty || _isTransferring || _busyProfileId != null
+                ? null
+                : _exportBackup,
+            icon: const Icon(Icons.file_upload_outlined),
+          ),
+          const TerminalPanelToggleButton(),
+        ],
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
@@ -289,6 +477,7 @@ class _SshConnectionsPageState extends State<SshConnectionsPage> {
               itemBuilder: (context, index) {
                 final profile = _profiles[index];
                 final busy = _busyProfileId == profile.id;
+                final actionsDisabled = busy || _isTransferring;
                 return Card(
                   key: Key('ssh-profile-${profile.id}'),
                   child: Padding(
@@ -328,24 +517,32 @@ class _SshConnectionsPageState extends State<SshConnectionsPage> {
                           runSpacing: 8,
                           children: [
                             OutlinedButton.icon(
-                              onPressed: busy ? null : () => _test(profile),
+                              onPressed: actionsDisabled
+                                  ? null
+                                  : () => _test(profile),
                               icon: const Icon(Icons.network_check),
                               label: const Text('Testen'),
                             ),
                             OutlinedButton.icon(
-                              onPressed: busy ? null : () => _edit(profile),
+                              onPressed: actionsDisabled
+                                  ? null
+                                  : () => _edit(profile),
                               icon: const Icon(Icons.edit_outlined),
                               label: const Text('Bearbeiten'),
                             ),
                             OutlinedButton.icon(
                               key: Key('delete-ssh-profile-${profile.id}'),
-                              onPressed: busy ? null : () => _delete(profile),
+                              onPressed: actionsDisabled
+                                  ? null
+                                  : () => _delete(profile),
                               icon: const Icon(Icons.delete_outline),
                               label: const Text('Löschen'),
                             ),
                             FilledButton.icon(
                               key: Key('connect-ssh-profile-${profile.id}'),
-                              onPressed: busy ? null : () => _connect(profile),
+                              onPressed: actionsDisabled
+                                  ? null
+                                  : () => _connect(profile),
                               icon: busy
                                   ? const SizedBox.square(
                                       dimension: 16,
@@ -366,10 +563,339 @@ class _SshConnectionsPageState extends State<SshConnectionsPage> {
             ),
       floatingActionButton: FloatingActionButton.extended(
         key: const Key('add-ssh-profile'),
-        onPressed: _busyProfileId == null ? _edit : null,
+        onPressed: _busyProfileId == null && !_isTransferring ? _edit : null,
         icon: const Icon(Icons.add),
         label: const Text('Verbindung hinzufügen'),
       ),
+    );
+  }
+}
+
+class _SshBackupExportRequest {
+  final Set<String> profileIds;
+  final String password;
+
+  const _SshBackupExportRequest({
+    required this.profileIds,
+    required this.password,
+  });
+}
+
+class _SshBackupExportDialog extends StatefulWidget {
+  final List<SshConnectionProfile> profiles;
+
+  const _SshBackupExportDialog({required this.profiles});
+
+  @override
+  State<_SshBackupExportDialog> createState() => _SshBackupExportDialogState();
+}
+
+class _SshBackupExportDialogState extends State<_SshBackupExportDialog> {
+  final _formKey = GlobalKey<FormState>();
+  final _passwordController = TextEditingController();
+  final _confirmationController = TextEditingController();
+  late final Set<String> _selectedIds;
+  var _obscurePassword = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedIds = widget.profiles.map((profile) => profile.id).toSet();
+  }
+
+  @override
+  void dispose() {
+    _passwordController.dispose();
+    _confirmationController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Verschlüsseltes SSH-Backup'),
+      content: SizedBox(
+        width: 600,
+        child: Form(
+          key: _formKey,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Das Backup enthält die ausgewählten Verbindungen und deren '
+                  'Passwörter. Es wird mit Argon2id und AES-256-GCM geschützt.',
+                ),
+                const SizedBox(height: 12),
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxHeight: 220),
+                  child: ListView(
+                    shrinkWrap: true,
+                    children: widget.profiles.map((profile) {
+                      return CheckboxListTile(
+                        dense: true,
+                        contentPadding: EdgeInsets.zero,
+                        title: Text(profile.name),
+                        subtitle: Text(profile.endpoint),
+                        value: _selectedIds.contains(profile.id),
+                        onChanged: (selected) => setState(() {
+                          if (selected == true) {
+                            _selectedIds.add(profile.id);
+                          } else {
+                            _selectedIds.remove(profile.id);
+                          }
+                        }),
+                      );
+                    }).toList(),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  key: const Key('ssh-backup-export-password'),
+                  controller: _passwordController,
+                  obscureText: _obscurePassword,
+                  decoration: InputDecoration(
+                    labelText: 'Backup-Passwort',
+                    helperText: 'Mindestens 12 Zeichen',
+                    suffixIcon: IconButton(
+                      onPressed: () =>
+                          setState(() => _obscurePassword = !_obscurePassword),
+                      icon: Icon(
+                        _obscurePassword
+                            ? Icons.visibility_outlined
+                            : Icons.visibility_off_outlined,
+                      ),
+                    ),
+                  ),
+                  validator: (value) => (value?.length ?? 0) < 12
+                      ? 'Mindestens 12 Zeichen erforderlich.'
+                      : null,
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  key: const Key('ssh-backup-export-confirmation'),
+                  controller: _confirmationController,
+                  obscureText: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Backup-Passwort wiederholen',
+                  ),
+                  validator: (value) => value != _passwordController.text
+                      ? 'Die Passwörter stimmen nicht überein.'
+                      : null,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Abbrechen'),
+        ),
+        FilledButton(
+          key: const Key('confirm-export-ssh-backup'),
+          onPressed: _submit,
+          child: const Text('Exportieren'),
+        ),
+      ],
+    );
+  }
+
+  void _submit() {
+    if (_selectedIds.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Wähle mindestens eine Verbindung aus.')),
+      );
+      return;
+    }
+    if (!_formKey.currentState!.validate()) return;
+    Navigator.pop(
+      context,
+      _SshBackupExportRequest(
+        profileIds: Set.unmodifiable(_selectedIds),
+        password: _passwordController.text,
+      ),
+    );
+  }
+}
+
+class _SshBackupPasswordDialog extends StatefulWidget {
+  const _SshBackupPasswordDialog();
+
+  @override
+  State<_SshBackupPasswordDialog> createState() =>
+      _SshBackupPasswordDialogState();
+}
+
+class _SshBackupPasswordDialogState extends State<_SshBackupPasswordDialog> {
+  final _formKey = GlobalKey<FormState>();
+  final _controller = TextEditingController();
+  var _obscurePassword = true;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('SSH-Backup entschlüsseln'),
+      content: Form(
+        key: _formKey,
+        child: TextFormField(
+          key: const Key('ssh-backup-import-password'),
+          controller: _controller,
+          autofocus: true,
+          obscureText: _obscurePassword,
+          decoration: InputDecoration(
+            labelText: 'Backup-Passwort',
+            suffixIcon: IconButton(
+              onPressed: () =>
+                  setState(() => _obscurePassword = !_obscurePassword),
+              icon: Icon(
+                _obscurePassword
+                    ? Icons.visibility_outlined
+                    : Icons.visibility_off_outlined,
+              ),
+            ),
+          ),
+          validator: (value) => value == null || value.isEmpty
+              ? 'Backup-Passwort erforderlich.'
+              : null,
+          onFieldSubmitted: (_) => _submit(),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Abbrechen'),
+        ),
+        FilledButton(
+          key: const Key('open-ssh-backup'),
+          onPressed: _submit,
+          child: const Text('Entschlüsseln'),
+        ),
+      ],
+    );
+  }
+
+  void _submit() {
+    if (!_formKey.currentState!.validate()) return;
+    Navigator.pop(context, _controller.text);
+  }
+}
+
+class _SshBackupImportPreviewDialog extends StatefulWidget {
+  final List<SshBackupImportItem> items;
+
+  const _SshBackupImportPreviewDialog({required this.items});
+
+  @override
+  State<_SshBackupImportPreviewDialog> createState() =>
+      _SshBackupImportPreviewDialogState();
+}
+
+class _SshBackupImportPreviewDialogState
+    extends State<_SshBackupImportPreviewDialog> {
+  late List<SshBackupImportItem> _items;
+
+  @override
+  void initState() {
+    super.initState();
+    _items = List.of(widget.items);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final actionable = _items.any(
+      (item) => item.action != SshBackupConflictAction.skip,
+    );
+    return AlertDialog(
+      title: const Text('SSH-Import prüfen'),
+      content: SizedBox(
+        width: 720,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxHeight: 500),
+          child: ListView.separated(
+            shrinkWrap: true,
+            itemCount: _items.length,
+            separatorBuilder: (_, _) => const Divider(),
+            itemBuilder: (context, index) {
+              final item = _items[index];
+              final existingFingerprint = item.existing?.hostKeyFingerprint;
+              final importedFingerprint = item.entry.hostKeyFingerprint;
+              final hostKeyConflict =
+                  (existingFingerprint != null ||
+                      importedFingerprint != null) &&
+                  existingFingerprint != importedFingerprint;
+              return ListTile(
+                contentPadding: EdgeInsets.zero,
+                title: Text(item.entry.name),
+                subtitle: Text(
+                  '${item.entry.endpoint}\n'
+                  '${item.duplicateInBackup
+                      ? 'Doppelter Endpunkt im Backup'
+                      : item.hasConflict
+                      ? 'Vorhandene Verbindung gefunden'
+                      : 'Neue Verbindung'}'
+                  '${hostKeyConflict ? '\nWarnung: Host-Key unterscheidet sich' : ''}',
+                  style: hostKeyConflict
+                      ? TextStyle(color: Theme.of(context).colorScheme.error)
+                      : null,
+                ),
+                isThreeLine: true,
+                trailing: item.hasConflict
+                    ? DropdownButton<SshBackupConflictAction>(
+                        key: Key('ssh-import-action-$index'),
+                        value: item.action,
+                        items: [
+                          const DropdownMenuItem(
+                            value: SshBackupConflictAction.skip,
+                            child: Text('Überspringen'),
+                          ),
+                          if (item.existing != null)
+                            const DropdownMenuItem(
+                              value: SshBackupConflictAction.replace,
+                              child: Text('Ersetzen'),
+                            ),
+                          const DropdownMenuItem(
+                            value: SshBackupConflictAction.copy,
+                            child: Text('Als Kopie'),
+                          ),
+                        ],
+                        onChanged: (action) {
+                          if (action == null) return;
+                          setState(
+                            () => _items[index] = item.copyWith(action: action),
+                          );
+                        },
+                      )
+                    : const Chip(label: Text('Neu')),
+              );
+            },
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Abbrechen'),
+        ),
+        FilledButton(
+          key: const Key('confirm-import-ssh-backup'),
+          onPressed: actionable
+              ? () => Navigator.pop<List<SshBackupImportItem>>(
+                  context,
+                  List<SshBackupImportItem>.unmodifiable(_items),
+                )
+              : null,
+          child: const Text('Importieren'),
+        ),
+      ],
     );
   }
 }

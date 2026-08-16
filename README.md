@@ -95,6 +95,17 @@ and deleted together with their stored password. Linux systems need a running
 Secret Service provider such as GNOME Keyring or KWallet; without one, secure
 password storage reports an error instead of falling back to plaintext.
 
+Complete connection lists, including passwords and pinned host keys, can be
+exported as `.tmsshbackup` files. Backup passwords must contain at least 12
+characters. Argon2id derives a 256-bit key with a 64 MiB memory cost, and
+AES-256-GCM encrypts and authenticates the complete payload; no profile or
+password data is written outside the ciphertext. Import verifies the format and
+authentication tag before showing a preview. Endpoint conflicts default to
+skip and can explicitly be replaced or imported as a copy. Host-key differences
+are highlighted, and a compare-and-swap update prevents the import from
+overwriting profiles changed while the preview was open. Backup passwords cannot
+be recovered by Terminal Master.
+
 ## SSH Command Generator
 
 The bundled `ssh.yaml` provides an SSH command form with a required host

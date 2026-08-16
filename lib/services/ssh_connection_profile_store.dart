@@ -20,6 +20,11 @@ abstract interface class SshConnectionProfileStore {
     required String keyType,
     required String fingerprint,
   });
+
+  Future<bool> replaceAllIfUnchanged({
+    required List<SshConnectionProfile> expected,
+    required List<SshConnectionProfile> replacement,
+  });
 }
 
 class MemorySshConnectionProfileStore implements SshConnectionProfileStore {
@@ -81,6 +86,18 @@ class MemorySshConnectionProfileStore implements SshConnectionProfileStore {
       hostKeyType: keyType,
       hostKeyFingerprint: fingerprint,
     );
+    return true;
+  }
+
+  @override
+  Future<bool> replaceAllIfUnchanged({
+    required List<SshConnectionProfile> expected,
+    required List<SshConnectionProfile> replacement,
+  }) async {
+    if (!_profilesEqual(_profiles, expected)) return false;
+    _profiles
+      ..clear()
+      ..addAll(replacement);
     return true;
   }
 }
@@ -209,6 +226,32 @@ class FileSshConnectionProfileStore implements SshConnectionProfileStore {
     return result.future;
   }
 
+  @override
+  Future<bool> replaceAllIfUnchanged({
+    required List<SshConnectionProfile> expected,
+    required List<SshConnectionProfile> replacement,
+  }) {
+    final result = Completer<bool>();
+    _schedule(() async {
+      try {
+        await _withFileLock(() async {
+          final current = await _load();
+          if (!_profilesEqual(current, expected)) {
+            result.complete(false);
+            return;
+          }
+          final updated = List<SshConnectionProfile>.of(replacement)
+            ..sort((left, right) => left.name.compareTo(right.name));
+          await _write(updated);
+          result.complete(true);
+        });
+      } on Object catch (error, stackTrace) {
+        result.completeError(error, stackTrace);
+      }
+    });
+    return result.future;
+  }
+
   Future<void> _mutate(void Function(List<SshConnectionProfile>) change) {
     final result = Completer<void>();
     _schedule(() async {
@@ -279,4 +322,19 @@ class FileSshConnectionProfileStore implements SshConnectionProfileStore {
       rethrow;
     }
   }
+}
+
+bool _profilesEqual(
+  List<SshConnectionProfile> first,
+  List<SshConnectionProfile> second,
+) {
+  if (first.length != second.length) return false;
+  final secondById = {
+    for (final profile in second) profile.id: jsonEncode(profile.toJson()),
+  };
+  if (secondById.length != second.length) return false;
+  for (final profile in first) {
+    if (secondById[profile.id] != jsonEncode(profile.toJson())) return false;
+  }
+  return true;
 }
