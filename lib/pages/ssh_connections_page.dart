@@ -6,6 +6,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
 import '../models/ssh_connection_profile.dart';
+import '../services/ssh_authentication.dart';
 import '../services/ssh_backup_import_service.dart';
 import '../services/ssh_backup_service.dart';
 import '../services/ssh_connection_profile_store.dart';
@@ -75,6 +76,7 @@ class _SshConnectionsPageState extends State<SshConnectionsPage> {
   }
 
   Future<void> _edit([SshConnectionProfile? existing]) async {
+    if (_busyProfileId != null || _isTransferring) return;
     final result = await showDialog<_SshProfileInput>(
       context: context,
       builder: (context) => _SshProfileDialog(profile: existing),
@@ -84,12 +86,25 @@ class _SshConnectionsPageState extends State<SshConnectionsPage> {
     final endpointChanged =
         existing != null &&
         (existing.host != result.host || existing.port != result.port);
+    final authenticationChanged =
+        existing != null &&
+        existing.authenticationType != result.authenticationType;
+    final privateKeyChanged =
+        result.authenticationType == SshAuthenticationType.privateKey &&
+        existing?.privateKeyPath != result.privateKeyPath;
+    final secretChanged = result.secret.isNotEmpty;
+    final secretCleared = result.clearSecret;
+    final credentialChanged =
+        existing == null ||
+        authenticationChanged ||
+        privateKeyChanged ||
+        secretChanged ||
+        secretCleared;
     final timestamp = DateTime.now().microsecondsSinceEpoch;
     final profileId = existing?.id ?? 'ssh-$timestamp';
-    final passwordChanged = result.password.isNotEmpty;
-    final credentialId = passwordChanged
+    final credentialId = credentialChanged
         ? 'credential-$timestamp'
-        : existing?.credentialId ?? 'credential-$timestamp';
+        : existing.credentialId;
     final profile = SshConnectionProfile(
       id: profileId,
       name: result.name,
@@ -97,57 +112,86 @@ class _SshConnectionsPageState extends State<SshConnectionsPage> {
       port: result.port,
       username: result.username,
       credentialId: credentialId,
+      authenticationType: result.authenticationType,
+      privateKeyPath: result.privateKeyPath,
       hostKeyType: endpointChanged ? null : existing?.hostKeyType,
       hostKeyFingerprint: endpointChanged ? null : existing?.hostKeyFingerprint,
     );
     setState(() => _busyProfileId = profile.id);
+    var stagedCredential = false;
+    var profilesCommitted = false;
     try {
-      final oldCredentialId = existing?.credentialId;
-      final oldPassword = oldCredentialId == null
-          ? null
-          : await widget.credentialStore.readPassword(oldCredentialId);
-      final newPassword = result.password.isEmpty
-          ? oldPassword
-          : result.password;
-      if (newPassword == null || newPassword.isEmpty) {
-        throw StateError('Bitte gib ein SSH-Passwort ein.');
-      }
-      await widget.profileStore.upsert(profile);
-      if (passwordChanged) {
-        try {
-          await widget.credentialStore.writePassword(
-            profile.credentialId,
-            result.password,
+      final expectedProfiles = await widget.profileStore.load();
+      if (existing != null) {
+        SshConnectionProfile? current;
+        for (final candidate in expectedProfiles) {
+          if (candidate.id == existing.id) {
+            current = candidate;
+            break;
+          }
+        }
+        if (current == null ||
+            jsonEncode(current.toJson()) != jsonEncode(existing.toJson())) {
+          throw StateError(
+            'Das SSH-Profil wurde zwischenzeitlich geändert. Öffne es erneut.',
           );
-        } on Object catch (credentialError) {
-          try {
-            await widget.credentialStore.deletePassword(profile.credentialId);
-          } on Object catch (cleanupError) {
-            throw StateError(
-              'Das Profil wurde gespeichert, aber das neue Passwort konnte '
-              'weder vollständig geschrieben noch entfernt werden: '
-              '$credentialError; $cleanupError',
-            );
-          }
-          try {
-            if (existing == null) {
-              await widget.profileStore.delete(profile.id);
-            } else {
-              await widget.profileStore.upsert(existing);
-            }
-          } on Object catch (rollbackError) {
-            throw StateError(
-              'Das Passwort konnte nicht gespeichert und die Profiländerung '
-              'nicht zurückgesetzt werden: $credentialError; $rollbackError',
-            );
-          }
-          rethrow;
         }
       }
+      final oldCredentialId = existing?.credentialId;
+      final oldSecret = oldCredentialId == null
+          ? null
+          : await widget.credentialStore.readPassword(oldCredentialId);
+      final canRetainSecret =
+          existing != null && !authenticationChanged && !secretCleared;
+      final newSecret = secretCleared
+          ? ''
+          : result.secret.isNotEmpty
+          ? result.secret
+          : canRetainSecret
+          ? oldSecret ?? ''
+          : '';
+      if (profile.authenticationType == SshAuthenticationType.password &&
+          newSecret.isEmpty) {
+        throw StateError('Bitte gib ein SSH-Passwort ein.');
+      }
+      if (profile.authenticationType == SshAuthenticationType.privateKey) {
+        await const SshPrivateKeyLoader().load(
+          profile.privateKeyPath!,
+          newSecret,
+        );
+      }
+      if (credentialChanged && newSecret.isNotEmpty) {
+        stagedCredential = true;
+        await widget.credentialStore.writePassword(
+          profile.credentialId,
+          newSecret,
+        );
+      }
+      final replacement = List<SshConnectionProfile>.of(expectedProfiles);
+      final profileIndex = replacement.indexWhere(
+        (candidate) => candidate.id == profile.id,
+      );
+      if (profileIndex < 0) {
+        replacement.add(profile);
+      } else {
+        replacement[profileIndex] = profile;
+      }
+      profilesCommitted = await widget.profileStore.replaceAllIfUnchanged(
+        expected: expectedProfiles,
+        replacement: replacement,
+      );
+      if (!profilesCommitted) {
+        throw StateError(
+          'Die SSH-Profile wurden zwischenzeitlich geändert. Versuche es erneut.',
+        );
+      }
       Object? cleanupError;
-      if (passwordChanged &&
+      if (credentialChanged &&
           oldCredentialId != null &&
-          oldCredentialId != profile.credentialId) {
+          oldCredentialId != profile.credentialId &&
+          !replacement.any(
+            (candidate) => candidate.credentialId == oldCredentialId,
+          )) {
         try {
           await widget.credentialStore.deletePassword(oldCredentialId);
         } on Object catch (error) {
@@ -158,11 +202,26 @@ class _SshConnectionsPageState extends State<SshConnectionsPage> {
       if (cleanupError != null && mounted) {
         showOutputDialog(
           context,
-          'Das Profil wurde gespeichert, aber das vorherige Passwort konnte '
-          'nicht aus dem Schlüsselbund entfernt werden: $cleanupError',
+          'Das Profil wurde gespeichert, aber die vorherigen Anmeldedaten '
+          'konnten nicht aus dem Schlüsselbund entfernt werden: $cleanupError',
         );
       }
     } on Object catch (error) {
+      if (stagedCredential && !profilesCommitted) {
+        try {
+          await widget.credentialStore.deletePassword(profile.credentialId);
+        } on Object catch (cleanupError) {
+          if (mounted) {
+            showOutputDialog(
+              context,
+              'SSH-Profil konnte nicht gespeichert werden: $error\n'
+              'Zusätzlich konnten temporäre Anmeldedaten nicht entfernt '
+              'werden: $cleanupError',
+            );
+          }
+          return;
+        }
+      }
       if (mounted) {
         showOutputDialog(
           context,
@@ -175,13 +234,14 @@ class _SshConnectionsPageState extends State<SshConnectionsPage> {
   }
 
   Future<void> _delete(SshConnectionProfile profile) async {
+    if (_busyProfileId != null || _isTransferring) return;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('SSH-Verbindung löschen?'),
         content: Text(
-          'Soll „${profile.name}“ einschließlich des gespeicherten Passworts '
-          'gelöscht werden?',
+          'Soll „${profile.name}“ einschließlich der gespeicherten '
+          'Anmeldedaten gelöscht werden?',
         ),
         actions: [
           TextButton(
@@ -200,19 +260,48 @@ class _SshConnectionsPageState extends State<SshConnectionsPage> {
 
     setState(() => _busyProfileId = profile.id);
     try {
-      await widget.profileStore.delete(profile.id);
+      final expectedProfiles = await widget.profileStore.load();
+      SshConnectionProfile? current;
+      for (final candidate in expectedProfiles) {
+        if (candidate.id == profile.id) {
+          current = candidate;
+          break;
+        }
+      }
+      if (current == null ||
+          jsonEncode(current.toJson()) != jsonEncode(profile.toJson())) {
+        throw StateError(
+          'Das SSH-Profil wurde zwischenzeitlich geändert. Lösche es erneut.',
+        );
+      }
+      final remainingProfiles = expectedProfiles
+          .where((candidate) => candidate.id != profile.id)
+          .toList(growable: false);
+      final deleted = await widget.profileStore.replaceAllIfUnchanged(
+        expected: expectedProfiles,
+        replacement: remainingProfiles,
+      );
+      if (!deleted) {
+        throw StateError(
+          'Die SSH-Profile wurden zwischenzeitlich geändert. Versuche es erneut.',
+        );
+      }
       Object? cleanupError;
-      try {
-        await widget.credentialStore.deletePassword(profile.credentialId);
-      } on Object catch (error) {
-        cleanupError = error;
+      if (!remainingProfiles.any(
+        (candidate) => candidate.credentialId == profile.credentialId,
+      )) {
+        try {
+          await widget.credentialStore.deletePassword(profile.credentialId);
+        } on Object catch (error) {
+          cleanupError = error;
+        }
       }
       await _load();
       if (cleanupError != null && mounted) {
         showOutputDialog(
           context,
-          'Das Profil wurde gelöscht, aber das Passwort konnte nicht aus dem '
-          'Schlüsselbund entfernt werden: $cleanupError',
+          'Das Profil wurde gelöscht, aber die Anmeldedaten konnten nicht aus '
+          'dem Schlüsselbund entfernt werden: $cleanupError',
         );
       }
     } on Object catch (error) {
@@ -228,17 +317,15 @@ class _SshConnectionsPageState extends State<SshConnectionsPage> {
   }
 
   Future<void> _test(SshConnectionProfile profile) async {
+    if (_busyProfileId != null || _isTransferring) return;
     setState(() => _busyProfileId = profile.id);
     try {
-      final password = await widget.credentialStore.readPassword(
-        profile.credentialId,
-      );
-      if (password == null || password.isEmpty) {
-        throw StateError('Im Schlüsselbund ist kein Passwort gespeichert.');
-      }
+      final authentication = await SshAuthenticationResolver(
+        credentialStore: widget.credentialStore,
+      ).resolve(profile);
       final backend = await SshTerminalBackend.connect(
         profile: profile,
-        password: password,
+        authentication: authentication,
         hostKeyVerifier: widget.hostKeyVerifier,
         rows: 24,
         columns: 80,
@@ -260,14 +347,12 @@ class _SshConnectionsPageState extends State<SshConnectionsPage> {
   }
 
   Future<void> _connect(SshConnectionProfile profile) async {
+    if (_busyProfileId != null || _isTransferring) return;
     setState(() => _busyProfileId = profile.id);
     try {
-      final password = await widget.credentialStore.readPassword(
-        profile.credentialId,
-      );
-      if (password == null || password.isEmpty) {
-        throw StateError('Im Schlüsselbund ist kein Passwort gespeichert.');
-      }
+      await SshAuthenticationResolver(
+        credentialStore: widget.credentialStore,
+      ).resolve(profile);
       if (!mounted) return;
       final controller = TerminalPanelScope.of(context);
       await controller.createSshTab(profile);
@@ -477,7 +562,8 @@ class _SshConnectionsPageState extends State<SshConnectionsPage> {
               itemBuilder: (context, index) {
                 final profile = _profiles[index];
                 final busy = _busyProfileId == profile.id;
-                final actionsDisabled = busy || _isTransferring;
+                final actionsDisabled =
+                    _busyProfileId != null || _isTransferring;
                 return Card(
                   key: Key('ssh-profile-${profile.id}'),
                   child: Padding(
@@ -501,6 +587,12 @@ class _SshConnectionsPageState extends State<SshConnectionsPage> {
                                   ),
                                   const SizedBox(height: 4),
                                   Text(profile.endpoint),
+                                  Text(
+                                    profile.authenticationType ==
+                                            SshAuthenticationType.privateKey
+                                        ? 'Authentifizierung: SSH-Key'
+                                        : 'Authentifizierung: Passwort',
+                                  ),
                                   Text(
                                     profile.hostKeyFingerprint == null
                                         ? 'Host-Key nicht bestätigt'
@@ -625,7 +717,9 @@ class _SshBackupExportDialogState extends State<_SshBackupExportDialog> {
               children: [
                 const Text(
                   'Das Backup enthält die ausgewählten Verbindungen und deren '
-                  'Passwörter. Es wird mit Argon2id und AES-256-GCM geschützt.',
+                  'Passwörter beziehungsweise Key-Passphrases. Private '
+                  'Schlüsseldateien werden nicht eingebettet. Das Backup wird '
+                  'mit Argon2id und AES-256-GCM geschützt.',
                 ),
                 const SizedBox(height: 12),
                 ConstrainedBox(
@@ -837,6 +931,7 @@ class _SshBackupImportPreviewDialogState
                 title: Text(item.entry.name),
                 subtitle: Text(
                   '${item.entry.endpoint}\n'
+                  '${item.entry.authenticationType == SshAuthenticationType.privateKey ? 'SSH-Key' : 'Passwort'}\n'
                   '${item.duplicateInBackup
                       ? 'Doppelter Endpunkt im Backup'
                       : item.hasConflict
@@ -905,14 +1000,20 @@ class _SshProfileInput {
   final String host;
   final int port;
   final String username;
-  final String password;
+  final SshAuthenticationType authenticationType;
+  final String? privateKeyPath;
+  final String secret;
+  final bool clearSecret;
 
   const _SshProfileInput({
     required this.name,
     required this.host,
     required this.port,
     required this.username,
-    required this.password,
+    required this.authenticationType,
+    this.privateKeyPath,
+    required this.secret,
+    required this.clearSecret,
   });
 }
 
@@ -931,7 +1032,10 @@ class _SshProfileDialogState extends State<_SshProfileDialog> {
   late final TextEditingController _hostController;
   late final TextEditingController _portController;
   late final TextEditingController _usernameController;
-  final _passwordController = TextEditingController();
+  late final TextEditingController _privateKeyPathController;
+  final _secretController = TextEditingController();
+  late SshAuthenticationType _authenticationType;
+  var _clearSecret = false;
   var _obscurePassword = true;
 
   @override
@@ -942,6 +1046,11 @@ class _SshProfileDialogState extends State<_SshProfileDialog> {
     _hostController = TextEditingController(text: profile?.host ?? '');
     _portController = TextEditingController(text: '${profile?.port ?? 22}');
     _usernameController = TextEditingController(text: profile?.username ?? '');
+    _privateKeyPathController = TextEditingController(
+      text: profile?.privateKeyPath ?? '',
+    );
+    _authenticationType =
+        profile?.authenticationType ?? SshAuthenticationType.password;
   }
 
   @override
@@ -950,7 +1059,8 @@ class _SshProfileDialogState extends State<_SshProfileDialog> {
     _hostController.dispose();
     _portController.dispose();
     _usernameController.dispose();
-    _passwordController.dispose();
+    _privateKeyPathController.dispose();
+    _secretController.dispose();
     super.dispose();
   }
 
@@ -1000,12 +1110,86 @@ class _SshProfileDialogState extends State<_SshProfileDialog> {
                   label: 'Benutzername',
                 ),
                 const SizedBox(height: 12),
+                DropdownButtonFormField<SshAuthenticationType>(
+                  key: const Key('ssh-profile-authentication-type'),
+                  initialValue: _authenticationType,
+                  decoration: const InputDecoration(
+                    labelText: 'Authentifizierung',
+                  ),
+                  items: [
+                    const DropdownMenuItem(
+                      value: SshAuthenticationType.password,
+                      child: Text('Passwort'),
+                    ),
+                    DropdownMenuItem(
+                      value: SshAuthenticationType.privateKey,
+                      enabled: !Platform.isAndroid && !Platform.isIOS,
+                      child: Text(
+                        Platform.isAndroid || Platform.isIOS
+                            ? 'SSH-Key (Desktop)'
+                            : 'SSH-Key',
+                      ),
+                    ),
+                  ],
+                  onChanged: (value) {
+                    if (value == null) return;
+                    setState(() => _authenticationType = value);
+                  },
+                ),
+                if (_authenticationType ==
+                    SshAuthenticationType.privateKey) ...[
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    key: const Key('ssh-profile-private-key-path'),
+                    controller: _privateKeyPathController,
+                    decoration: InputDecoration(
+                      labelText: 'Private Schlüsseldatei',
+                      suffixIcon: IconButton(
+                        key: const Key('pick-ssh-private-key'),
+                        tooltip: 'Schlüsseldatei auswählen',
+                        onPressed: _pickPrivateKey,
+                        icon: const Icon(Icons.folder_open_outlined),
+                      ),
+                    ),
+                    validator: (value) {
+                      if (_authenticationType !=
+                          SshAuthenticationType.privateKey) {
+                        return null;
+                      }
+                      return value == null || value.trim().isEmpty
+                          ? 'Wähle eine private Schlüsseldatei aus.'
+                          : null;
+                    },
+                  ),
+                  if (editing &&
+                      widget.profile!.authenticationType ==
+                          SshAuthenticationType.privateKey) ...[
+                    const SizedBox(height: 8),
+                    CheckboxListTile(
+                      key: const Key('clear-ssh-key-passphrase'),
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('Gespeicherte Passphrase entfernen'),
+                      value: _clearSecret,
+                      onChanged: (value) => setState(() {
+                        _clearSecret = value ?? false;
+                        if (_clearSecret) _secretController.clear();
+                      }),
+                    ),
+                  ],
+                ],
+                const SizedBox(height: 12),
                 TextFormField(
                   key: const Key('ssh-profile-password'),
-                  controller: _passwordController,
+                  controller: _secretController,
+                  enabled: !_clearSecret,
                   obscureText: _obscurePassword,
                   decoration: InputDecoration(
-                    labelText: editing
+                    labelText:
+                        _authenticationType == SshAuthenticationType.privateKey
+                        ? editing
+                              ? 'Key-Passphrase (leer lassen zum Beibehalten)'
+                              : 'Key-Passphrase (optional)'
+                        : editing
                         ? 'Neues Passwort (leer lassen zum Beibehalten)'
                         : 'Passwort',
                     suffixIcon: IconButton(
@@ -1021,17 +1205,24 @@ class _SshProfileDialogState extends State<_SshProfileDialog> {
                       ),
                     ),
                   ),
-                  validator: (value) =>
-                      !editing && (value == null || value.isEmpty)
-                      ? 'Passwort darf nicht leer sein.'
-                      : null,
+                  validator: (value) {
+                    final requiresPassword =
+                        _authenticationType == SshAuthenticationType.password &&
+                        (!editing ||
+                            widget.profile!.authenticationType !=
+                                SshAuthenticationType.password);
+                    return requiresPassword && (value == null || value.isEmpty)
+                        ? 'Passwort darf nicht leer sein.'
+                        : null;
+                  },
                 ),
                 const SizedBox(height: 8),
                 const Align(
                   alignment: Alignment.centerLeft,
                   child: Text(
-                    'Das Passwort wird ausschließlich im Schlüsselbund des '
-                    'Betriebssystems gespeichert.',
+                    'Passwörter und Key-Passphrases werden ausschließlich im '
+                    'Schlüsselbund des Betriebssystems gespeichert. Private '
+                    'Schlüssel verbleiben in der ausgewählten Datei.',
                   ),
                 ),
               ],
@@ -1070,6 +1261,26 @@ class _SshProfileDialogState extends State<_SshProfileDialog> {
     );
   }
 
+  Future<void> _pickPrivateKey() async {
+    if (Platform.isAndroid || Platform.isIOS) {
+      showOutputDialog(
+        context,
+        'SSH-Key-Dateien werden derzeit nur auf Desktop-Plattformen '
+        'unterstützt, da mobile Dateiauswahlen keine dauerhaft nutzbaren '
+        'Pfade bereitstellen.',
+      );
+      return;
+    }
+    final selection = await FilePicker.platform.pickFiles(
+      dialogTitle: 'Private SSH-Schlüsseldatei auswählen',
+      type: FileType.any,
+    );
+    final path = selection?.files.single.path;
+    if (path != null && mounted) {
+      setState(() => _privateKeyPathController.text = path);
+    }
+  }
+
   void _submit() {
     if (!_formKey.currentState!.validate()) return;
     Navigator.pop(
@@ -1079,7 +1290,12 @@ class _SshProfileDialogState extends State<_SshProfileDialog> {
         host: _hostController.text.trim(),
         port: int.parse(_portController.text.trim()),
         username: _usernameController.text.trim(),
-        password: _passwordController.text,
+        authenticationType: _authenticationType,
+        privateKeyPath: _authenticationType == SshAuthenticationType.privateKey
+            ? _privateKeyPathController.text.trim()
+            : null,
+        secret: _secretController.text,
+        clearSecret: _clearSecret,
       ),
     );
   }

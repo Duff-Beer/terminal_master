@@ -115,11 +115,16 @@ class SshBackupImportService {
           port: item.entry.port,
           username: item.entry.username,
           credentialId: credentialId,
+          authenticationType: item.entry.authenticationType,
+          privateKeyPath: item.entry.privateKeyPath,
           hostKeyType: item.entry.hostKeyType,
           hostKeyFingerprint: item.entry.hostKeyFingerprint,
         );
-        stagedCredentialIds.add(credentialId);
-        await credentialStore.writePassword(credentialId, item.entry.password);
+        final secret = item.entry.password;
+        if (secret != null && secret.isNotEmpty) {
+          stagedCredentialIds.add(credentialId);
+          await credentialStore.writePassword(credentialId, secret);
+        }
         if (replace) {
           if (!replacedProfileIds.add(existing.id)) {
             throw SshBackupException(

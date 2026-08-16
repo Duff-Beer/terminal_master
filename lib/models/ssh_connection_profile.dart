@@ -1,3 +1,5 @@
+enum SshAuthenticationType { password, privateKey }
+
 class SshConnectionProfile {
   final String id;
   final String name;
@@ -5,6 +7,8 @@ class SshConnectionProfile {
   final int port;
   final String username;
   final String credentialId;
+  final SshAuthenticationType authenticationType;
+  final String? privateKeyPath;
   final String? hostKeyType;
   final String? hostKeyFingerprint;
 
@@ -15,6 +19,8 @@ class SshConnectionProfile {
     this.port = 22,
     required this.username,
     String? credentialId,
+    this.authenticationType = SshAuthenticationType.password,
+    this.privateKeyPath,
     this.hostKeyType,
     this.hostKeyFingerprint,
   }) : credentialId = credentialId ?? id;
@@ -27,6 +33,9 @@ class SshConnectionProfile {
     int? port,
     String? username,
     String? credentialId,
+    SshAuthenticationType? authenticationType,
+    String? privateKeyPath,
+    bool clearPrivateKeyPath = false,
     String? hostKeyType,
     String? hostKeyFingerprint,
     bool clearHostKey = false,
@@ -38,6 +47,10 @@ class SshConnectionProfile {
       port: port ?? this.port,
       username: username ?? this.username,
       credentialId: credentialId ?? this.credentialId,
+      authenticationType: authenticationType ?? this.authenticationType,
+      privateKeyPath: clearPrivateKeyPath
+          ? null
+          : privateKeyPath ?? this.privateKeyPath,
       hostKeyType: clearHostKey ? null : hostKeyType ?? this.hostKeyType,
       hostKeyFingerprint: clearHostKey
           ? null
@@ -52,6 +65,13 @@ class SshConnectionProfile {
     final port = json['port'];
     final username = json['username'];
     final credentialId = json['credentialId'];
+    final authenticationTypeValue = json['authenticationType'];
+    final privateKeyPath = json['privateKeyPath'];
+    final authenticationType = switch (authenticationTypeValue) {
+      null || 'password' => SshAuthenticationType.password,
+      'privateKey' => SshAuthenticationType.privateKey,
+      _ => throw const FormatException('Ungültige SSH-Authentifizierung.'),
+    };
     if (id is! String ||
         id.trim().isEmpty ||
         name is! String ||
@@ -64,7 +84,17 @@ class SshConnectionProfile {
         username is! String ||
         username.trim().isEmpty ||
         (credentialId != null &&
-            (credentialId is! String || credentialId.trim().isEmpty))) {
+            (credentialId is! String || credentialId.trim().isEmpty)) ||
+        (privateKeyPath != null && privateKeyPath is! String) ||
+        (privateKeyPath is String &&
+            (privateKeyPath.length > 4096 ||
+                privateKeyPath.runes.any(
+                  (rune) => rune < 0x20 || rune == 0x7f,
+                ))) ||
+        (authenticationType == SshAuthenticationType.privateKey &&
+            (privateKeyPath is! String || privateKeyPath.trim().isEmpty)) ||
+        (authenticationType == SshAuthenticationType.password &&
+            privateKeyPath != null)) {
       throw const FormatException('Ungültiges SSH-Verbindungsprofil.');
     }
     final hostKeyType = json['hostKeyType'];
@@ -80,6 +110,8 @@ class SshConnectionProfile {
       port: port,
       username: username.trim(),
       credentialId: credentialId is String ? credentialId.trim() : id.trim(),
+      authenticationType: authenticationType,
+      privateKeyPath: privateKeyPath is String ? privateKeyPath.trim() : null,
       hostKeyType: hostKeyType as String?,
       hostKeyFingerprint: hostKeyFingerprint as String?,
     );
@@ -92,6 +124,8 @@ class SshConnectionProfile {
     'port': port,
     'username': username,
     'credentialId': credentialId,
+    'authenticationType': authenticationType.name,
+    if (privateKeyPath case final value?) 'privateKeyPath': value,
     if (hostKeyType case final value?) 'hostKeyType': value,
     if (hostKeyFingerprint case final value?) 'hostKeyFingerprint': value,
   };

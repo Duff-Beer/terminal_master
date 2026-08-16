@@ -5,6 +5,7 @@ import 'dart:typed_data';
 import 'package:dartssh2/dartssh2.dart';
 
 import '../models/ssh_connection_profile.dart';
+import 'ssh_authentication.dart';
 import 'ssh_host_key_verifier.dart';
 import 'terminal_backend.dart';
 
@@ -62,14 +63,17 @@ class SshTerminalBackend implements TerminalBackend {
 
   static Future<SshTerminalBackend> connect({
     required SshConnectionProfile profile,
-    required String password,
+    required ResolvedSshAuthentication authentication,
     required SshHostKeyVerifier hostKeyVerifier,
     required int rows,
     required int columns,
   }) async {
     SSHSocket? socket;
     SSHClient? client;
-    String? pendingPassword = password;
+    String? pendingPassword = switch (authentication) {
+      ResolvedSshPasswordAuthentication(:final password) => password,
+      ResolvedSshPrivateKeyAuthentication() => null,
+    };
     try {
       socket = await SSHSocket.connect(
         profile.host,
@@ -79,6 +83,10 @@ class SshTerminalBackend implements TerminalBackend {
       client = SSHClient(
         socket,
         username: profile.username,
+        identities: switch (authentication) {
+          ResolvedSshPrivateKeyAuthentication(:final identities) => identities,
+          ResolvedSshPasswordAuthentication() => null,
+        },
         handshakeTimeout: const Duration(seconds: 10),
         authTimeout: const Duration(seconds: 15),
         onVerifyHostKey: (type, fingerprintBytes) => hostKeyVerifier.verify(
@@ -86,16 +94,20 @@ class SshTerminalBackend implements TerminalBackend {
           type,
           utf8.decode(fingerprintBytes),
         ),
-        onPasswordRequest: () => pendingPassword,
-        onUserInfoRequest: (request) {
-          final value = pendingPassword;
-          if (value == null ||
-              request.prompts.length != 1 ||
-              request.prompts.single.echo) {
-            return null;
-          }
-          return List.filled(request.prompts.length, value);
-        },
+        onPasswordRequest: authentication is ResolvedSshPasswordAuthentication
+            ? () => pendingPassword
+            : null,
+        onUserInfoRequest: authentication is ResolvedSshPasswordAuthentication
+            ? (request) {
+                final value = pendingPassword;
+                if (value == null ||
+                    request.prompts.length != 1 ||
+                    request.prompts.single.echo) {
+                  return null;
+                }
+                return List.filled(request.prompts.length, value);
+              }
+            : null,
         onAuthenticated: () => pendingPassword = null,
       );
       final session = await client

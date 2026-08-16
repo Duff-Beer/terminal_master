@@ -1,3 +1,4 @@
+import 'ssh_authentication.dart';
 import 'ssh_connection_profile_store.dart';
 import 'ssh_credential_store.dart';
 import 'ssh_host_key_verifier.dart';
@@ -26,15 +27,12 @@ class RoutingTerminalBackendFactory {
     if (profile == null) {
       throw StateError('Das SSH-Verbindungsprofil wurde nicht gefunden.');
     }
-    final password = await credentialStore.readPassword(profile.credentialId);
-    if (password == null || password.isEmpty) {
-      throw StateError(
-        'Für "${profile.name}" ist kein Passwort im Schlüsselbund gespeichert.',
-      );
-    }
+    final authentication = await SshAuthenticationResolver(
+      credentialStore: credentialStore,
+    ).resolve(profile);
     return SshTerminalBackend.connect(
       profile: profile,
-      password: password,
+      authentication: authentication,
       hostKeyVerifier: hostKeyVerifier,
       rows: options.rows,
       columns: options.columns,

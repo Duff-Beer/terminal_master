@@ -82,21 +82,31 @@ Terminal Master variables such as `TERM=xterm-256color` and
 ## SSH Connections
 
 The SSH connections page stores reusable server profiles with a display name,
-host, port, and username. Passwords are kept separately in the operating
-system's secure credential store: Keychain on macOS, Credential Manager on
-Windows, and Secret Service on Linux. They are never written to YAML, profile
-metadata, terminal snapshots, or application logs.
+host, port, username, and either password or private-key authentication.
+Passwords and optional private-key passphrases are kept separately in the
+operating system's secure credential store: Keychain on macOS, Credential
+Manager on Windows, and Secret Service on Linux. Private keys remain in their
+selected files. Secrets are never written to YAML, profile metadata, terminal
+snapshots, or application logs.
+
+Private-key profiles are currently available on desktop platforms. Mobile file
+pickers expose temporary cache paths rather than durable references, so Terminal
+Master deliberately disables private-key selection on Android and iOS.
 
 Connections use an interactive `xterm-256color` remote PTY. The first connection
 shows the server's SHA-256 host-key fingerprint and requires explicit trust for
 one connection or permanent storage. A changed trusted host key is always
 blocked. Profiles can be added, edited, tested, connected in a new terminal tab,
-and deleted together with their stored password. Linux systems need a running
+and deleted together with their stored credential. Supported private-key input
+includes OpenSSH RSA, Ed25519, and ECDSA keys plus legacy RSA keys accepted by
+`dartssh2`; unsupported PKCS#8 keys must first be converted with `ssh-keygen`.
+Linux systems need a running
 Secret Service provider such as GNOME Keyring or KWallet; without one, secure
 password storage reports an error instead of falling back to plaintext.
 
-Complete connection lists, including passwords and pinned host keys, can be
-exported as `.tmsshbackup` files. Backup passwords must contain at least 12
+Complete connection lists, including passwords, key passphrases, private-key
+paths, and pinned host keys, can be exported as `.tmsshbackup` files. Private
+key contents are deliberately excluded. Backup passwords must contain at least 12
 characters. Argon2id derives a 256-bit key with a 64 MiB memory cost, and
 AES-256-GCM encrypts and authenticates the complete payload; no profile or
 password data is written outside the ciphertext. Import verifies the format and

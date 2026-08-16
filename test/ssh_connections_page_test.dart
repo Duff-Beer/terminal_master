@@ -192,6 +192,186 @@ void main() {
     expect(await credentials.readPassword('old-credential'), isNull);
   });
 
+  testWidgets('does not delete a profile changed during confirmation', (
+    tester,
+  ) async {
+    const profile = SshConnectionProfile(
+      id: 'server',
+      name: 'Server',
+      host: 'server.example.com',
+      username: 'deploy',
+      credentialId: 'credential',
+    );
+    final profiles = MemorySshConnectionProfileStore([profile]);
+    final credentials = MemorySshCredentialStore({'credential': 'password'});
+    await tester.pumpWidget(
+      MaterialApp(
+        home: SshConnectionsPage(
+          profileStore: profiles,
+          credentialStore: credentials,
+          hostKeyVerifier: const TrustAllSshHostKeyVerifier(),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    await tester.tap(find.byKey(const Key('delete-ssh-profile-server')));
+    await tester.pump();
+    await profiles.upsert(profile.copyWith(name: 'Changed elsewhere'));
+    await tester.tap(find.byKey(const Key('confirm-delete-ssh-profile')));
+    await tester.pumpAndSettle();
+
+    expect((await profiles.find('server'))!.name, 'Changed elsewhere');
+    expect(await credentials.readPassword('credential'), 'password');
+    expect(find.textContaining('zwischenzeitlich geändert'), findsOneWidget);
+  });
+
+  testWidgets('adds an SSH profile using a private key', (tester) async {
+    tester.view.physicalSize = const Size(700, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final profiles = MemorySshConnectionProfileStore();
+    final credentials = MemorySshCredentialStore();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: SshConnectionsPage(
+          profileStore: profiles,
+          credentialStore: credentials,
+          hostKeyVerifier: const TrustAllSshHostKeyVerifier(),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    await tester.tap(find.byKey(const Key('add-ssh-profile')));
+    await tester.pump();
+    await tester.enterText(
+      find.byKey(const Key('ssh-profile-name')),
+      'Key server',
+    );
+    await tester.enterText(
+      find.byKey(const Key('ssh-profile-host')),
+      'key.example.com',
+    );
+    await tester.enterText(
+      find.byKey(const Key('ssh-profile-username')),
+      'deploy',
+    );
+    await tester.tap(find.byKey(const Key('ssh-profile-authentication-type')));
+    await tester.pump();
+    await tester.tap(find.text('SSH-Key').last);
+    await tester.pump();
+    await tester.enterText(
+      find.byKey(const Key('ssh-profile-private-key-path')),
+      'test/fixtures/id_ed25519',
+    );
+    await tester.tap(find.byKey(const Key('save-ssh-profile')));
+    await tester.pump();
+    for (
+      var attempt = 0;
+      attempt < 30 && (await profiles.load()).isEmpty;
+      attempt++
+    ) {
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 100)),
+      );
+      await tester.pump();
+    }
+
+    final profile = (await profiles.load()).single;
+    expect(profile.authenticationType, SshAuthenticationType.privateKey);
+    expect(profile.privateKeyPath, 'test/fixtures/id_ed25519');
+    expect(await credentials.readPassword(profile.credentialId), isNull);
+    expect(find.text('Authentifizierung: SSH-Key'), findsOneWidget);
+  });
+
+  testWidgets('retains and explicitly clears a key passphrase', (tester) async {
+    tester.view.physicalSize = const Size(700, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final directory = Directory.systemTemp.createTempSync(
+      'terminal-master-key-edit-',
+    );
+    addTearDown(() => directory.deleteSync(recursive: true));
+    final replacementKey = File('${directory.path}/id_ed25519');
+    File('test/fixtures/id_ed25519_encrypted').copySync(replacementKey.path);
+    const original = SshConnectionProfile(
+      id: 'key-server',
+      name: 'Key server',
+      host: 'key.example.com',
+      username: 'deploy',
+      credentialId: 'old-credential',
+      authenticationType: SshAuthenticationType.privateKey,
+      privateKeyPath: 'test/fixtures/id_ed25519_encrypted',
+    );
+    final profiles = MemorySshConnectionProfileStore([original]);
+    final credentials = MemorySshCredentialStore({'old-credential': '123456'});
+    await tester.pumpWidget(
+      MaterialApp(
+        home: SshConnectionsPage(
+          profileStore: profiles,
+          credentialStore: credentials,
+          hostKeyVerifier: const TrustAllSshHostKeyVerifier(),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    await tester.tap(find.text('Bearbeiten'));
+    await tester.pump();
+    await tester.enterText(
+      find.byKey(const Key('ssh-profile-private-key-path')),
+      replacementKey.path,
+    );
+    await tester.tap(find.byKey(const Key('save-ssh-profile')));
+    await tester.pump();
+    for (
+      var attempt = 0;
+      attempt < 30 &&
+          (await profiles.find('key-server'))!.credentialId == 'old-credential';
+      attempt++
+    ) {
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 100)),
+      );
+      await tester.pump();
+    }
+    var profile = (await profiles.find('key-server'))!;
+    expect(profile.credentialId, isNot('old-credential'));
+    expect(await credentials.readPassword(profile.credentialId), '123456');
+    expect(await credentials.readPassword('old-credential'), isNull);
+
+    final retainedCredentialId = profile.credentialId;
+    await tester.tap(find.text('Bearbeiten'));
+    await tester.pump();
+    await tester.enterText(
+      find.byKey(const Key('ssh-profile-private-key-path')),
+      'test/fixtures/id_ed25519',
+    );
+    await tester.tap(find.byKey(const Key('clear-ssh-key-passphrase')));
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('save-ssh-profile')));
+    await tester.pump();
+    for (
+      var attempt = 0;
+      attempt < 30 &&
+          (await profiles.find('key-server'))!.credentialId ==
+              retainedCredentialId;
+      attempt++
+    ) {
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 100)),
+      );
+      await tester.pump();
+    }
+    profile = (await profiles.find('key-server'))!;
+    expect(profile.credentialId, isNot(retainedCredentialId));
+    expect(await credentials.readPassword(profile.credentialId), isNull);
+    expect(await credentials.readPassword(retainedCredentialId), isNull);
+  });
+
   testWidgets('locks profile actions and atomically writes an export', (
     tester,
   ) async {

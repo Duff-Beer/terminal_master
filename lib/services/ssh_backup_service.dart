@@ -6,6 +6,7 @@ import 'dart:typed_data';
 import 'package:pointycastle/export.dart';
 
 import '../models/ssh_connection_profile.dart';
+import 'ssh_authentication.dart';
 import 'ssh_credential_store.dart';
 
 class SshBackupException implements Exception {
@@ -22,7 +23,9 @@ class SshBackupEntry {
   final String host;
   final int port;
   final String username;
-  final String password;
+  final SshAuthenticationType authenticationType;
+  final String? privateKeyPath;
+  final String? password;
   final String? hostKeyType;
   final String? hostKeyFingerprint;
 
@@ -31,7 +34,9 @@ class SshBackupEntry {
     required this.host,
     required this.port,
     required this.username,
-    required this.password,
+    this.authenticationType = SshAuthenticationType.password,
+    this.privateKeyPath,
+    this.password,
     this.hostKeyType,
     this.hostKeyFingerprint,
   });
@@ -43,7 +48,9 @@ class SshBackupEntry {
     'host': host,
     'port': port,
     'username': username,
-    'password': password,
+    'authenticationType': authenticationType.name,
+    if (privateKeyPath case final value?) 'privateKeyPath': value,
+    if (password case final value?) 'password': value,
     if (hostKeyType case final value?) 'hostKeyType': value,
     if (hostKeyFingerprint case final value?) 'hostKeyFingerprint': value,
   };
@@ -54,6 +61,15 @@ class SshBackupEntry {
     final port = json['port'];
     final username = json['username'];
     final password = json['password'];
+    final authenticationTypeValue = json['authenticationType'];
+    final privateKeyPath = json['privateKeyPath'];
+    final authenticationType = switch (authenticationTypeValue) {
+      null || 'password' => SshAuthenticationType.password,
+      'privateKey' => SshAuthenticationType.privateKey,
+      _ => throw const SshBackupException(
+        'Das SSH-Backup enthält eine ungültige Authentifizierung.',
+      ),
+    };
     final hostKeyType = json['hostKeyType'];
     final hostKeyFingerprint = json['hostKeyFingerprint'];
     if (name is! String ||
@@ -65,8 +81,14 @@ class SshBackupEntry {
         port > 65535 ||
         username is! String ||
         username.trim().isEmpty ||
-        password is! String ||
-        password.isEmpty ||
+        (password != null && password is! String) ||
+        (authenticationType == SshAuthenticationType.password &&
+            (password is! String || password.isEmpty)) ||
+        (privateKeyPath != null && privateKeyPath is! String) ||
+        (authenticationType == SshAuthenticationType.privateKey &&
+            (privateKeyPath is! String || privateKeyPath.trim().isEmpty)) ||
+        (authenticationType == SshAuthenticationType.password &&
+            privateKeyPath != null) ||
         (hostKeyType != null && hostKeyType is! String) ||
         (hostKeyFingerprint != null && hostKeyFingerprint is! String)) {
       throw const SshBackupException('Das SSH-Backup enthält ungültige Daten.');
@@ -77,7 +99,9 @@ class SshBackupEntry {
         host: host.trim(),
         port: port,
         username: username.trim(),
-        password: password,
+        authenticationType: authenticationType,
+        privateKeyPath: privateKeyPath is String ? privateKeyPath.trim() : null,
+        password: password as String?,
         hostKeyType: hostKeyType as String?,
         hostKeyFingerprint: hostKeyFingerprint as String?,
       ),
@@ -89,7 +113,8 @@ class SshBackupService {
   static const fileExtension = 'tmsshbackup';
   static const _format = 'terminal-master-ssh-backup';
   static const _payloadFormat = 'terminal-master-ssh-backup-payload';
-  static const _version = 1;
+  static const _legacyVersion = 1;
+  static const _version = 2;
   static const _iterations = 3;
   static const _memoryKiB = 65536;
   static const _parallelism = 1;
@@ -119,10 +144,20 @@ class SshBackupService {
     }
     final entries = <SshBackupEntry>[];
     for (final profile in profiles) {
-      final password = await credentialStore.readPassword(profile.credentialId);
-      if (password == null || password.isEmpty) {
+      String? password;
+      final needsSecret =
+          profile.authenticationType == SshAuthenticationType.password ||
+          profile.authenticationType == SshAuthenticationType.privateKey &&
+              await const SshPrivateKeyLoader().isEncrypted(
+                profile.privateKeyPath!,
+              );
+      if (needsSecret) {
+        password = await credentialStore.readPassword(profile.credentialId);
+      }
+      if (needsSecret && (password == null || password.isEmpty)) {
         throw SshBackupException(
-          'Für „${profile.name}“ ist kein Passwort gespeichert.',
+          'Für „${profile.name}“ sind die benötigten Anmeldedaten nicht '
+          'gespeichert.',
         );
       }
       entries.add(
@@ -132,6 +167,8 @@ class SshBackupService {
             host: profile.host,
             port: profile.port,
             username: profile.username,
+            authenticationType: profile.authenticationType,
+            privateKeyPath: profile.privateKeyPath,
             password: password,
             hostKeyType: profile.hostKeyType,
             hostKeyFingerprint: profile.hostKeyFingerprint,
@@ -157,7 +194,7 @@ class SshBackupService {
     final nonce = _randomBytes(12);
     final saltText = base64Encode(salt);
     final nonceText = base64Encode(nonce);
-    final aad = _associatedData(saltText, nonceText);
+    final aad = _associatedData(_version, saltText, nonceText);
     final key = _deriveKey(backupPassword, salt);
     final plaintext = Uint8List.fromList(
       utf8.encode(
@@ -206,9 +243,12 @@ class SshBackupService {
   static List<SshBackupEntry> _decrypt(String backup, String backupPassword) {
     try {
       final envelope = jsonDecode(backup);
+      final envelopeVersion = envelope is Map<String, Object?>
+          ? envelope['version']
+          : null;
       if (envelope is! Map<String, Object?> ||
           envelope['format'] != _format ||
-          envelope['version'] != _version) {
+          (envelopeVersion != _legacyVersion && envelopeVersion != _version)) {
         throw const SshBackupException('Unbekanntes SSH-Backupformat.');
       }
       final kdf = envelope['kdf'];
@@ -246,7 +286,9 @@ class SshBackupService {
               128,
               nonce,
               Uint8List.fromList(
-                utf8.encode(_associatedData(saltText, nonceText)),
+                utf8.encode(
+                  _associatedData(envelopeVersion as int, saltText, nonceText),
+                ),
               ),
             ),
           );
@@ -258,7 +300,7 @@ class SshBackupService {
         final payload = jsonDecode(utf8.decode(plaintext));
         if (payload is! Map<String, Object?> ||
             payload['format'] != _payloadFormat ||
-            payload['version'] != _version ||
+            payload['version'] != envelopeVersion ||
             payload['connections'] is! List) {
           throw const SshBackupException('Ungültiger Backup-Inhalt.');
         }
@@ -313,8 +355,8 @@ class SshBackupService {
     }
   }
 
-  static String _associatedData(String salt, String nonce) =>
-      '$_format|$_version|argon2id|$_iterations|$_memoryKiB|'
+  static String _associatedData(int version, String salt, String nonce) =>
+      '$_format|$version|argon2id|$_iterations|$_memoryKiB|'
       '$_parallelism|aes-256-gcm|$salt|$nonce';
 
   static Uint8List _randomBytes(int length) {
@@ -328,7 +370,15 @@ class SshBackupService {
     if (_invalidText(entry.name, 256) ||
         _invalidText(entry.host, 1024) ||
         _invalidText(entry.username, 256) ||
-        entry.password.length > 65536 ||
+        (entry.password?.length ?? 0) > 65536 ||
+        (entry.authenticationType == SshAuthenticationType.password &&
+            (entry.password == null || entry.password!.isEmpty)) ||
+        (entry.authenticationType == SshAuthenticationType.password &&
+            entry.privateKeyPath != null) ||
+        (entry.authenticationType == SshAuthenticationType.privateKey &&
+            (entry.privateKeyPath == null ||
+                entry.privateKeyPath!.trim().isEmpty ||
+                _invalidText(entry.privateKeyPath!, 4096))) ||
         ((entry.hostKeyType == null) != (entry.hostKeyFingerprint == null)) ||
         (entry.hostKeyType != null &&
             (entry.hostKeyType!.trim().isEmpty ||

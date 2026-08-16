@@ -39,6 +39,46 @@ void main() {
     expect(metadata, isNot(contains('top-secret-password')));
   });
 
+  test('persists key authentication without key contents', () async {
+    final directory = await Directory.systemTemp.createTemp(
+      'terminal-master-ssh-key-profile-',
+    );
+    addTearDown(() => directory.delete(recursive: true));
+    final store = FileSshConnectionProfileStore(directory);
+    const profile = SshConnectionProfile(
+      id: 'key-server',
+      name: 'Key server',
+      host: 'server.example.com',
+      username: 'deploy',
+      authenticationType: SshAuthenticationType.privateKey,
+      privateKeyPath: '/home/user/.ssh/id_ed25519',
+    );
+
+    await store.upsert(profile);
+
+    final loaded = (await store.load()).single;
+    expect(loaded.authenticationType, SshAuthenticationType.privateKey);
+    expect(loaded.privateKeyPath, '/home/user/.ssh/id_ed25519');
+    final metadata = await File(
+      '${directory.path}${Platform.pathSeparator}'
+      '${FileSshConnectionProfileStore.fileName}',
+    ).readAsString();
+    expect(metadata, isNot(contains('BEGIN OPENSSH PRIVATE KEY')));
+  });
+
+  test('loads legacy profiles as password authentication', () {
+    final profile = SshConnectionProfile.fromJson({
+      'id': 'legacy',
+      'name': 'Legacy',
+      'host': 'legacy.example.com',
+      'port': 22,
+      'username': 'user',
+    });
+
+    expect(profile.authenticationType, SshAuthenticationType.password);
+    expect(profile.privateKeyPath, isNull);
+  });
+
   test(
     'updates host trust and deletes profiles independently of secrets',
     () async {

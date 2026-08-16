@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:terminal_master/models/ssh_connection_profile.dart';
 import 'package:terminal_master/services/routing_terminal_backend_factory.dart';
+import 'package:terminal_master/services/ssh_authentication.dart';
 import 'package:terminal_master/services/ssh_connection_profile_store.dart';
 import 'package:terminal_master/services/ssh_credential_store.dart';
 import 'package:terminal_master/services/ssh_host_key_verifier.dart';
@@ -54,6 +55,9 @@ void main() {
         username: 'user',
       ),
     );
-    await expectLater(router.create(sshOptions), throwsA(isA<StateError>()));
+    await expectLater(
+      router.create(sshOptions),
+      throwsA(isA<SshAuthenticationException>()),
+    );
   });
 }

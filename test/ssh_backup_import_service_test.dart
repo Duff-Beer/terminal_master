@@ -227,6 +227,33 @@ void main() {
     expect(credentials.passwords, isEmpty);
     expect(await profileStore.load(), isEmpty);
   });
+
+  test('imports an unencrypted private-key profile without a secret', () async {
+    final profileStore = MemorySshConnectionProfileStore();
+    final credentials = MemorySshCredentialStore();
+    final service = SshBackupImportService(
+      profileStore: profileStore,
+      credentialStore: credentials,
+    );
+    final plan = service.plan(const [
+      SshBackupEntry(
+        name: 'Key server',
+        host: 'key.example.com',
+        port: 22,
+        username: 'deploy',
+        authenticationType: SshAuthenticationType.privateKey,
+        privateKeyPath: '/home/user/.ssh/id_ed25519',
+      ),
+    ], const []);
+
+    final result = await service.apply(plan, const []);
+
+    expect(result.imported, 1);
+    final profile = (await profileStore.load()).single;
+    expect(profile.authenticationType, SshAuthenticationType.privateKey);
+    expect(profile.privateKeyPath, '/home/user/.ssh/id_ed25519');
+    expect(await credentials.readPassword(profile.credentialId), isNull);
+  });
 }
 
 class _PersistingFailingCredentialStore extends MemorySshCredentialStore {

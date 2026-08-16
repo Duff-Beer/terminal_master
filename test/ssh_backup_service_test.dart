@@ -1,6 +1,8 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:pointycastle/export.dart';
 import 'package:terminal_master/models/ssh_connection_profile.dart';
 import 'package:terminal_master/services/ssh_backup_service.dart';
 import 'package:terminal_master/services/ssh_credential_store.dart';
@@ -42,6 +44,7 @@ void main() {
     expect(backup, isNot(contains('production.example.com')));
     final envelope = jsonDecode(backup) as Map<String, Object?>;
     expect(envelope['format'], 'terminal-master-ssh-backup');
+    expect(envelope['version'], 2);
     expect((envelope['kdf'] as Map)['name'], 'argon2id');
     expect((envelope['cipher'] as Map)['name'], 'aes-256-gcm');
 
@@ -90,6 +93,21 @@ void main() {
     );
   });
 
+  test('decrypts legacy version 1 password backups', () async {
+    final service = SshBackupService(
+      credentialStore: MemorySshCredentialStore(),
+    );
+
+    final entries = await service.decrypt(
+      _legacyBackup('correct horse battery staple'),
+      'correct horse battery staple',
+    );
+
+    expect(entries.single.name, 'Legacy server');
+    expect(entries.single.authenticationType, SshAuthenticationType.password);
+    expect(entries.single.password, 'legacy-password');
+  });
+
   test('rejects incomplete pinned host-key metadata', () async {
     final service = SshBackupService(
       credentialStore: MemorySshCredentialStore({'credential': 'secret'}),
@@ -109,5 +127,142 @@ void main() {
       ], 'correct horse battery staple'),
       throwsA(isA<SshBackupException>()),
     );
+  });
+
+  test(
+    'backs up key profiles without embedding private key contents',
+    () async {
+      final credentials = MemorySshCredentialStore({
+        'key-credential': 'key-passphrase',
+      });
+      final service = SshBackupService(credentialStore: credentials);
+      final backup = await service.exportEncrypted(const [
+        SshConnectionProfile(
+          id: 'key-server',
+          name: 'Key server',
+          host: 'server.example.com',
+          username: 'deploy',
+          credentialId: 'key-credential',
+          authenticationType: SshAuthenticationType.privateKey,
+          privateKeyPath: 'test/fixtures/id_ed25519_encrypted',
+        ),
+      ], 'correct horse battery staple');
+
+      expect(backup, isNot(contains('key-passphrase')));
+      expect(backup, isNot(contains('BEGIN OPENSSH PRIVATE KEY')));
+      final entry = (await service.decrypt(
+        backup,
+        'correct horse battery staple',
+      )).single;
+      expect(entry.authenticationType, SshAuthenticationType.privateKey);
+      expect(entry.privateKeyPath, 'test/fixtures/id_ed25519_encrypted');
+      expect(entry.password, 'key-passphrase');
+    },
+  );
+
+  test('exports unencrypted keys without reading secure storage', () async {
+    final service = SshBackupService(
+      credentialStore: _FailingCredentialStore(),
+    );
+
+    final backup = await service.exportEncrypted(const [
+      SshConnectionProfile(
+        id: 'key-server',
+        name: 'Key server',
+        host: 'server.example.com',
+        username: 'deploy',
+        authenticationType: SshAuthenticationType.privateKey,
+        privateKeyPath: 'test/fixtures/id_ed25519',
+      ),
+    ], 'correct horse battery staple');
+
+    expect(
+      (await service.decrypt(
+        backup,
+        'correct horse battery staple',
+      )).single.password,
+      isNull,
+    );
+  });
+}
+
+class _FailingCredentialStore implements SshCredentialStore {
+  @override
+  Future<String?> readPassword(String profileId) =>
+      Future.error(StateError('secure storage unavailable'));
+
+  @override
+  Future<void> writePassword(String profileId, String password) async {}
+
+  @override
+  Future<void> deletePassword(String profileId) async {}
+}
+
+String _legacyBackup(String password) {
+  final salt = Uint8List(16);
+  final nonce = Uint8List.fromList(List.filled(12, 1));
+  final passwordBytes = Uint8List.fromList(utf8.encode(password));
+  final generator = Argon2BytesGenerator()
+    ..init(
+      Argon2Parameters(
+        Argon2Parameters.ARGON2_id,
+        salt,
+        desiredKeyLength: 32,
+        iterations: 3,
+        memory: 65536,
+        lanes: 1,
+        version: Argon2Parameters.ARGON2_VERSION_13,
+      ),
+    );
+  final key = generator.process(passwordBytes);
+  final saltText = base64Encode(salt);
+  final nonceText = base64Encode(nonce);
+  final plaintext = Uint8List.fromList(
+    utf8.encode(
+      jsonEncode({
+        'format': 'terminal-master-ssh-backup-payload',
+        'version': 1,
+        'createdAt': DateTime.utc(2026).toIso8601String(),
+        'connections': [
+          {
+            'name': 'Legacy server',
+            'host': 'legacy.example.com',
+            'port': 22,
+            'username': 'deploy',
+            'password': 'legacy-password',
+          },
+        ],
+      }),
+    ),
+  );
+  final aad =
+      'terminal-master-ssh-backup|1|argon2id|3|65536|1|aes-256-gcm|'
+      '$saltText|$nonceText';
+  final cipher = GCMBlockCipher(AESEngine())
+    ..init(
+      true,
+      AEADParameters(
+        KeyParameter(key),
+        128,
+        nonce,
+        Uint8List.fromList(utf8.encode(aad)),
+      ),
+    );
+  final ciphertext = cipher.process(plaintext);
+  return jsonEncode({
+    'format': 'terminal-master-ssh-backup',
+    'version': 1,
+    'kdf': {
+      'name': 'argon2id',
+      'salt': saltText,
+      'iterations': 3,
+      'memoryKiB': 65536,
+      'parallelism': 1,
+    },
+    'cipher': {
+      'name': 'aes-256-gcm',
+      'nonce': nonceText,
+      'ciphertext': base64Encode(ciphertext),
+    },
   });
 }
