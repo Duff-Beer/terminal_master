@@ -241,6 +241,9 @@ Future<void> _withWindowsCmdTracking(
 
   await session.start();
   expect(session.status, TerminalSessionStatus.running);
+  // CMD's internal echo command preserves a previous ERRORLEVEL. Seed a
+  // failure so the tracking wrapper must reset it before running the command.
+  session.sendCommand('cmd /c exit 7');
   session.sendTrackedCommand('echo $outputMarker');
   await _waitForTrackedCommand(completed, session);
   await verify(session, outputMarker);

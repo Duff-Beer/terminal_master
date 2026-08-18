@@ -243,7 +243,7 @@ void main() {
     session.sendTrackedCommand('echo hello');
     final block = session.commandBlocks.single;
     expect(factory.backends.single.writes.map(utf8.decode), [
-      'echo %TERMINAL_MASTER_END_MARKER%:BEGIN\r\n',
+      'ver >nul & echo %TERMINAL_MASTER_END_MARKER%:BEGIN\r\n',
       'echo hello\r\n',
       'echo %TERMINAL_MASTER_END_MARKER%:%errorlevel%\r\n',
     ]);

@@ -424,7 +424,7 @@ class TerminalSession extends ChangeNotifier {
   }
 
   List<String> _windowsTrackedPayload(String command) => [
-    'echo %$_commandMarkerVariable%:BEGIN\r\n',
+    'ver >nul & echo %$_commandMarkerVariable%:BEGIN\r\n',
     '$command\r\n',
     'echo %$_commandMarkerVariable%:%errorlevel%\r\n',
   ];
