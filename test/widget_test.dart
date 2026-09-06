@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:terminal_master/app.dart';
+import 'package:terminal_master/models/shell_profile.dart';
 
 import 'support/fake_terminal_backend.dart';
 
@@ -19,12 +20,31 @@ void main() {
     );
     addTearDown(() => directory.deleteSync(recursive: true));
     final factory = RecordingTerminalBackendFactory();
+    String? savedDefaultProfileId;
+    const profiles = [
+      ShellProfile(
+        id: 'primary',
+        name: 'Primary Shell',
+        executable: '/bin/primary',
+        dialect: ShellDialect.posix,
+      ),
+      ShellProfile(
+        id: 'secondary',
+        name: 'Secondary Shell',
+        executable: '/bin/secondary',
+        dialect: ShellDialect.posix,
+      ),
+    ];
 
     await tester.pumpWidget(
       MyApp(
         configDirectoryPath: directory.path,
         displayPath: directory.path,
         terminalBackendFactory: factory.create,
+        shellProfiles: profiles,
+        saveDefaultShellProfile: (profileId) async {
+          savedDefaultProfileId = profileId;
+        },
       ),
     );
     await tester.pumpAndSettle();
@@ -45,6 +65,7 @@ void main() {
     expect(find.byKey(const Key('maximize-terminal-panel')), findsNothing);
     expect(find.byKey(const Key('hide-terminal-panel')), findsNothing);
     expect(find.byKey(const Key('ssh-panel-toggle')), findsOneWidget);
+    expect(find.byKey(const Key('settings-panel-toggle')), findsOneWidget);
 
     await tester.tap(find.byKey(const Key('configuration-panel-toggle')));
     await tester.pumpAndSettle();
@@ -75,6 +96,23 @@ void main() {
     );
     expect(factory.backends, hasLength(1));
 
+    await tester.tap(find.byKey(const Key('settings-panel-toggle')));
+    await tester.pumpAndSettle();
+    expect(find.text('Einstellungen').hitTestable(), findsOneWidget);
+    expect(
+      find.byKey(const Key('default-shell-profile')).hitTestable(),
+      findsOneWidget,
+    );
+    await tester.tap(find.byKey(const Key('default-shell-profile')));
+    await tester.pumpAndSettle();
+    expect(
+      find.byType(DropdownMenuItem<String>).hitTestable(),
+      findsNWidgets(2),
+    );
+    await tester.tap(find.byType(DropdownMenuItem<String>).hitTestable().last);
+    await tester.pumpAndSettle();
+    expect(savedDefaultProfileId, 'secondary');
+
     await tester.tap(find.byKey(const Key('configuration-panel-toggle')));
     await tester.pumpAndSettle();
     expect(
@@ -89,5 +127,10 @@ void main() {
       findsNothing,
     );
     expect(factory.backends, hasLength(1));
+
+    await tester.tap(find.byKey(const Key('new-terminal-tab')));
+    await tester.pumpAndSettle();
+    expect(factory.backends, hasLength(2));
+    expect(factory.options.last.executable, '/bin/secondary');
   });
 }

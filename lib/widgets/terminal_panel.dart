@@ -129,6 +129,7 @@ class TerminalPanelController extends ChangeNotifier {
              ? ShellProfile.platformDefaults()
              : profiles,
        ) {
+    _defaultProfileId = this.profiles.first.id;
     final tab = _newTab(this.profiles.first);
     _tabs.add(tab);
     _activeTabId = tab.id;
@@ -142,6 +143,7 @@ class TerminalPanelController extends ChangeNotifier {
   var _nextTabId = 1;
   var _nextPaneId = 1;
   late String _activeTabId;
+  late String _defaultProfileId;
   bool _isAttached = false;
   bool _isLoadingSavedTabs = true;
   String? _savedTabsError;
@@ -157,6 +159,8 @@ class TerminalPanelController extends ChangeNotifier {
   TerminalSession get session => activePane.session;
   TextEditingController get commandController => activePane.commandController;
   ShellProfile get activeProfile => activePane.profile;
+  ShellProfile get defaultProfile =>
+      profiles.firstWhere((profile) => profile.id == _defaultProfileId);
 
   bool get isLoadingSavedTabs => _isLoadingSavedTabs;
   String? get savedTabsError => _savedTabsError;
@@ -203,6 +207,17 @@ class TerminalPanelController extends ChangeNotifier {
     }
     notifyListeners();
     if (_isAttached && activate) await _startForDisplay(tab.primaryPane);
+  }
+
+  Future<void> createDefaultTab() => createTab(defaultProfile);
+
+  void setDefaultProfile(String profileId) {
+    if (_defaultProfileId == profileId) return;
+    if (!profiles.any((profile) => profile.id == profileId)) {
+      throw ArgumentError.value(profileId, 'profileId', 'Unbekanntes Profil');
+    }
+    _defaultProfileId = profileId;
+    notifyListeners();
   }
 
   Future<void> createSshTab(SshConnectionProfile connection) {
@@ -759,7 +774,7 @@ class TerminalPanelScope extends InheritedNotifier<TerminalPanelController> {
   }
 }
 
-enum WorkspaceTool { configurations, sshConnections }
+enum WorkspaceTool { configurations, sshConnections, settings }
 
 class ConfigurationPanelController extends ChangeNotifier {
   bool _isOpen = false;
@@ -817,6 +832,7 @@ class TerminalWorkspace extends StatefulWidget {
   final List<ShellProfile>? profiles;
   final SavedTerminalTabStore? savedTabStore;
   final Widget? sshPanel;
+  final Widget? settingsPanel;
   final Widget child;
 
   const TerminalWorkspace({
@@ -826,6 +842,7 @@ class TerminalWorkspace extends StatefulWidget {
     this.profiles,
     this.savedTabStore,
     this.sshPanel,
+    this.settingsPanel,
     required this.child,
   });
 
@@ -900,6 +917,7 @@ class _TerminalWorkspaceState extends State<TerminalWorkspace> {
                 _ConfigurationToolRail(
                   controller: _configurationController,
                   hasSshPanel: widget.sshPanel != null,
+                  hasSettingsPanel: widget.settingsPanel != null,
                 ),
                 Expanded(
                   child: LayoutBuilder(
@@ -950,12 +968,12 @@ class _TerminalWorkspaceState extends State<TerminalWorkspace> {
                                       elevation: 16,
                                       shadowColor: Colors.black87,
                                       child: IndexedStack(
-                                        index:
-                                            _configurationController
-                                                    .activeTool ==
-                                                WorkspaceTool.configurations
-                                            ? 0
-                                            : 1,
+                                        index: switch (_configurationController
+                                            .activeTool) {
+                                          WorkspaceTool.configurations => 0,
+                                          WorkspaceTool.sshConnections => 1,
+                                          WorkspaceTool.settings => 2,
+                                        },
                                         children: [
                                           KeyedSubtree(
                                             key: const Key(
@@ -967,6 +985,14 @@ class _TerminalWorkspaceState extends State<TerminalWorkspace> {
                                             key: const Key('ssh-tool-content'),
                                             child:
                                                 widget.sshPanel ??
+                                                const SizedBox.shrink(),
+                                          ),
+                                          KeyedSubtree(
+                                            key: const Key(
+                                              'settings-tool-content',
+                                            ),
+                                            child:
+                                                widget.settingsPanel ??
                                                 const SizedBox.shrink(),
                                           ),
                                         ],
@@ -994,10 +1020,12 @@ class _TerminalWorkspaceState extends State<TerminalWorkspace> {
 class _ConfigurationToolRail extends StatelessWidget {
   final ConfigurationPanelController controller;
   final bool hasSshPanel;
+  final bool hasSettingsPanel;
 
   const _ConfigurationToolRail({
     required this.controller,
     required this.hasSshPanel,
+    required this.hasSettingsPanel,
   });
 
   @override
@@ -1021,6 +1049,14 @@ class _ConfigurationToolRail extends StatelessWidget {
                 tool: WorkspaceTool.sshConnections,
                 icon: Icons.dns_outlined,
                 tooltip: 'SSH-Verbindungen',
+              ),
+            if (hasSettingsPanel) const Spacer(),
+            if (hasSettingsPanel)
+              _buildButton(
+                key: const Key('settings-panel-toggle'),
+                tool: WorkspaceTool.settings,
+                icon: Icons.settings_outlined,
+                tooltip: 'Einstellungen',
               ),
           ],
         ),
@@ -1264,19 +1300,11 @@ class TerminalPanel extends StatelessWidget {
                     ),
                   );
                 }),
-                PopupMenuButton<ShellProfile>(
+                IconButton(
                   key: const Key('new-terminal-tab'),
                   tooltip: 'Neuer Terminal-Tab',
                   icon: const Icon(Icons.add, size: 19),
-                  onSelected: controller.createTab,
-                  itemBuilder: (context) => controller.profiles
-                      .map(
-                        (profile) => PopupMenuItem(
-                          value: profile,
-                          child: Text(profile.name),
-                        ),
-                      )
-                      .toList(),
+                  onPressed: controller.createDefaultTab,
                 ),
               ],
             ),

@@ -832,9 +832,8 @@ void main() {
     final primaryTabId = controller.activeTab.id;
     expect(factory.backends, hasLength(1));
 
+    controller.setDefaultProfile('secondary');
     await tester.tap(find.byKey(const Key('new-terminal-tab')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Secondary Shell'));
     await tester.pumpAndSettle();
     final secondaryTabId = controller.activeTab.id;
     expect(factory.backends, hasLength(2));

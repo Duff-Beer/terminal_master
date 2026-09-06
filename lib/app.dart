@@ -11,6 +11,7 @@ import 'services/terminal_backend.dart';
 import 'theme.dart';
 import 'pages/main_page.dart';
 import 'pages/ssh_connections_page.dart';
+import 'pages/settings_page.dart';
 import 'widgets/terminal_panel.dart';
 
 class MyApp extends StatefulWidget {
@@ -20,6 +21,7 @@ class MyApp extends StatefulWidget {
   final List<ShellProfile>? shellProfiles;
   final SshConnectionProfileStore? sshProfileStore;
   final SshCredentialStore? sshCredentialStore;
+  final Future<void> Function(String profileId)? saveDefaultShellProfile;
 
   const MyApp({
     super.key,
@@ -29,6 +31,7 @@ class MyApp extends StatefulWidget {
     this.shellProfiles,
     this.sshProfileStore,
     this.sshCredentialStore,
+    this.saveDefaultShellProfile,
   });
 
   @override
@@ -78,6 +81,10 @@ class _MyAppState extends State<MyApp> {
           profileStore: _sshProfileStore,
           credentialStore: _sshCredentialStore,
           hostKeyVerifier: _sshHostKeyVerifier,
+        ),
+        settingsPanel: SettingsPage(
+          configDirectoryPath: widget.configDirectoryPath,
+          saveDefaultProfile: widget.saveDefaultShellProfile,
         ),
         child: Navigator(
           onGenerateRoute: (settings) => MaterialPageRoute<void>(

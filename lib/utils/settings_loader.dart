@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:convert';
 import 'package:yaml/yaml.dart';
 
 import '../models/shell_profile.dart';
@@ -7,6 +8,65 @@ class SettingsLoader {
   static late String terminalCommand;
   static late String fileManagerCommand;
   static late List<ShellProfile> integratedTerminalProfiles;
+
+  static Future<void> saveDefaultIntegratedTerminalProfile(
+    String dirPath,
+    String profileId,
+  ) async {
+    final file = File('$dirPath/settings.yaml');
+    final original = await file.exists() ? await file.readAsString() : '';
+    final lines = const LineSplitter().convert(original);
+    final sectionIndex = lines.indexWhere(
+      (line) => RegExp(r'^integrated_terminal:\s*(?:#.*)?$').hasMatch(line),
+    );
+    final encodedId = jsonEncode(profileId);
+
+    if (sectionIndex < 0) {
+      if (lines.isNotEmpty && lines.last.isNotEmpty) lines.add('');
+      lines
+        ..add('integrated_terminal:')
+        ..add('  default_profile: $encodedId');
+    } else {
+      var sectionEnd = lines.length;
+      for (var index = sectionIndex + 1; index < lines.length; index++) {
+        final line = lines[index];
+        final trimmed = line.trimLeft();
+        if (line.isNotEmpty && trimmed == line && !trimmed.startsWith('#')) {
+          sectionEnd = index;
+          break;
+        }
+      }
+      final defaultIndex = lines.indexWhere(
+        (line) => RegExp(r'^\s+default_profile\s*:').hasMatch(line),
+        sectionIndex + 1,
+      );
+      if (defaultIndex >= sectionEnd || defaultIndex < 0) {
+        lines.insert(sectionIndex + 1, '  default_profile: $encodedId');
+      } else {
+        final indent = RegExp(r'^\s*').firstMatch(lines[defaultIndex])![0]!;
+        lines[defaultIndex] = '${indent}default_profile: $encodedId';
+      }
+    }
+
+    final temporary = File('${file.path}.tmp');
+    final backup = File('${file.path}.bak');
+    await temporary.writeAsString('${lines.join('\n')}\n', flush: true);
+    if (!await file.exists()) {
+      await temporary.rename(file.path);
+      return;
+    }
+    if (await backup.exists()) await backup.delete();
+    await file.rename(backup.path);
+    try {
+      await temporary.rename(file.path);
+      await backup.delete();
+    } on Object {
+      if (!await file.exists() && await backup.exists()) {
+        await backup.rename(file.path);
+      }
+      rethrow;
+    }
+  }
 
   static void initialize(String dirPath) {
     final file = File('$dirPath/settings.yaml');
@@ -42,7 +102,9 @@ class SettingsLoader {
       throw const FormatException('integrated_terminal muss eine Map sein.');
     }
     final entries = configuration['profiles'];
-    if (entries == null) return defaults;
+    if (entries == null) {
+      return _withDefaultProfile(defaults, configuration['default_profile']);
+    }
     if (entries is! YamlList || entries.isEmpty) {
       throw const FormatException(
         'integrated_terminal.profiles muss eine nicht leere Liste sein.',
@@ -102,7 +164,14 @@ class SettingsLoader {
       );
     }
 
-    final defaultId = configuration['default_profile']?.toString();
+    return _withDefaultProfile(profiles, configuration['default_profile']);
+  }
+
+  static List<ShellProfile> _withDefaultProfile(
+    List<ShellProfile> profiles,
+    Object? configuredId,
+  ) {
+    final defaultId = configuredId?.toString();
     if (defaultId == null) return profiles;
     final defaultIndex = profiles.indexWhere(
       (profile) => profile.id == defaultId,

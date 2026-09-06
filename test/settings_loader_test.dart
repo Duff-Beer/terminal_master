@@ -5,12 +5,14 @@ import 'package:terminal_master/models/shell_profile.dart';
 import 'package:terminal_master/utils/settings_loader.dart';
 
 void main() {
-  test('loads and orders configured integrated terminal profiles', () {
-    final directory = Directory.systemTemp.createTempSync(
-      'terminal-master-settings-',
-    );
-    addTearDown(() => directory.deleteSync(recursive: true));
-    File('${directory.path}/settings.yaml').writeAsStringSync('''
+  test(
+    'loads, saves and orders configured integrated terminal profiles',
+    () async {
+      final directory = Directory.systemTemp.createTempSync(
+        'terminal-master-settings-',
+      );
+      addTearDown(() => directory.deleteSync(recursive: true));
+      File('${directory.path}/settings.yaml').writeAsStringSync('''
 terminal: Example Terminal
 file_manager: example-manager
 integrated_terminal:
@@ -36,23 +38,59 @@ integrated_terminal:
       dialect: powershell
 ''');
 
-    SettingsLoader.initialize(directory.path);
+      SettingsLoader.initialize(directory.path);
 
-    expect(SettingsLoader.terminalCommand, 'Example Terminal');
-    expect(SettingsLoader.fileManagerCommand, 'example-manager');
-    expect(
-      SettingsLoader.integratedTerminalProfiles.map((profile) => profile.id),
-      ['ssh', 'local', 'powershell'],
+      expect(SettingsLoader.terminalCommand, 'Example Terminal');
+      expect(SettingsLoader.fileManagerCommand, 'example-manager');
+      expect(
+        SettingsLoader.integratedTerminalProfiles.map((profile) => profile.id),
+        ['ssh', 'local', 'powershell'],
+      );
+      final profile = SettingsLoader.integratedTerminalProfiles.first;
+      expect(profile.name, 'Production SSH');
+      expect(profile.arguments, ['example.com']);
+      expect(profile.environment, {'LANG': 'en_US.UTF-8'});
+      expect(profile.dialect, ShellDialect.posix);
+      expect(profile.workingDirectory, endsWith('/projects'));
+      final powerShell = SettingsLoader.integratedTerminalProfiles.last;
+      expect(powerShell.arguments, ['-NoLogo']);
+      expect(powerShell.dialect, ShellDialect.powerShell);
+
+      await SettingsLoader.saveDefaultIntegratedTerminalProfile(
+        directory.path,
+        'local',
+      );
+      SettingsLoader.initialize(directory.path);
+
+      expect(
+        SettingsLoader.integratedTerminalProfiles.map((profile) => profile.id),
+        ['local', 'ssh', 'powershell'],
+      );
+      expect(
+        File('${directory.path}/settings.yaml').readAsStringSync(),
+        contains('default_profile: "local"'),
+      );
+    },
+  );
+
+  test('adds a default profile without replacing existing settings', () async {
+    final directory = Directory.systemTemp.createTempSync(
+      'terminal-master-settings-',
     );
-    final profile = SettingsLoader.integratedTerminalProfiles.first;
-    expect(profile.name, 'Production SSH');
-    expect(profile.arguments, ['example.com']);
-    expect(profile.environment, {'LANG': 'en_US.UTF-8'});
-    expect(profile.dialect, ShellDialect.posix);
-    expect(profile.workingDirectory, endsWith('/projects'));
-    final powerShell = SettingsLoader.integratedTerminalProfiles.last;
-    expect(powerShell.arguments, ['-NoLogo']);
-    expect(powerShell.dialect, ShellDialect.powerShell);
+    addTearDown(() => directory.deleteSync(recursive: true));
+    final file = File('${directory.path}/settings.yaml');
+    file.writeAsStringSync('terminal: custom-terminal\n# keep this comment\n');
+
+    await SettingsLoader.saveDefaultIntegratedTerminalProfile(
+      directory.path,
+      'login-shell',
+    );
+
+    final content = file.readAsStringSync();
+    expect(content, contains('terminal: custom-terminal'));
+    expect(content, contains('# keep this comment'));
+    expect(content, contains('integrated_terminal:'));
+    expect(content, contains('default_profile: "login-shell"'));
   });
 
   test('rejects duplicate integrated terminal profile ids', () {

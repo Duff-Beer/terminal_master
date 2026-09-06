@@ -7,11 +7,11 @@ returning commands marked as risky.
 
 Commands run in a persistent `xterm` workspace backed by a native pseudo
 terminal (`flutter_pty`). The terminal is the primary view; a slim tool rail
-opens the Command Builder or managed SSH connections in an overlay without
-resizing running terminal applications. The configured external terminal
-remains available as a fallback. The workspace provides font zoom, highlighted
-scrollback search, a visible scrollbar, and a shortcut back to the latest
-output.
+opens the Command Builder, managed SSH connections, or settings in an overlay
+without resizing running terminal applications. The configured external
+terminal remains available as a fallback. The workspace provides font zoom,
+highlighted scrollback search, a visible scrollbar, and a shortcut back to the
+latest output.
 
 Generated commands are collected in the panel's editable command field without
 an execution confirmation. This allows commands from multiple YAML definitions
@@ -85,6 +85,11 @@ default Windows profile when PowerShell 7 is unavailable; installed PowerShell
 7 executables are detected across supported desktop platforms.
 Terminal Master variables such as `TERM=xterm-256color` and
 `COLORTERM=truecolor` remain authoritative.
+
+The default shell can be changed from the settings button at the bottom of the
+tool rail. The selection updates `integrated_terminal.default_profile` in
+`settings.yaml`. The `+` action beside the tabs then opens the selected shell
+immediately without showing a profile menu; existing tabs are not changed.
 
 ## SSH Connections
 
