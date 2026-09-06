@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:terminal_master/models/shell_profile.dart';
@@ -92,6 +93,35 @@ integrated_terminal:
     expect(content, contains('integrated_terminal:'));
     expect(content, contains('default_profile: "login-shell"'));
   });
+
+  test(
+    'saves and loads the YAML directory without replacing settings',
+    () async {
+      final directory = Directory.systemTemp.createTempSync(
+        'terminal-master-settings-',
+      );
+      final yamlDirectory = Directory('${directory.path}/commands')
+        ..createSync();
+      addTearDown(() => directory.deleteSync(recursive: true));
+      final file = File('${directory.path}/settings.yaml');
+      file.writeAsStringSync(
+        'terminal: custom-terminal\nfile_manager: custom-manager\n',
+      );
+
+      await SettingsLoader.saveYamlDirectoryPath(
+        directory.path,
+        yamlDirectory.path,
+      );
+      SettingsLoader.initialize(directory.path);
+
+      expect(SettingsLoader.yamlDirectoryPath, yamlDirectory.path);
+      final content = file.readAsStringSync();
+      expect(content, contains('terminal: custom-terminal'));
+      expect(content, contains('file_manager: custom-manager'));
+      expect(content, contains('yaml_directory:'));
+      expect(content, contains(jsonEncode(yamlDirectory.path)));
+    },
+  );
 
   test('rejects duplicate integrated terminal profile ids', () {
     final directory = Directory.systemTemp.createTempSync(

@@ -90,6 +90,9 @@ The default shell can be changed from the settings button at the bottom of the
 tool rail. The selection updates `integrated_terminal.default_profile` in
 `settings.yaml`. The `+` action beside the tabs then opens the selected shell
 immediately without showing a profile menu; existing tabs are not changed.
+The same settings page can select a default YAML directory for the Command
+Builder. The choice is stored as `yaml_directory` in `settings.yaml` and takes
+effect immediately.
 
 ## SSH Connections
 
@@ -151,8 +154,10 @@ protected from deletion.
 
 Batch command views also support persistent editing. The add action stores a
 title, optional description, and command in the current batch YAML file. Each
-row provides a delete action with confirmation. Both operations validate the
-updated YAML and preserve the previous source in a `.bak` file.
+row provides play, copy, and delete actions. Play stages that command in the
+editable field of the internal terminal without executing it immediately;
+delete requires confirmation. Mutations validate the updated YAML and preserve
+the previous source in a `.bak` file.
 
 ## Command Blocks
 
@@ -207,7 +212,9 @@ flutter test integration_test/terminal_pty_test.dart -d macos
 
 YAML definitions are stored in `data/`. The application copies its bundled
 definitions to the platform application-support directory, where they can be
-extended or replaced without rebuilding the application.
+extended or replaced without rebuilding the application. A different directory
+can be selected in the application settings; changing it does not move or copy
+existing definitions.
 
 ## Desktop Releases
 

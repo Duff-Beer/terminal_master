@@ -16,22 +16,28 @@ import 'widgets/terminal_panel.dart';
 
 class MyApp extends StatefulWidget {
   final String configDirectoryPath;
+  final String? yamlDirectoryPath;
   final String displayPath;
   final TerminalBackendFactory terminalBackendFactory;
   final List<ShellProfile>? shellProfiles;
   final SshConnectionProfileStore? sshProfileStore;
   final SshCredentialStore? sshCredentialStore;
   final Future<void> Function(String profileId)? saveDefaultShellProfile;
+  final Future<void> Function(String path)? saveYamlDirectoryPath;
+  final Future<String?> Function()? selectYamlDirectory;
 
   const MyApp({
     super.key,
     required this.configDirectoryPath,
+    this.yamlDirectoryPath,
     required this.displayPath,
     this.terminalBackendFactory = unavailableTerminalBackendFactory,
     this.shellProfiles,
     this.sshProfileStore,
     this.sshCredentialStore,
     this.saveDefaultShellProfile,
+    this.saveYamlDirectoryPath,
+    this.selectYamlDirectory,
   });
 
   @override
@@ -44,6 +50,7 @@ class _MyAppState extends State<MyApp> {
   late final SshCredentialStore _sshCredentialStore;
   late final SshHostKeyVerifier _sshHostKeyVerifier;
   late final RoutingTerminalBackendFactory _backendRouter;
+  late final ValueNotifier<String> _yamlDirectoryPath;
 
   @override
   void initState() {
@@ -62,6 +69,15 @@ class _MyAppState extends State<MyApp> {
       credentialStore: _sshCredentialStore,
       hostKeyVerifier: _sshHostKeyVerifier,
     );
+    _yamlDirectoryPath = ValueNotifier(
+      widget.yamlDirectoryPath ?? widget.configDirectoryPath,
+    );
+  }
+
+  @override
+  void dispose() {
+    _yamlDirectoryPath.dispose();
+    super.dispose();
   }
 
   @override
@@ -84,14 +100,19 @@ class _MyAppState extends State<MyApp> {
         ),
         settingsPanel: SettingsPage(
           configDirectoryPath: widget.configDirectoryPath,
+          yamlDirectoryPath: _yamlDirectoryPath.value,
           saveDefaultProfile: widget.saveDefaultShellProfile,
+          saveYamlDirectoryPath: widget.saveYamlDirectoryPath,
+          selectYamlDirectory: widget.selectYamlDirectory,
+          onYamlDirectoryChanged: (path) => _yamlDirectoryPath.value = path,
         ),
         child: Navigator(
           onGenerateRoute: (settings) => MaterialPageRoute<void>(
             settings: settings,
             builder: (context) => MainPage(
-              configDirectoryPath: widget.configDirectoryPath,
+              configDirectoryPath: _yamlDirectoryPath.value,
               displayPath: widget.displayPath,
+              yamlDirectoryPath: _yamlDirectoryPath,
             ),
           ),
         ),

@@ -29,6 +29,15 @@ commands:
 
     expect(find.byKey(const Key('add-batch-command')), findsOneWidget);
     expect(find.byKey(const Key('delete-batch-command-0')), findsOneWidget);
+    expect(find.byType(CheckboxListTile), findsNothing);
+    expect(find.byType(SwitchListTile), findsNothing);
+    expect(find.byType(FloatingActionButton), findsNothing);
+    expect(
+      tester.getCenter(find.byKey(const Key('stage-batch-command-0'))).dx,
+      lessThan(
+        tester.getCenter(find.byKey(const Key('copy-batch-command-0'))).dx,
+      ),
+    );
     await tester.tap(find.byKey(const Key('add-batch-command')));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));

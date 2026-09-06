@@ -7,15 +7,13 @@ import '../models/shell_profile.dart';
 class SettingsLoader {
   static late String terminalCommand;
   static late String fileManagerCommand;
+  static late String yamlDirectoryPath;
   static late List<ShellProfile> integratedTerminalProfiles;
 
   static Future<void> saveDefaultIntegratedTerminalProfile(
     String dirPath,
     String profileId,
-  ) async {
-    final file = File('$dirPath/settings.yaml');
-    final original = await file.exists() ? await file.readAsString() : '';
-    final lines = const LineSplitter().convert(original);
+  ) => _updateSettings(dirPath, (lines) {
     final sectionIndex = lines.indexWhere(
       (line) => RegExp(r'^integrated_terminal:\s*(?:#.*)?$').hasMatch(line),
     );
@@ -26,27 +24,50 @@ class SettingsLoader {
       lines
         ..add('integrated_terminal:')
         ..add('  default_profile: $encodedId');
-    } else {
-      var sectionEnd = lines.length;
-      for (var index = sectionIndex + 1; index < lines.length; index++) {
-        final line = lines[index];
-        final trimmed = line.trimLeft();
-        if (line.isNotEmpty && trimmed == line && !trimmed.startsWith('#')) {
-          sectionEnd = index;
-          break;
-        }
-      }
-      final defaultIndex = lines.indexWhere(
-        (line) => RegExp(r'^\s+default_profile\s*:').hasMatch(line),
-        sectionIndex + 1,
-      );
-      if (defaultIndex >= sectionEnd || defaultIndex < 0) {
-        lines.insert(sectionIndex + 1, '  default_profile: $encodedId');
-      } else {
-        final indent = RegExp(r'^\s*').firstMatch(lines[defaultIndex])![0]!;
-        lines[defaultIndex] = '${indent}default_profile: $encodedId';
+      return;
+    }
+    var sectionEnd = lines.length;
+    for (var index = sectionIndex + 1; index < lines.length; index++) {
+      final line = lines[index];
+      final trimmed = line.trimLeft();
+      if (line.isNotEmpty && trimmed == line && !trimmed.startsWith('#')) {
+        sectionEnd = index;
+        break;
       }
     }
+    final defaultIndex = lines.indexWhere(
+      (line) => RegExp(r'^\s+default_profile\s*:').hasMatch(line),
+      sectionIndex + 1,
+    );
+    if (defaultIndex >= sectionEnd || defaultIndex < 0) {
+      lines.insert(sectionIndex + 1, '  default_profile: $encodedId');
+    } else {
+      final indent = RegExp(r'^\s*').firstMatch(lines[defaultIndex])![0]!;
+      lines[defaultIndex] = '${indent}default_profile: $encodedId';
+    }
+  });
+
+  static Future<void> saveYamlDirectoryPath(String dirPath, String yamlPath) =>
+      _updateSettings(dirPath, (lines) {
+        final settingIndex = lines.indexWhere(
+          (line) => RegExp(r'^yaml_directory\s*:').hasMatch(line),
+        );
+        final setting = 'yaml_directory: ${jsonEncode(yamlPath)}';
+        if (settingIndex < 0) {
+          lines.insert(0, setting);
+        } else {
+          lines[settingIndex] = setting;
+        }
+      });
+
+  static Future<void> _updateSettings(
+    String dirPath,
+    void Function(List<String> lines) update,
+  ) async {
+    final file = File('$dirPath/settings.yaml');
+    final original = await file.exists() ? await file.readAsString() : '';
+    final lines = const LineSplitter().convert(original);
+    update(lines);
 
     final temporary = File('${file.path}.tmp');
     final backup = File('${file.path}.bak');
@@ -79,6 +100,7 @@ class SettingsLoader {
       );
       terminalCommand = defaults['terminal']!;
       fileManagerCommand = defaults['file_manager']!;
+      yamlDirectoryPath = dirPath;
       integratedTerminalProfiles = defaultProfiles;
       return;
     }
@@ -87,6 +109,9 @@ class SettingsLoader {
     terminalCommand = doc['terminal']?.toString() ?? defaults['terminal']!;
     fileManagerCommand =
         doc['file_manager']?.toString() ?? defaults['file_manager']!;
+    yamlDirectoryPath = doc['yaml_directory'] == null
+        ? dirPath
+        : _expandHome(doc['yaml_directory'].toString());
     integratedTerminalProfiles = _loadProfiles(
       doc['integrated_terminal'],
       defaultProfiles,

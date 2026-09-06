@@ -16,6 +16,7 @@ Future<void> main() async {
   runApp(
     MyApp(
       configDirectoryPath: initData.configPath,
+      yamlDirectoryPath: initData.yamlDirectoryPath,
       displayPath: initData.displayPath,
       terminalBackendFactory: FlutterPtyBackend.start,
       shellProfiles: SettingsLoader.integratedTerminalProfiles,

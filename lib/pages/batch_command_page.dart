@@ -5,10 +5,7 @@ import 'package:flutter/services.dart';
 
 import '../models/batch_command.dart';
 import '../services/batch_command_store.dart';
-import '../services/command_executor.dart';
-import '../services/command_risk_assessor.dart';
 import '../utils/config_loader.dart';
-import '../widgets/command_confirmation_dialog.dart';
 import '../widgets/output_dialog.dart';
 import '../widgets/terminal_panel.dart';
 
@@ -23,10 +20,7 @@ class BatchCommandPage extends StatefulWidget {
 
 class _BatchCommandPageState extends State<BatchCommandPage> {
   List<BatchCommand> _commands = [];
-  final Set<int> _selectedIndexes = {};
-  bool _runInSameTerminal = false;
-  bool _useIntegratedTerminal = true;
-  bool _isExecuting = false;
+  bool _isStaging = false;
   bool _isMutating = false;
   String? _loadError;
   late String _configSource;
@@ -118,7 +112,6 @@ class _BatchCommandPageState extends State<BatchCommandPage> {
       if (!mounted) return;
       setState(() {
         _loadBatchFile();
-        _selectedIndexes.add(_commands.length - 1);
       });
     } on Object catch (error) {
       if (!mounted) return;
@@ -161,18 +154,8 @@ class _BatchCommandPageState extends State<BatchCommandPage> {
         expectedContent: _configSource,
       );
       if (!mounted) return;
-      final selected = _selectedIndexes
-          .where((selectedIndex) => selectedIndex != index)
-          .map(
-            (selectedIndex) =>
-                selectedIndex > index ? selectedIndex - 1 : selectedIndex,
-          )
-          .toSet();
       setState(() {
         _loadBatchFile();
-        _selectedIndexes
-          ..clear()
-          ..addAll(selected);
       });
     } on Object catch (error) {
       if (!mounted) return;
@@ -182,45 +165,17 @@ class _BatchCommandPageState extends State<BatchCommandPage> {
     }
   }
 
-  Future<void> _executeSelected() async {
-    if (_isExecuting) return;
-    final indexes = _selectedIndexes.toList()..sort();
-    final commands = indexes
-        .map((index) => _commands[index].command)
-        .where((command) => command.isNotEmpty)
-        .toList();
-    if (commands.isEmpty) return;
-
-    setState(() => _isExecuting = true);
+  Future<void> _stageCommand(BatchCommand command) async {
+    if (_isStaging || command.command.isEmpty) return;
+    setState(() => _isStaging = true);
     try {
-      final integratedCommand = commands.join('\n\n');
-      if (_useIntegratedTerminal) {
-        await TerminalPanelScope.of(context).insertCommand(integratedCommand);
-        if (mounted) ConfigurationPanelScope.maybeOf(context)?.close();
-        return;
-      }
-      final approved = await showCommandConfirmationDialog(
-        context,
-        commands: commands,
-        assessment: CommandRiskAssessor.assessRawCommands(commands),
-      );
-      if (!mounted || !approved) return;
-
-      if (_runInSameTerminal) {
-        await CommandExecutor.executeInTerminal(commands.join(' && '), false);
-      } else {
-        for (final index in indexes) {
-          final command = _commands[index].command;
-          if (command.isNotEmpty) {
-            await CommandExecutor.executeInTerminal(command, true);
-          }
-        }
-      }
+      await TerminalPanelScope.of(context).insertCommand(command.command);
+      if (mounted) ConfigurationPanelScope.maybeOf(context)?.close();
     } on Object catch (error) {
       if (!mounted) return;
-      showOutputDialog(context, 'Fehler beim Ausführen: $error');
+      showOutputDialog(context, 'Fehler beim Einfügen: $error');
     } finally {
-      if (mounted) setState(() => _isExecuting = false);
+      if (mounted) setState(() => _isStaging = false);
     }
   }
 
@@ -245,7 +200,7 @@ class _BatchCommandPageState extends State<BatchCommandPage> {
           IconButton(
             key: const Key('add-batch-command'),
             tooltip: 'Batch Command hinzufügen',
-            onPressed: _isExecuting || _isMutating ? null : _addCommand,
+            onPressed: _isStaging || _isMutating ? null : _addCommand,
             icon: const Icon(Icons.add),
           ),
         ],
@@ -254,71 +209,25 @@ class _BatchCommandPageState extends State<BatchCommandPage> {
           ? const Center(child: Text('Keine Befehle gefunden.'))
           : ListView.builder(
               padding: const EdgeInsets.all(16),
-              itemCount: _commands.length + 2,
+              itemCount: _commands.length,
               itemBuilder: (context, index) {
-                if (index == _commands.length) {
-                  if (_useIntegratedTerminal) {
-                    return const ListTile(
-                      leading: Icon(Icons.terminal),
-                      title: Text('Gemeinsame Shell-Sitzung'),
-                      subtitle: Text(
-                        'Befehle werden durch Leerzeilen getrennt in das '
-                        'editierbare Terminalfeld übernommen.',
-                      ),
-                    );
-                  }
-                  return SwitchListTile(
-                    title: const Text('Im selben Terminal ausführen'),
-                    subtitle: Text(
-                      _runInSameTerminal
-                          ? 'Mit && verknüpfen und beim ersten Fehler stoppen'
-                          : 'In getrennten externen Terminalfenstern starten',
-                    ),
-                    value: _runInSameTerminal,
-                    onChanged: _isExecuting
-                        ? null
-                        : (val) => setState(() => _runInSameTerminal = val),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 28),
-                  );
-                }
-                if (index == _commands.length + 1) {
-                  return SwitchListTile(
-                    key: const Key('integrated-terminal-toggle'),
-                    title: const Text('Integriertes Terminal'),
-                    subtitle: Text(
-                      _useIntegratedTerminal
-                          ? 'Befehle in Terminal Master ausführen'
-                          : 'Konfigurierte externe Terminal-App verwenden',
-                    ),
-                    value: _useIntegratedTerminal,
-                    onChanged: _isExecuting
-                        ? null
-                        : (value) =>
-                              setState(() => _useIntegratedTerminal = value),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 28),
-                  );
-                }
-
                 final command = _commands[index];
-                return CheckboxListTile(
+                return ListTile(
                   title: Text(command.title),
                   subtitle: Text(command.description),
-                  value: _selectedIndexes.contains(index),
-                  onChanged: _isExecuting
-                      ? null
-                      : (bool? selected) {
-                          setState(() {
-                            if (selected == true) {
-                              _selectedIndexes.add(index);
-                            } else {
-                              _selectedIndexes.remove(index);
-                            }
-                          });
-                        },
-                  secondary: Row(
+                  trailing: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       IconButton(
+                        key: Key('stage-batch-command-$index'),
+                        icon: const Icon(Icons.play_arrow),
+                        tooltip: 'Ins interne Terminal einfügen',
+                        onPressed: _isStaging || _isMutating
+                            ? null
+                            : () => _stageCommand(command),
+                      ),
+                      IconButton(
+                        key: Key('copy-batch-command-$index'),
                         icon: const Icon(Icons.copy),
                         tooltip: 'Befehl kopieren',
                         onPressed: () {
@@ -338,7 +247,7 @@ class _BatchCommandPageState extends State<BatchCommandPage> {
                         key: Key('delete-batch-command-$index'),
                         icon: const Icon(Icons.delete_outline),
                         tooltip: 'Batch Command löschen',
-                        onPressed: _isExecuting || _isMutating
+                        onPressed: _isStaging || _isMutating
                             ? null
                             : () => _deleteCommand(index),
                       ),
@@ -347,19 +256,6 @@ class _BatchCommandPageState extends State<BatchCommandPage> {
                 );
               },
             ),
-      floatingActionButton: FloatingActionButton.extended(
-        icon: const Icon(Icons.play_arrow),
-        label: Text(
-          _isExecuting
-              ? 'Wird vorbereitet...'
-              : _useIntegratedTerminal
-              ? 'Ins Terminal einfügen'
-              : 'Ausführen',
-        ),
-        onPressed: _selectedIndexes.isEmpty || _isExecuting
-            ? null
-            : _executeSelected,
-      ),
     );
   }
 }

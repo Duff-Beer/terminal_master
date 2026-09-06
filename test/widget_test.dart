@@ -21,6 +21,14 @@ void main() {
     addTearDown(() => directory.deleteSync(recursive: true));
     final factory = RecordingTerminalBackendFactory();
     String? savedDefaultProfileId;
+    String? savedYamlDirectoryPath;
+    final yamlDirectory = Directory('${directory.path}/yaml')..createSync();
+    File('${yamlDirectory.path}/echo.yaml').writeAsStringSync('''
+schema_version: 1
+command: echo
+description: Echo text
+parameters: []
+''');
     const profiles = [
       ShellProfile(
         id: 'primary',
@@ -45,6 +53,10 @@ void main() {
         saveDefaultShellProfile: (profileId) async {
           savedDefaultProfileId = profileId;
         },
+        saveYamlDirectoryPath: (path) async {
+          savedYamlDirectoryPath = path;
+        },
+        selectYamlDirectory: () async => yamlDirectory.path,
       ),
     );
     await tester.pumpAndSettle();
@@ -112,6 +124,10 @@ void main() {
     await tester.tap(find.byType(DropdownMenuItem<String>).hitTestable().last);
     await tester.pumpAndSettle();
     expect(savedDefaultProfileId, 'secondary');
+    await tester.tap(find.byKey(const Key('select-yaml-directory')));
+    await tester.pumpAndSettle();
+    expect(savedYamlDirectoryPath, yamlDirectory.path);
+    expect(find.text(yamlDirectory.path), findsOneWidget);
 
     await tester.tap(find.byKey(const Key('configuration-panel-toggle')));
     await tester.pumpAndSettle();
@@ -119,6 +135,9 @@ void main() {
       tester.widget<TextField>(configSearch).controller!.text,
       'remember me',
     );
+    await tester.enterText(configSearch, '');
+    await tester.pumpAndSettle();
+    expect(find.text('echo').hitTestable(), findsOneWidget);
 
     await tester.tap(find.byKey(const Key('configuration-panel-barrier')));
     await tester.pumpAndSettle();

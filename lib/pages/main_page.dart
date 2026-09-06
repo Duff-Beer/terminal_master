@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../utils/settings_loader.dart';
 import '../models/config_item.dart';
@@ -12,11 +13,13 @@ import 'package:flutter/services.dart';
 class MainPage extends StatefulWidget {
   final String configDirectoryPath;
   final String displayPath;
+  final ValueListenable<String>? yamlDirectoryPath;
 
   const MainPage({
     super.key,
     required this.configDirectoryPath,
     required this.displayPath,
+    this.yamlDirectoryPath,
   });
 
   @override
@@ -28,15 +31,29 @@ class _MainPageState extends State<MainPage> {
   late List<ConfigItem> _filtered;
   final TextEditingController _controller = TextEditingController();
 
+  String get _directoryPath =>
+      widget.yamlDirectoryPath?.value ?? widget.configDirectoryPath;
+
+  String get _displayPath {
+    if (widget.yamlDirectoryPath == null) return widget.displayPath;
+    final home =
+        Platform.environment[Platform.isWindows ? 'USERPROFILE' : 'HOME'];
+    if (home != null && _directoryPath.startsWith(home)) {
+      return _directoryPath.replaceFirst(home, '~');
+    }
+    return _directoryPath;
+  }
+
   @override
   void initState() {
     super.initState();
     _loadConfigs();
     _controller.addListener(_onSearch);
+    widget.yamlDirectoryPath?.addListener(_loadConfigs);
   }
 
   void _loadConfigs() {
-    _all = ConfigLoader.loadConfigs(widget.configDirectoryPath);
+    _all = ConfigLoader.loadConfigs(_directoryPath);
     _filtered = List.from(_all);
     setState(() {});
   }
@@ -51,7 +68,7 @@ class _MainPageState extends State<MainPage> {
   }
 
   void _openDirectory() async {
-    final directory = Directory(widget.configDirectoryPath);
+    final directory = Directory(_directoryPath);
     if (directory.existsSync()) {
       await Process.run(SettingsLoader.fileManagerCommand, [directory.path]);
     } else {
@@ -79,6 +96,7 @@ class _MainPageState extends State<MainPage> {
   @override
   void dispose() {
     _controller.removeListener(_onSearch);
+    widget.yamlDirectoryPath?.removeListener(_loadConfigs);
     _controller.dispose();
     super.dispose();
   }
@@ -107,9 +125,7 @@ class _MainPageState extends State<MainPage> {
                 Expanded(
                   child: InkWell(
                     onTap: () {
-                      Clipboard.setData(
-                        ClipboardData(text: widget.displayPath),
-                      );
+                      Clipboard.setData(ClipboardData(text: _directoryPath));
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
                           content: Text('Pfad in die Zwischenablage kopiert'),
@@ -117,7 +133,7 @@ class _MainPageState extends State<MainPage> {
                       );
                     },
                     child: Text(
-                      widget.displayPath,
+                      _displayPath,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(

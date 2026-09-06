@@ -1,3 +1,6 @@
+import 'dart:io';
+
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
 import '../theme.dart';
@@ -6,12 +9,20 @@ import '../widgets/terminal_panel.dart';
 
 class SettingsPage extends StatefulWidget {
   final String configDirectoryPath;
+  final String yamlDirectoryPath;
   final Future<void> Function(String profileId)? saveDefaultProfile;
+  final Future<void> Function(String path)? saveYamlDirectoryPath;
+  final Future<String?> Function()? selectYamlDirectory;
+  final ValueChanged<String>? onYamlDirectoryChanged;
 
   const SettingsPage({
     super.key,
     required this.configDirectoryPath,
+    required this.yamlDirectoryPath,
     this.saveDefaultProfile,
+    this.saveYamlDirectoryPath,
+    this.selectYamlDirectory,
+    this.onYamlDirectoryChanged,
   });
 
   @override
@@ -20,6 +31,13 @@ class SettingsPage extends StatefulWidget {
 
 class _SettingsPageState extends State<SettingsPage> {
   bool _isSaving = false;
+  late String _yamlDirectoryPath;
+
+  @override
+  void initState() {
+    super.initState();
+    _yamlDirectoryPath = widget.yamlDirectoryPath;
+  }
 
   Future<void> _selectProfile(String profileId) async {
     final controller = TerminalPanelScope.of(context);
@@ -43,6 +61,50 @@ class _SettingsPageState extends State<SettingsPage> {
         SnackBar(
           content: Text(
             'Standard-Shell konnte nicht gespeichert werden: $error',
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
+    }
+  }
+
+  Future<void> _selectYamlDirectory() async {
+    try {
+      final path =
+          await (widget.selectYamlDirectory?.call() ??
+              FilePicker.platform.getDirectoryPath(
+                dialogTitle: 'YAML-Ordner auswählen',
+                initialDirectory: _yamlDirectoryPath,
+              ));
+      if (path == null || !mounted) return;
+      if (!Directory(path).existsSync()) {
+        throw const FileSystemException(
+          'Der ausgewählte Ordner existiert nicht.',
+        );
+      }
+      setState(() => _isSaving = true);
+      final saveYamlDirectoryPath =
+          widget.saveYamlDirectoryPath ??
+          (path) => SettingsLoader.saveYamlDirectoryPath(
+            widget.configDirectoryPath,
+            path,
+          );
+      await saveYamlDirectoryPath(path);
+      if (!mounted) return;
+      setState(() => _yamlDirectoryPath = path);
+      widget.onYamlDirectoryChanged?.call(path);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Standard-YAML-Ordner wurde gespeichert.'),
+        ),
+      );
+    } on Object catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Standard-YAML-Ordner konnte nicht gespeichert werden: $error',
           ),
         ),
       );
@@ -88,6 +150,40 @@ class _SettingsPageState extends State<SettingsPage> {
                 : (profileId) {
                     if (profileId != null) _selectProfile(profileId);
                   },
+          ),
+          const SizedBox(height: 28),
+          const Divider(),
+          const SizedBox(height: 20),
+          Text(
+            'Command Builder',
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              color: TerminalMasterColors.yellow,
+            ),
+          ),
+          const SizedBox(height: 16),
+          InputDecorator(
+            decoration: const InputDecoration(
+              labelText: 'Standard-YAML-Ordner',
+              helperText: 'Vorlagen werden aus diesem Ordner geladen.',
+              border: OutlineInputBorder(),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    _yamlDirectoryPath,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                IconButton(
+                  key: const Key('select-yaml-directory'),
+                  tooltip: 'YAML-Ordner auswählen',
+                  onPressed: _isSaving ? null : _selectYamlDirectory,
+                  icon: const Icon(Icons.folder_open_outlined),
+                ),
+              ],
+            ),
           ),
           if (_isSaving) ...[
             const SizedBox(height: 12),
