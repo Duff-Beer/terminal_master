@@ -44,6 +44,7 @@ void main() {
     );
     expect(find.byKey(const Key('maximize-terminal-panel')), findsNothing);
     expect(find.byKey(const Key('hide-terminal-panel')), findsNothing);
+    expect(find.byKey(const Key('ssh-panel-toggle')), findsOneWidget);
 
     await tester.tap(find.byKey(const Key('configuration-panel-toggle')));
     await tester.pumpAndSettle();
@@ -52,11 +53,33 @@ void main() {
       find.byKey(const Key('configuration-panel')).hitTestable(),
       findsOneWidget,
     );
+    expect(find.text('Command Builder').hitTestable(), findsOneWidget);
     expect(find.text('No config files found').hitTestable(), findsOneWidget);
     expect(factory.backends, hasLength(1));
     expect(
       tester.getSize(find.byKey(const Key('terminal-workspace'))).width,
       1152,
+    );
+    final configSearch = find.descendant(
+      of: find.byKey(const Key('configuration-tool-content')),
+      matching: find.byType(TextField),
+    );
+    await tester.enterText(configSearch, 'remember me');
+
+    await tester.tap(find.byKey(const Key('ssh-panel-toggle')));
+    await tester.pumpAndSettle();
+    expect(find.text('SSH-Verbindungen').hitTestable(), findsOneWidget);
+    expect(
+      find.text('Noch keine SSH-Verbindungen gespeichert.').hitTestable(),
+      findsOneWidget,
+    );
+    expect(factory.backends, hasLength(1));
+
+    await tester.tap(find.byKey(const Key('configuration-panel-toggle')));
+    await tester.pumpAndSettle();
+    expect(
+      tester.widget<TextField>(configSearch).controller!.text,
+      'remember me',
     );
 
     await tester.tap(find.byKey(const Key('configuration-panel-barrier')));

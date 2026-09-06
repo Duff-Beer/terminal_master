@@ -7,10 +7,11 @@ returning commands marked as risky.
 
 Commands run in a persistent `xterm` workspace backed by a native pseudo
 terminal (`flutter_pty`). The terminal is the primary view; a slim tool rail
-opens YAML configuration pages in an overlay without resizing running terminal
-applications. The configured external terminal remains available as a fallback.
-The workspace provides font zoom, highlighted scrollback search, a visible
-scrollbar, and a shortcut back to the latest output.
+opens the Command Builder or managed SSH connections in an overlay without
+resizing running terminal applications. The configured external terminal
+remains available as a fallback. The workspace provides font zoom, highlighted
+scrollback search, a visible scrollbar, and a shortcut back to the latest
+output.
 
 Generated commands are collected in the panel's editable command field without
 an execution confirmation. This allows commands from multiple YAML definitions
@@ -25,7 +26,7 @@ background; sessions in other tabs remain active as well.
 Terminal keyboard shortcuts use `Cmd` on macOS and `Ctrl` on Windows/Linux:
 
 - `Cmd/Ctrl+F`: search the scrollback
-- `Cmd/Ctrl+B`: open or close the configuration overlay
+- `Cmd/Ctrl+B`: open or close the Command Builder
 - `Cmd/Ctrl++`, `Cmd/Ctrl+-`, `Cmd/Ctrl+0`: adjust or reset the font size
 
 The PTY advertises `xterm-256color` and `COLORTERM=truecolor`. The renderer

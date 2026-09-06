@@ -10,6 +10,7 @@ import 'services/ssh_host_key_verifier.dart';
 import 'services/terminal_backend.dart';
 import 'theme.dart';
 import 'pages/main_page.dart';
+import 'pages/ssh_connections_page.dart';
 import 'widgets/terminal_panel.dart';
 
 class MyApp extends StatefulWidget {
@@ -73,15 +74,17 @@ class _MyAppState extends State<MyApp> {
         savedTabStore: FileSavedTerminalTabStore(
           Directory(widget.configDirectoryPath),
         ),
+        sshPanel: SshConnectionsPage(
+          profileStore: _sshProfileStore,
+          credentialStore: _sshCredentialStore,
+          hostKeyVerifier: _sshHostKeyVerifier,
+        ),
         child: Navigator(
           onGenerateRoute: (settings) => MaterialPageRoute<void>(
             settings: settings,
             builder: (context) => MainPage(
               configDirectoryPath: widget.configDirectoryPath,
               displayPath: widget.displayPath,
-              sshProfileStore: _sshProfileStore,
-              sshCredentialStore: _sshCredentialStore,
-              sshHostKeyVerifier: _sshHostKeyVerifier,
             ),
           ),
         ),

@@ -729,13 +729,18 @@ class TerminalPanelScope extends InheritedNotifier<TerminalPanelController> {
   }
 }
 
+enum WorkspaceTool { configurations, sshConnections }
+
 class ConfigurationPanelController extends ChangeNotifier {
   bool _isOpen = false;
+  WorkspaceTool _activeTool = WorkspaceTool.configurations;
 
   bool get isOpen => _isOpen;
+  WorkspaceTool get activeTool => _activeTool;
 
-  void open() {
-    if (_isOpen) return;
+  void open([WorkspaceTool tool = WorkspaceTool.configurations]) {
+    if (_isOpen && _activeTool == tool) return;
+    _activeTool = tool;
     _isOpen = true;
     notifyListeners();
   }
@@ -746,7 +751,13 @@ class ConfigurationPanelController extends ChangeNotifier {
     notifyListeners();
   }
 
-  void toggle() => _isOpen ? close() : open();
+  void toggle([WorkspaceTool tool = WorkspaceTool.configurations]) {
+    if (_isOpen && _activeTool == tool) {
+      close();
+    } else {
+      open(tool);
+    }
+  }
 }
 
 class ConfigurationPanelScope
@@ -775,6 +786,7 @@ class TerminalWorkspace extends StatefulWidget {
   final GlobalKey<NavigatorState> navigatorKey;
   final List<ShellProfile>? profiles;
   final SavedTerminalTabStore? savedTabStore;
+  final Widget? sshPanel;
   final Widget child;
 
   const TerminalWorkspace({
@@ -783,6 +795,7 @@ class TerminalWorkspace extends StatefulWidget {
     required this.navigatorKey,
     this.profiles,
     this.savedTabStore,
+    this.sshPanel,
     required this.child,
   });
 
@@ -854,7 +867,10 @@ class _TerminalWorkspaceState extends State<TerminalWorkspace> {
             ]),
             builder: (context, child) => Row(
               children: [
-                _ConfigurationToolRail(controller: _configurationController),
+                _ConfigurationToolRail(
+                  controller: _configurationController,
+                  hasSshPanel: widget.sshPanel != null,
+                ),
                 Expanded(
                   child: LayoutBuilder(
                     builder: (context, constraints) {
@@ -903,7 +919,28 @@ class _TerminalWorkspaceState extends State<TerminalWorkspace> {
                                       color: TerminalMasterColors.surface,
                                       elevation: 16,
                                       shadowColor: Colors.black87,
-                                      child: widget.child,
+                                      child: IndexedStack(
+                                        index:
+                                            _configurationController
+                                                    .activeTool ==
+                                                WorkspaceTool.configurations
+                                            ? 0
+                                            : 1,
+                                        children: [
+                                          KeyedSubtree(
+                                            key: const Key(
+                                              'configuration-tool-content',
+                                            ),
+                                            child: widget.child,
+                                          ),
+                                          KeyedSubtree(
+                                            key: const Key('ssh-tool-content'),
+                                            child:
+                                                widget.sshPanel ??
+                                                const SizedBox.shrink(),
+                                          ),
+                                        ],
+                                      ),
                                     ),
                                   ),
                                 ),
@@ -926,8 +963,12 @@ class _TerminalWorkspaceState extends State<TerminalWorkspace> {
 
 class _ConfigurationToolRail extends StatelessWidget {
   final ConfigurationPanelController controller;
+  final bool hasSshPanel;
 
-  const _ConfigurationToolRail({required this.controller});
+  const _ConfigurationToolRail({
+    required this.controller,
+    required this.hasSshPanel,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -938,29 +979,60 @@ class _ConfigurationToolRail extends StatelessWidget {
         color: TerminalMasterColors.surfaceRaised,
         child: Column(
           children: [
-            SizedBox(
-              height: 48,
-              child: IconButton(
-                key: const Key('configuration-panel-toggle'),
-                tooltip: controller.isOpen
-                    ? 'Konfigurationen schließen'
-                    : 'Konfigurationen öffnen',
-                onPressed: controller.toggle,
-                icon: Icon(
-                  controller.isOpen ? Icons.menu_open : Icons.tune,
-                  color: controller.isOpen ? TerminalMasterColors.green : null,
-                ),
-              ),
+            _buildButton(
+              key: const Key('configuration-panel-toggle'),
+              tool: WorkspaceTool.configurations,
+              icon: Icons.tune,
+              tooltip: 'Command Builder',
             ),
-            if (controller.isOpen)
-              Container(
-                key: const Key('configuration-panel-active-indicator'),
-                width: 24,
-                height: 2,
-                color: TerminalMasterColors.green,
+            if (hasSshPanel)
+              _buildButton(
+                key: const Key('ssh-panel-toggle'),
+                tool: WorkspaceTool.sshConnections,
+                icon: Icons.dns_outlined,
+                tooltip: 'SSH-Verbindungen',
               ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildButton({
+    required Key key,
+    required WorkspaceTool tool,
+    required IconData icon,
+    required String tooltip,
+  }) {
+    final isActive = controller.isOpen && controller.activeTool == tool;
+    return SizedBox(
+      width: 48,
+      height: 48,
+      child: Stack(
+        children: [
+          if (isActive)
+            Positioned(
+              left: 0,
+              top: 8,
+              bottom: 8,
+              child: Container(
+                key: ValueKey('workspace-tool-indicator-${tool.name}'),
+                width: 3,
+                color: TerminalMasterColors.green,
+              ),
+            ),
+          Positioned.fill(
+            child: IconButton(
+              key: key,
+              tooltip: isActive ? '$tooltip schließen' : tooltip,
+              onPressed: () => controller.toggle(tool),
+              icon: Icon(
+                icon,
+                color: isActive ? TerminalMasterColors.green : null,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

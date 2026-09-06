@@ -2,31 +2,21 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import '../utils/settings_loader.dart';
 import '../models/config_item.dart';
-import '../services/ssh_connection_profile_store.dart';
-import '../services/ssh_credential_store.dart';
-import '../services/ssh_host_key_verifier.dart';
 import '../utils/config_loader.dart';
 import '../widgets/config_tile.dart';
 import '../widgets/output_dialog.dart';
 import 'command_generator_page.dart';
 import 'batch_command_page.dart';
-import 'ssh_connections_page.dart';
 import 'package:flutter/services.dart';
 
 class MainPage extends StatefulWidget {
   final String configDirectoryPath;
   final String displayPath;
-  final SshConnectionProfileStore sshProfileStore;
-  final SshCredentialStore sshCredentialStore;
-  final SshHostKeyVerifier sshHostKeyVerifier;
 
   const MainPage({
     super.key,
     required this.configDirectoryPath,
     required this.displayPath,
-    required this.sshProfileStore,
-    required this.sshCredentialStore,
-    required this.sshHostKeyVerifier,
   });
 
   @override
@@ -96,26 +86,7 @@ class _MainPageState extends State<MainPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Terminal Master'),
-        actions: [
-          IconButton(
-            key: const Key('open-ssh-connections'),
-            icon: const Icon(Icons.dns_outlined),
-            tooltip: 'SSH-Verbindungen',
-            onPressed: () => Navigator.push(
-              context,
-              MaterialPageRoute<void>(
-                builder: (context) => SshConnectionsPage(
-                  profileStore: widget.sshProfileStore,
-                  credentialStore: widget.sshCredentialStore,
-                  hostKeyVerifier: widget.sshHostKeyVerifier,
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
+      appBar: AppBar(title: const Text('Command Builder')),
       body: Column(
         children: [
           Padding(
@@ -123,7 +94,7 @@ class _MainPageState extends State<MainPage> {
             child: TextField(
               controller: _controller,
               decoration: const InputDecoration(
-                hintText: 'Konfigurationen durchsuchen',
+                hintText: 'Vorlagen durchsuchen',
                 prefixIcon: Icon(Icons.search),
                 isDense: true,
               ),
