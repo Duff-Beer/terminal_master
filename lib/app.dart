@@ -70,6 +70,7 @@ class _MyAppState extends State<MyApp> {
         backendFactory: _backendRouter.create,
         navigatorKey: _navigatorKey,
         profiles: widget.shellProfiles,
+        startupView: TerminalStartupView.maximized,
         savedTabStore: FileSavedTerminalTabStore(
           Directory(widget.configDirectoryPath),
         ),

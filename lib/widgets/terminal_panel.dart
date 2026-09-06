@@ -21,6 +21,8 @@ import 'terminal_mouse_overlay.dart';
 
 enum TerminalSplitOrientation { vertical, horizontal }
 
+enum TerminalStartupView { closed, sidePanel, maximized }
+
 class TerminalPaneData {
   final String id;
   final ShellProfile profile;
@@ -164,9 +166,10 @@ class TerminalPanelController extends ChangeNotifier {
   bool isPaneMaximized(String paneId) => activeTab.maximizedPaneId == paneId;
   double get fontSize => _fontSize;
 
-  Future<void> open() async {
-    if (!_isOpen) {
+  Future<void> open({bool maximized = false}) async {
+    if (!_isOpen || (maximized && !_isMaximized)) {
       _isOpen = true;
+      if (maximized) _isMaximized = true;
       notifyListeners();
     }
     await Future.wait(visiblePanes.map(_startForDisplay));
@@ -773,6 +776,7 @@ class TerminalWorkspace extends StatefulWidget {
   final GlobalKey<NavigatorState> navigatorKey;
   final List<ShellProfile>? profiles;
   final SavedTerminalTabStore? savedTabStore;
+  final TerminalStartupView startupView;
   final Widget child;
 
   const TerminalWorkspace({
@@ -781,6 +785,7 @@ class TerminalWorkspace extends StatefulWidget {
     required this.navigatorKey,
     this.profiles,
     this.savedTabStore,
+    this.startupView = TerminalStartupView.closed,
     required this.child,
   });
 
@@ -801,6 +806,16 @@ class _TerminalWorkspaceState extends State<TerminalWorkspace> {
       profiles: widget.profiles,
       savedTabStore: widget.savedTabStore ?? MemorySavedTerminalTabStore(),
     );
+    switch (widget.startupView) {
+      case TerminalStartupView.closed:
+        break;
+      case TerminalStartupView.sidePanel:
+        unawaited(_controller.open());
+        break;
+      case TerminalStartupView.maximized:
+        unawaited(_controller.open(maximized: true));
+        break;
+    }
   }
 
   @override
