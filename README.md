@@ -161,11 +161,11 @@ terminal remain untracked and behave like a normal shell session.
 
 ## Saved Terminal Tabs
 
-The bookmark action in the terminal tab bar saves or updates a named tab
-snapshot. Snapshots preserve the one-to-four-pane layout, shell profile and last
-working directory of every pane, the focused pane, pending command drafts, and
-the latest 20 completed Command Block commands per pane. Terminal output and
-commands typed directly into the PTY are not persisted.
+The save action in a tab's right-click menu saves or updates a named tab
+snapshot. Snapshots preserve the one-to-four-pane layout, shell profile and
+last working directory of every pane, the focused pane, pending command drafts,
+and the latest 20 completed Command Block commands per pane. Terminal output
+and commands typed directly into the PTY are not persisted.
 
 The folder action opens a snapshot as a new tab with fresh PTY processes. Saved
 commands are listed separately in Command Blocks and can be copied, loaded into

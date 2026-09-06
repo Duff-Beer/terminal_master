@@ -306,6 +306,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Sitzung neu starten'), findsOneWidget);
       expect(find.text('Tab umbenennen'), findsOneWidget);
+      expect(find.text('Tab speichern'), findsOneWidget);
       expect(find.text('Tab schließen'), findsNothing);
       await tester.tap(find.text('Sitzung neu starten'));
       await tester.pumpAndSettle();
@@ -328,6 +329,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Build Server'), findsOneWidget);
       expect(controller.activeTab.customName, 'Build Server');
+      expect(find.byKey(const Key('save-terminal-tab')), findsNothing);
 
       await tester.tap(find.byKey(const Key('configuration-panel-toggle')));
       await tester.pumpAndSettle();
@@ -731,7 +733,12 @@ void main() {
     );
     expect(controller.session.commandBlocks.single.command, 'echo restored');
 
-    await tester.tap(find.byKey(const Key('save-terminal-tab')));
+    await tester.tap(
+      find.byKey(Key('terminal-tab-${controller.activeTab.id}')),
+      buttons: kSecondaryMouseButton,
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Gespeicherten Tab aktualisieren'));
     await tester.pumpAndSettle();
     await tester.enterText(
       find.byKey(const Key('saved-terminal-tab-name')),

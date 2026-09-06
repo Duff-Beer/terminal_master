@@ -1242,7 +1242,7 @@ class TerminalPanel extends StatelessWidget {
                             ),
                             IconButton(
                               tooltip:
-                                  'Tab schließen · Rechtsklick für Sitzungsaktionen',
+                                  'Tab schließen · Rechtsklick für Tab-Aktionen',
                               visualDensity: VisualDensity.compact,
                               constraints: const BoxConstraints.tightFor(
                                 width: 28,
@@ -1262,15 +1262,6 @@ class TerminalPanel extends StatelessWidget {
                 );
               }).toList(),
             ),
-          ),
-          IconButton(
-            key: const Key('save-terminal-tab'),
-            visualDensity: VisualDensity.compact,
-            tooltip: controller.activeTab.snapshotId == null
-                ? 'Terminal-Tab speichern'
-                : 'Gespeicherten Terminal-Tab aktualisieren',
-            onPressed: () => _saveTab(context),
-            icon: const Icon(Icons.bookmark_add_outlined, size: 19),
           ),
           PopupMenuButton<String>(
             key: const Key('open-saved-terminal-tab'),
@@ -1639,8 +1630,8 @@ class TerminalPanel extends StatelessWidget {
         Rect.fromLTWH(position.dx, position.dy, 0, 0),
         Offset.zero & overlay.size,
       ),
-      items: const [
-        PopupMenuItem(
+      items: [
+        const PopupMenuItem(
           value: 'rename',
           child: ListTile(
             leading: Icon(Icons.edit_outlined),
@@ -1648,6 +1639,18 @@ class TerminalPanel extends StatelessWidget {
           ),
         ),
         PopupMenuItem(
+          value: 'save',
+          enabled: !tab.panes.any((pane) => pane.profile.isSsh),
+          child: ListTile(
+            leading: const Icon(Icons.bookmark_add_outlined),
+            title: Text(
+              tab.snapshotId == null
+                  ? 'Tab speichern'
+                  : 'Gespeicherten Tab aktualisieren',
+            ),
+          ),
+        ),
+        const PopupMenuItem(
           value: 'restart',
           child: ListTile(
             leading: Icon(Icons.restart_alt),
@@ -1660,6 +1663,9 @@ class TerminalPanel extends StatelessWidget {
     switch (action) {
       case 'rename':
         await _renameTab(context, tab);
+      case 'save':
+        await controller.selectTab(tab.id);
+        if (context.mounted) await _saveTab(context);
       case 'restart':
         await _confirmRestart(context, pane, tab: tab);
     }
