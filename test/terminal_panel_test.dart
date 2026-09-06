@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:terminal_master/models/saved_terminal_tab.dart';
 import 'package:terminal_master/models/shell_profile.dart';
 import 'package:terminal_master/services/saved_terminal_tab_store.dart';
+import 'package:terminal_master/services/terminal_session.dart';
 import 'package:terminal_master/widgets/terminal_panel.dart';
 import 'package:xterm/xterm.dart';
 
@@ -70,6 +71,38 @@ void main() {
       throwsA(isA<StateError>()),
     );
     expect((await store.load()).single.name, 'Updated Snapshot');
+  });
+
+  test('gracefully stops a running session before restarting it', () async {
+    final factory = RecordingTerminalBackendFactory();
+    final controller = TerminalPanelController(
+      backendFactory: factory.create,
+      navigatorKey: GlobalKey<NavigatorState>(),
+      profiles: const [
+        ShellProfile(
+          id: 'primary',
+          name: 'Primary Shell',
+          executable: '/bin/primary',
+          dialect: ShellDialect.posix,
+        ),
+      ],
+      savedTabStore: MemorySavedTerminalTabStore(),
+    );
+    addTearDown(controller.dispose);
+    await controller.attach();
+    controller.commandController.text = 'echo pending';
+    final paneId = controller.activePane.id;
+
+    await controller.restartPane(paneId);
+
+    expect(factory.backends, hasLength(2));
+    expect(factory.backends.first.wasKilled, isFalse);
+    expect(
+      factory.backends.first.writes.map(utf8.decode),
+      containsAllInOrder(['\x03', 'exit\n']),
+    );
+    expect(controller.commandController.text, 'echo pending');
+    expect(controller.session.status, TerminalSessionStatus.running);
   });
 
   testWidgets('does not overwrite snapshots after a load failure', (
@@ -221,6 +254,10 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(
+        tester.getTopLeft(find.byKey(const Key('terminal-tab-bar'))).dy,
+        0,
+      );
+      expect(
         tester.getSize(find.byKey(const Key('terminal-workspace'))).width,
         1152,
       );
@@ -231,6 +268,22 @@ void main() {
             .fontSize,
         13,
       );
+      expect(find.byKey(const Key('stop-terminal-session')), findsNothing);
+      final controller = TerminalPanelScope.of(
+        tester.element(find.byType(TerminalPanel)),
+      );
+      await tester.tap(
+        find.byKey(Key('terminal-tab-${controller.activeTab.id}')),
+        buttons: kSecondaryMouseButton,
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Sitzung neu starten'), findsOneWidget);
+      expect(find.text('Tab schließen'), findsNothing);
+      await tester.tap(find.text('Sitzung neu starten'));
+      await tester.pumpAndSettle();
+      expect(find.text('Terminal-Sitzung neu starten?'), findsOneWidget);
+      await tester.tap(find.text('Abbrechen'));
+      await tester.pumpAndSettle();
 
       await tester.tap(find.byKey(const Key('configuration-panel-toggle')));
       await tester.pumpAndSettle();
@@ -262,6 +315,15 @@ void main() {
             .fontSize,
         13,
       );
+
+      tester.view.physicalSize = const Size(500, 800);
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('terminal-search-toggle')), findsNothing);
+      expect(find.byKey(const Key('stop-terminal-session')), findsNothing);
+      expect(find.byKey(const Key('terminal-more-actions')), findsOneWidget);
+      await tester.tap(find.byKey(const Key('terminal-more-actions')));
+      await tester.pumpAndSettle();
+      expect(find.text('Terminal durchsuchen'), findsOneWidget);
     },
   );
 
@@ -918,11 +980,21 @@ void main() {
       isTrue,
     );
 
-    controller.closeTab(secondaryTabId);
+    final closeOperation = controller.closeTab(secondaryTabId);
+    await tester.pump(const Duration(milliseconds: 100));
+    await closeOperation;
     await tester.pump();
     expect(controller.tabs, hasLength(1));
-    expect(factory.backends[1].wasKilled, isTrue);
-    expect(factory.backends[5].wasKilled, isTrue);
+    expect(factory.backends[1].wasKilled, isFalse);
+    expect(factory.backends[5].wasKilled, isFalse);
+    expect(
+      factory.backends[1].writes.map(utf8.decode),
+      containsAllInOrder(['\x03', 'exit\n']),
+    );
+    expect(
+      factory.backends[5].writes.map(utf8.decode),
+      containsAllInOrder(['\x03', 'exit\n']),
+    );
   });
 }
 

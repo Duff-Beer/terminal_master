@@ -422,9 +422,15 @@ class TerminalPanelController extends ChangeNotifier {
     }
   }
 
-  void closeTab(String tabId) {
+  Future<void> closeTab(String tabId) async {
     if (_tabs.length == 1) return;
     final tab = _tab(tabId);
+    await Future.wait(
+      tab.panes
+          .where((pane) => pane.session.isRunning)
+          .map((pane) => pane.session.stop()),
+    );
+    if (!_tabs.contains(tab) || _tabs.length == 1) return;
     for (final pane in tab.panes) {
       pane.session.removeListener(_handleSessionUpdate);
     }
@@ -436,6 +442,7 @@ class TerminalPanelController extends ChangeNotifier {
 
   Future<void> restartPane(String paneId) async {
     final pane = _pane(paneId);
+    if (pane.session.isRunning) await pane.session.stop();
     pane.session.removeListener(_handleSessionUpdate);
     pane.session.dispose();
     pane.session = _newSession(pane.profile);
@@ -529,12 +536,6 @@ class TerminalPanelController extends ChangeNotifier {
             ),
           ),
     );
-  }
-
-  Future<void> stopSession([String? paneId]) async {
-    final activeSession = _pane(paneId ?? activePane.id).session;
-    if (!activeSession.isRunning) return;
-    await activeSession.stop();
   }
 
   Future<TerminalSession> _ensureStarted(TerminalPaneData pane) async {
@@ -1046,116 +1047,113 @@ class TerminalPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final pane = controller.activePane;
-    final session = controller.session;
     return Column(
       children: [
-        Container(
-          height: 48,
-          padding: const EdgeInsets.only(left: 14, right: 4),
-          color: TerminalMasterColors.surfaceRaised,
-          child: Row(
-            children: [
-              const Icon(Icons.terminal, size: 18),
-              const SizedBox(width: 8),
-              const Expanded(
-                child: Text(
-                  'Terminal',
-                  style: TextStyle(
-                    color: TerminalMasterColors.yellow,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-              IconButton(
-                key: const Key('terminal-search-toggle'),
-                visualDensity: VisualDensity.compact,
-                constraints: const BoxConstraints.tightFor(
-                  width: 40,
-                  height: 40,
-                ),
-                tooltip: controller.isSearchOpen
-                    ? 'Suche schließen'
-                    : 'Terminal durchsuchen',
-                onPressed: controller.toggleSearch,
-                icon: Icon(
-                  controller.isSearchOpen ? Icons.search_off : Icons.search,
-                ),
-              ),
-              if ((session.status == TerminalSessionStatus.exited ||
-                      session.status == TerminalSessionStatus.failed) &&
-                  !session.isRunning)
-                IconButton(
-                  key: const Key('restart-terminal-tab'),
-                  visualDensity: VisualDensity.compact,
-                  constraints: const BoxConstraints.tightFor(
-                    width: 40,
-                    height: 40,
-                  ),
-                  tooltip: 'Sitzung neu starten',
-                  onPressed: () => controller.restartPane(pane.id),
-                  icon: const Icon(Icons.restart_alt),
-                ),
-              if (session.status != TerminalSessionStatus.exited &&
-                  session.status != TerminalSessionStatus.failed)
-                IconButton(
-                  visualDensity: VisualDensity.compact,
-                  constraints: const BoxConstraints.tightFor(
-                    width: 40,
-                    height: 40,
-                  ),
-                  tooltip: 'Terminal-Sitzung beenden',
-                  onPressed: session.isRunning
-                      ? () => _confirmStop(context, pane.id)
-                      : null,
-                  icon: const Icon(Icons.stop_circle_outlined),
-                ),
-            ],
-          ),
-        ),
         _buildTabBar(context),
         Expanded(child: _buildPanes()),
         Container(
+          key: const Key('terminal-bottom-toolbar'),
           padding: const EdgeInsets.fromLTRB(10, 8, 6, 10),
           decoration: const BoxDecoration(
             color: TerminalMasterColors.surface,
             border: Border(top: BorderSide(color: TerminalMasterColors.border)),
           ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Expanded(
-                child: TextField(
-                  key: const Key('terminal-command-input'),
-                  controller: controller.commandController,
-                  minLines: 1,
-                  maxLines: 4,
-                  decoration: InputDecoration(
-                    hintText:
-                        'Befehle für ${controller.activeProfile.name} ...',
-                    isDense: true,
+          child: LayoutBuilder(
+            builder: (context, constraints) => Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                if (constraints.maxWidth >= 560) ...[
+                  _buildSearchButton(),
+                  const SizedBox(width: 6),
+                ],
+                Expanded(
+                  child: TextField(
+                    key: const Key('terminal-command-input'),
+                    controller: controller.commandController,
+                    minLines: 1,
+                    maxLines: 4,
+                    decoration: InputDecoration(
+                      hintText:
+                          'Befehle für ${controller.activeProfile.name} ...',
+                      isDense: true,
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(width: 6),
-              IconButton.filled(
-                key: const Key('send-terminal-input'),
-                tooltip: 'An Terminal senden',
-                style: IconButton.styleFrom(
-                  backgroundColor: TerminalMasterColors.green,
-                  foregroundColor: TerminalMasterColors.background,
+                const SizedBox(width: 6),
+                IconButton.filled(
+                  key: const Key('send-terminal-input'),
+                  tooltip: 'An Terminal senden',
+                  style: IconButton.styleFrom(
+                    backgroundColor: TerminalMasterColors.green,
+                    foregroundColor: TerminalMasterColors.background,
+                  ),
+                  onPressed: controller.sendPending,
+                  icon: const Icon(Icons.send_rounded),
                 ),
-                onPressed: controller.sendPending,
-                icon: const Icon(Icons.send_rounded),
-              ),
-            ],
+                if (constraints.maxWidth < 560) ...[
+                  const SizedBox(width: 6),
+                  _buildCompactActions(context, pane),
+                ],
+              ],
+            ),
           ),
         ),
       ],
     );
   }
 
+  Widget _buildSearchButton() {
+    return IconButton(
+      key: const Key('terminal-search-toggle'),
+      tooltip: controller.isSearchOpen
+          ? 'Suche schließen'
+          : 'Terminal durchsuchen',
+      onPressed: controller.toggleSearch,
+      icon: Icon(controller.isSearchOpen ? Icons.search_off : Icons.search),
+    );
+  }
+
+  Widget _buildCompactActions(BuildContext context, TerminalPaneData pane) {
+    return PopupMenuButton<String>(
+      key: const Key('terminal-more-actions'),
+      tooltip: 'Weitere Terminal-Aktionen',
+      onSelected: (action) {
+        switch (action) {
+          case 'search':
+            controller.toggleSearch();
+          case 'restart':
+            _confirmRestart(context, pane);
+        }
+      },
+      itemBuilder: (context) => [
+        PopupMenuItem(
+          value: 'search',
+          child: ListTile(
+            leading: Icon(
+              controller.isSearchOpen ? Icons.search_off : Icons.search,
+            ),
+            title: Text(
+              controller.isSearchOpen
+                  ? 'Suche schließen'
+                  : 'Terminal durchsuchen',
+            ),
+          ),
+        ),
+        const PopupMenuItem(
+          value: 'restart',
+          child: ListTile(
+            leading: Icon(Icons.restart_alt),
+            title: Text('Sitzung neu starten'),
+          ),
+        ),
+      ],
+      icon: const Icon(Icons.more_vert),
+    );
+  }
+
   Widget _buildTabBar(BuildContext context) {
     return Container(
+      key: const Key('terminal-tab-bar'),
       height: 40,
       decoration: const BoxDecoration(
         color: TerminalMasterColors.surface,
@@ -1179,6 +1177,11 @@ class TerminalPanel extends StatelessWidget {
                     child: InkWell(
                       key: Key('terminal-tab-${tab.id}'),
                       onTap: () => controller.selectTab(tab.id),
+                      onSecondaryTapDown: (details) => _showTabContextMenu(
+                        context,
+                        tab,
+                        details.globalPosition,
+                      ),
                       borderRadius: BorderRadius.circular(4),
                       child: Padding(
                         padding: const EdgeInsets.only(left: 8),
@@ -1208,7 +1211,8 @@ class TerminalPanel extends StatelessWidget {
                               ),
                             ),
                             IconButton(
-                              tooltip: 'Tab schließen',
+                              tooltip:
+                                  'Tab schließen · Rechtsklick für Sitzungsaktionen',
                               visualDensity: VisualDensity.compact,
                               constraints: const BoxConstraints.tightFor(
                                 width: 28,
@@ -1543,37 +1547,87 @@ class TerminalPanel extends StatelessWidget {
     }
   }
 
-  Future<void> _confirmStop(BuildContext context, String paneId) async {
-    final dialogContext = controller.navigatorKey.currentContext;
-    if (dialogContext == null) return;
-    final approved =
-        await showDialog<bool>(
-          context: dialogContext,
-          builder: (context) => AlertDialog(
-            title: const Text('Terminal-Sitzung beenden?'),
-            content: const Text(
-              'Ein laufender Prozess wird unterbrochen. Das Panel und noch '
-              'nicht gesendete Befehle bleiben erhalten.',
+  Future<void> _confirmRestart(
+    BuildContext context,
+    TerminalPaneData pane, {
+    TerminalTab? tab,
+  }) async {
+    var approved = true;
+    if (pane.session.isRunning) {
+      final dialogContext = controller.navigatorKey.currentContext;
+      if (dialogContext == null) return;
+      approved =
+          await showDialog<bool>(
+            context: dialogContext,
+            builder: (context) => AlertDialog(
+              title: const Text('Terminal-Sitzung neu starten?'),
+              content: const Text(
+                'Der laufende Prozess wird kontrolliert beendet und die '
+                'Sitzung direkt neu gestartet. Die bisherige Terminalausgabe '
+                'wird zurückgesetzt; nicht gesendete Befehle bleiben erhalten.',
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context, false),
+                  child: const Text('Abbrechen'),
+                ),
+                FilledButton(
+                  onPressed: () => Navigator.pop(context, true),
+                  child: const Text('Neu starten'),
+                ),
+              ],
             ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text('Abbrechen'),
-              ),
-              FilledButton(
-                onPressed: () => Navigator.pop(context, true),
-                child: const Text('Sitzung beenden'),
-              ),
-            ],
+          ) ??
+          false;
+    }
+    if (!approved || !context.mounted) return;
+    try {
+      if (tab != null) await controller.selectTab(tab.id);
+      await controller.restartPane(pane.id);
+    } on Object catch (error) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Sitzung konnte nicht neu gestartet werden: $error'),
+        ),
+      );
+    }
+  }
+
+  Future<void> _showTabContextMenu(
+    BuildContext context,
+    TerminalTab tab,
+    Offset position,
+  ) async {
+    final overlay = Overlay.of(context).context.findRenderObject();
+    if (overlay is! RenderBox) return;
+    final pane = tab.activePane;
+    final action = await showMenu<String>(
+      context: context,
+      position: RelativeRect.fromRect(
+        Rect.fromLTWH(position.dx, position.dy, 0, 0),
+        Offset.zero & overlay.size,
+      ),
+      items: const [
+        PopupMenuItem(
+          value: 'restart',
+          child: ListTile(
+            leading: Icon(Icons.restart_alt),
+            title: Text('Sitzung neu starten'),
           ),
-        ) ??
-        false;
-    if (approved) await controller.stopSession(paneId);
+        ),
+      ],
+    );
+    if (action == null || !context.mounted) return;
+    switch (action) {
+      case 'restart':
+        await _confirmRestart(context, pane, tab: tab);
+    }
   }
 
   Future<void> _confirmClose(BuildContext context, TerminalTab tab) async {
     if (!tab.panes.any((pane) => pane.session.isRunning)) {
-      controller.closeTab(tab.id);
+      await _closeTab(context, tab.id);
       return;
     }
     final dialogContext = controller.navigatorKey.currentContext;
@@ -1599,7 +1653,18 @@ class TerminalPanel extends StatelessWidget {
           ),
         ) ??
         false;
-    if (approved) controller.closeTab(tab.id);
+    if (approved && context.mounted) await _closeTab(context, tab.id);
+  }
+
+  Future<void> _closeTab(BuildContext context, String tabId) async {
+    try {
+      await controller.closeTab(tabId);
+    } on Object catch (error) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Tab konnte nicht geschlossen werden: $error')),
+      );
+    }
   }
 
   IconData _tabStatusIcon(TerminalSessionStatus status) {
