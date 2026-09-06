@@ -299,10 +299,22 @@ void main() {
       final controller = TerminalPanelScope.of(
         tester.element(find.byType(TerminalPanel)),
       );
-      await tester.tap(
-        find.byKey(Key('terminal-tab-${controller.activeTab.id}')),
-        buttons: kSecondaryMouseButton,
+      final activeTabFinder = find.byKey(
+        Key('terminal-tab-${controller.activeTab.id}'),
       );
+      final addTabFinder = find.byKey(const Key('new-terminal-tab'));
+      final openSavedTabFinder = find.byKey(
+        const Key('open-saved-terminal-tab'),
+      );
+      expect(
+        tester.getTopRight(activeTabFinder).dx,
+        lessThanOrEqualTo(tester.getTopLeft(addTabFinder).dx),
+      );
+      expect(
+        tester.getTopRight(addTabFinder).dx,
+        lessThanOrEqualTo(tester.getTopLeft(openSavedTabFinder).dx),
+      );
+      await tester.tap(activeTabFinder, buttons: kSecondaryMouseButton);
       await tester.pumpAndSettle();
       expect(find.text('Sitzung neu starten'), findsOneWidget);
       expect(find.text('Tab umbenennen'), findsOneWidget);

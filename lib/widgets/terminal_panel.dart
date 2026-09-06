@@ -1193,74 +1193,92 @@ class TerminalPanel extends StatelessWidget {
           Expanded(
             child: ListView(
               scrollDirection: Axis.horizontal,
-              children: controller.tabs.map((tab) {
-                final selected = controller.activeTab.id == tab.id;
-                final pane = tab.activePane;
-                return Padding(
-                  padding: const EdgeInsets.only(left: 4, top: 4, bottom: 4),
-                  child: Material(
-                    color: selected
-                        ? TerminalMasterColors.surfaceRaised
-                        : Colors.transparent,
-                    borderRadius: BorderRadius.circular(4),
-                    child: InkWell(
-                      key: Key('terminal-tab-${tab.id}'),
-                      onTap: () => controller.selectTab(tab.id),
-                      onSecondaryTapDown: (details) => _showTabContextMenu(
-                        context,
-                        tab,
-                        details.globalPosition,
-                      ),
+              children: [
+                ...controller.tabs.map((tab) {
+                  final selected = controller.activeTab.id == tab.id;
+                  final pane = tab.activePane;
+                  return Padding(
+                    padding: const EdgeInsets.only(left: 4, top: 4, bottom: 4),
+                    child: Material(
+                      color: selected
+                          ? TerminalMasterColors.surfaceRaised
+                          : Colors.transparent,
                       borderRadius: BorderRadius.circular(4),
-                      child: Padding(
-                        padding: const EdgeInsets.only(left: 8),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              _tabStatusIcon(pane.session.status),
-                              size: 11,
-                              color: _tabStatusColor(pane.session.status),
-                            ),
-                            const SizedBox(width: 5),
-                            ConstrainedBox(
-                              constraints: const BoxConstraints(maxWidth: 120),
-                              child: Tooltip(
-                                message: tab.displayName,
-                                child: Text(
-                                  tab.displayName,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    color: selected
-                                        ? TerminalMasterColors.yellow
-                                        : TerminalMasterColors.foreground,
-                                    fontSize: 11,
+                      child: InkWell(
+                        key: Key('terminal-tab-${tab.id}'),
+                        onTap: () => controller.selectTab(tab.id),
+                        onSecondaryTapDown: (details) => _showTabContextMenu(
+                          context,
+                          tab,
+                          details.globalPosition,
+                        ),
+                        borderRadius: BorderRadius.circular(4),
+                        child: Padding(
+                          padding: const EdgeInsets.only(left: 8),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                _tabStatusIcon(pane.session.status),
+                                size: 11,
+                                color: _tabStatusColor(pane.session.status),
+                              ),
+                              const SizedBox(width: 5),
+                              ConstrainedBox(
+                                constraints: const BoxConstraints(
+                                  maxWidth: 120,
+                                ),
+                                child: Tooltip(
+                                  message: tab.displayName,
+                                  child: Text(
+                                    tab.displayName,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      color: selected
+                                          ? TerminalMasterColors.yellow
+                                          : TerminalMasterColors.foreground,
+                                      fontSize: 11,
+                                    ),
                                   ),
                                 ),
                               ),
-                            ),
-                            IconButton(
-                              tooltip:
-                                  'Tab schließen · Rechtsklick für Tab-Aktionen',
-                              visualDensity: VisualDensity.compact,
-                              constraints: const BoxConstraints.tightFor(
-                                width: 28,
-                                height: 28,
+                              IconButton(
+                                tooltip:
+                                    'Tab schließen · Rechtsklick für Tab-Aktionen',
+                                visualDensity: VisualDensity.compact,
+                                constraints: const BoxConstraints.tightFor(
+                                  width: 28,
+                                  height: 28,
+                                ),
+                                padding: EdgeInsets.zero,
+                                onPressed: controller.tabs.length == 1
+                                    ? null
+                                    : () => _confirmClose(context, tab),
+                                icon: const Icon(Icons.close, size: 14),
                               ),
-                              padding: EdgeInsets.zero,
-                              onPressed: controller.tabs.length == 1
-                                  ? null
-                                  : () => _confirmClose(context, tab),
-                              icon: const Icon(Icons.close, size: 14),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                );
-              }).toList(),
+                  );
+                }),
+                PopupMenuButton<ShellProfile>(
+                  key: const Key('new-terminal-tab'),
+                  tooltip: 'Neuer Terminal-Tab',
+                  icon: const Icon(Icons.add, size: 19),
+                  onSelected: controller.createTab,
+                  itemBuilder: (context) => controller.profiles
+                      .map(
+                        (profile) => PopupMenuItem(
+                          value: profile,
+                          child: Text(profile.name),
+                        ),
+                      )
+                      .toList(),
+                ),
+              ],
             ),
           ),
           PopupMenuButton<String>(
@@ -1298,18 +1316,6 @@ class TerminalPanel extends StatelessWidget {
                   )
                   .toList();
             },
-          ),
-          PopupMenuButton<ShellProfile>(
-            key: const Key('new-terminal-tab'),
-            tooltip: 'Neuer Terminal-Tab',
-            icon: const Icon(Icons.add, size: 19),
-            onSelected: controller.createTab,
-            itemBuilder: (context) => controller.profiles
-                .map(
-                  (profile) =>
-                      PopupMenuItem(value: profile, child: Text(profile.name)),
-                )
-                .toList(),
           ),
         ],
       ),
