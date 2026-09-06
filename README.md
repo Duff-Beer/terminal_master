@@ -20,7 +20,9 @@ terminal pane. Search is available from the responsive bottom command bar.
 Restarting a session is available from the tab context menu and, on narrow
 windows, from the command bar's overflow menu. A running process is shut down
 gracefully before its pane restarts. Closing a tab uses the same controlled
-shutdown. Each tab owns an independent terminal workspace with its own PTY,
+shutdown. Tabs can be renamed from their context menu; saving a tab persists
+its custom name and restores it when the snapshot is opened. Each tab owns an
+independent terminal workspace with its own PTY,
 scrollback, search state, and pending command draft. A tab can be split into
 side-by-side columns, stacked rows, or a combined 2x2 grid with up to four
 independent PTYs. An individual split pane can temporarily fill the complete

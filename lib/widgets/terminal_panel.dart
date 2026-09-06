@@ -53,6 +53,7 @@ class TerminalTab {
   bool isVerticallySplit = false;
   bool isHorizontallySplit = false;
   String? maximizedPaneId;
+  String? customName;
   String? snapshotId;
   String? snapshotName;
   DateTime? snapshotUpdatedAt;
@@ -82,6 +83,12 @@ class TerminalTab {
     orElse: () => primaryPane,
   );
 
+  String get displayName =>
+      customName ??
+      snapshotName ??
+      activePane.session.title ??
+      activePane.profile.name;
+
   bool hasSplit(TerminalSplitOrientation orientation) => switch (orientation) {
     TerminalSplitOrientation.vertical => isVerticallySplit,
     TerminalSplitOrientation.horizontal => isHorizontallySplit,
@@ -105,6 +112,7 @@ class TerminalPanelController extends ChangeNotifier {
   static const minFontSize = 9.0;
   static const maxFontSize = 24.0;
   static const defaultFontSize = 13.0;
+  static const maxTabNameLength = 60;
 
   final TerminalBackendFactory backendFactory;
   final GlobalKey<NavigatorState> navigatorKey;
@@ -224,9 +232,15 @@ class TerminalPanelController extends ChangeNotifier {
     }
   }
 
-  Future<SavedTerminalTab> saveActiveTab(String name) {
+  Future<SavedTerminalTab> saveActiveTab([String? name]) {
     final tab = activeTab;
-    return _mutateSavedTabs(() => _saveTab(tab, name));
+    final effectiveName =
+        name ??
+        tab.customName ??
+        tab.snapshotName ??
+        tab.activePane.session.title ??
+        tab.activePane.profile.name;
+    return _mutateSavedTabs(() => _saveTab(tab, effectiveName));
   }
 
   Future<SavedTerminalTab> _saveTab(TerminalTab tab, String name) async {
@@ -290,6 +304,7 @@ class TerminalPanelController extends ChangeNotifier {
       ..addAll(updated);
     tab.snapshotId = snapshot.id;
     tab.snapshotName = snapshot.name;
+    tab.customName = snapshot.name;
     tab.snapshotUpdatedAt = snapshot.updatedAt;
     _savedTabsError = null;
     notifyListeners();
@@ -313,6 +328,7 @@ class TerminalPanelController extends ChangeNotifier {
         TerminalTab(id: 'terminal-tab-${_nextTabId++}', pane: primaryPane)
           ..snapshotId = snapshot.id
           ..snapshotName = snapshot.name
+          ..customName = snapshot.name
           ..snapshotUpdatedAt = snapshot.updatedAt
           ..isVerticallySplit = snapshot.verticalSplit
           ..isHorizontallySplit = snapshot.horizontalSplit;
@@ -376,6 +392,19 @@ class TerminalPanelController extends ChangeNotifier {
     final tab = activeTab;
     if (tab.focusedPaneId == paneId || !_isVisiblePane(tab, paneId)) return;
     tab.focusedPaneId = paneId;
+    notifyListeners();
+  }
+
+  void renameTab(String tabId, String name) {
+    final normalizedName = name.trim();
+    if (normalizedName.isEmpty ||
+        normalizedName.length > maxTabNameLength ||
+        normalizedName.codeUnits.any((unit) => unit < 0x20 || unit == 0x7f)) {
+      throw ArgumentError.value(name, 'name', 'Ungültiger Terminal-Tabname.');
+    }
+    final tab = _tab(tabId);
+    if (tab.customName == normalizedName) return;
+    tab.customName = normalizedName;
     notifyListeners();
   }
 
@@ -1196,17 +1225,18 @@ class TerminalPanel extends StatelessWidget {
                             const SizedBox(width: 5),
                             ConstrainedBox(
                               constraints: const BoxConstraints(maxWidth: 120),
-                              child: Text(
-                                tab.snapshotName ??
-                                    pane.session.title ??
-                                    pane.profile.name,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  color: selected
-                                      ? TerminalMasterColors.yellow
-                                      : TerminalMasterColors.foreground,
-                                  fontSize: 11,
+                              child: Tooltip(
+                                message: tab.displayName,
+                                child: Text(
+                                  tab.displayName,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    color: selected
+                                        ? TerminalMasterColors.yellow
+                                        : TerminalMasterColors.foreground,
+                                    fontSize: 11,
+                                  ),
                                 ),
                               ),
                             ),
@@ -1383,6 +1413,7 @@ class TerminalPanel extends StatelessWidget {
 
   Future<void> _saveTab(BuildContext context) async {
     var enteredName =
+        controller.activeTab.customName ??
         controller.activeTab.snapshotName ??
         controller.activePane.session.title ??
         controller.activeProfile.name;
@@ -1610,6 +1641,13 @@ class TerminalPanel extends StatelessWidget {
       ),
       items: const [
         PopupMenuItem(
+          value: 'rename',
+          child: ListTile(
+            leading: Icon(Icons.edit_outlined),
+            title: Text('Tab umbenennen'),
+          ),
+        ),
+        PopupMenuItem(
           value: 'restart',
           child: ListTile(
             leading: Icon(Icons.restart_alt),
@@ -1620,9 +1658,50 @@ class TerminalPanel extends StatelessWidget {
     );
     if (action == null || !context.mounted) return;
     switch (action) {
+      case 'rename':
+        await _renameTab(context, tab);
       case 'restart':
         await _confirmRestart(context, pane, tab: tab);
     }
+  }
+
+  Future<void> _renameTab(BuildContext context, TerminalTab tab) async {
+    final dialogContext = controller.navigatorKey.currentContext;
+    if (dialogContext == null) return;
+    var enteredName = tab.displayName;
+    final name = await showDialog<String>(
+      context: dialogContext,
+      builder: (context) => AlertDialog(
+        title: const Text('Terminal-Tab umbenennen'),
+        content: TextFormField(
+          key: const Key('terminal-tab-name'),
+          initialValue: enteredName,
+          autofocus: true,
+          maxLength: TerminalPanelController.maxTabNameLength,
+          decoration: const InputDecoration(labelText: 'Tabname'),
+          onChanged: (value) => enteredName = value,
+          onFieldSubmitted: (value) {
+            if (value.trim().isNotEmpty) Navigator.pop(context, value);
+          },
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Abbrechen'),
+          ),
+          FilledButton(
+            key: const Key('confirm-rename-terminal-tab'),
+            onPressed: () {
+              final value = enteredName.trim();
+              if (value.isNotEmpty) Navigator.pop(context, value);
+            },
+            child: const Text('Umbenennen'),
+          ),
+        ],
+      ),
+    );
+    if (name == null || !context.mounted) return;
+    controller.renameTab(tab.id, name);
   }
 
   Future<void> _confirmClose(BuildContext context, TerminalTab tab) async {

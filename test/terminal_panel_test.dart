@@ -105,6 +105,33 @@ void main() {
     expect(controller.session.status, TerminalSessionStatus.running);
   });
 
+  test('persists a custom tab name when saving and reopening', () async {
+    final store = MemorySavedTerminalTabStore();
+    final controller = TerminalPanelController(
+      backendFactory: RecordingTerminalBackendFactory().create,
+      navigatorKey: GlobalKey<NavigatorState>(),
+      profiles: const [
+        ShellProfile(
+          id: 'primary',
+          name: 'Primary Shell',
+          executable: '/bin/primary',
+          dialect: ShellDialect.posix,
+        ),
+      ],
+      savedTabStore: store,
+    );
+    addTearDown(controller.dispose);
+
+    controller.renameTab(controller.activeTab.id, '  Build Server  ');
+    final snapshot = await controller.saveActiveTab();
+    final reopened = await controller.openSavedTab(snapshot.id);
+
+    expect(snapshot.name, 'Build Server');
+    expect((await store.load()).single.name, 'Build Server');
+    expect(reopened.customName, 'Build Server');
+    expect(reopened.displayName, 'Build Server');
+  });
+
   testWidgets('does not overwrite snapshots after a load failure', (
     tester,
   ) async {
@@ -278,12 +305,29 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(find.text('Sitzung neu starten'), findsOneWidget);
+      expect(find.text('Tab umbenennen'), findsOneWidget);
       expect(find.text('Tab schließen'), findsNothing);
       await tester.tap(find.text('Sitzung neu starten'));
       await tester.pumpAndSettle();
       expect(find.text('Terminal-Sitzung neu starten?'), findsOneWidget);
       await tester.tap(find.text('Abbrechen'));
       await tester.pumpAndSettle();
+
+      await tester.tap(
+        find.byKey(Key('terminal-tab-${controller.activeTab.id}')),
+        buttons: kSecondaryMouseButton,
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Tab umbenennen'));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(const Key('terminal-tab-name')),
+        'Build Server',
+      );
+      await tester.tap(find.byKey(const Key('confirm-rename-terminal-tab')));
+      await tester.pumpAndSettle();
+      expect(find.text('Build Server'), findsOneWidget);
+      expect(controller.activeTab.customName, 'Build Server');
 
       await tester.tap(find.byKey(const Key('configuration-panel-toggle')));
       await tester.pumpAndSettle();
