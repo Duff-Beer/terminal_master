@@ -196,6 +196,7 @@ class _BatchCommandPageState extends State<BatchCommandPage> {
       final integratedCommand = commands.join('\n\n');
       if (_useIntegratedTerminal) {
         await TerminalPanelScope.of(context).insertCommand(integratedCommand);
+        if (mounted) ConfigurationPanelScope.maybeOf(context)?.close();
         return;
       }
       final approved = await showCommandConfirmationDialog(
@@ -247,7 +248,6 @@ class _BatchCommandPageState extends State<BatchCommandPage> {
             onPressed: _isExecuting || _isMutating ? null : _addCommand,
             icon: const Icon(Icons.add),
           ),
-          const TerminalPanelToggleButton(),
         ],
       ),
       body: _commands.isEmpty

@@ -126,6 +126,8 @@ void main() {
         ),
       ),
     );
+    await tester.tap(find.byKey(const Key('configuration-panel-toggle')));
+    await tester.pumpAndSettle();
 
     await tester.tap(find.text('Send first'));
     await tester.pumpAndSettle();
@@ -141,6 +143,9 @@ void main() {
 
     await tester.tap(find.text('Send second'));
     await tester.pump();
+    await tester.tap(find.byKey(const Key('configuration-panel-toggle')));
+    await tester.pumpAndSettle();
+    expect(find.text('Second page'), findsOneWidget);
 
     expect(factory.backends, hasLength(1));
     expect(factory.backends.single.writes, isEmpty);
@@ -158,6 +163,7 @@ void main() {
     );
     await tester.tap(find.byKey(const Key('send-terminal-input')));
     await tester.pump();
+    expect(find.text('Second page'), findsOneWidget);
     final writes = factory.backends.single.writes.map(utf8.decode).toList();
     expect(writes, hasLength(1));
     expect(writes.single, contains('echo first\necho second'));
@@ -172,72 +178,92 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('terminal-command-history-toggle')));
     await tester.pumpAndSettle();
+    expect(find.text('Second page'), findsOneWidget);
     expect(find.byKey(const Key('terminal-command-history')), findsOneWidget);
     expect(find.text('echo first\necho second'), findsOneWidget);
     expect(find.textContaining('Erfolgreich (Exit 0)'), findsOneWidget);
 
-    await tester.tap(find.byKey(const Key('hide-terminal-panel')));
-    await tester.pumpAndSettle();
-    expect(find.byType(TerminalPanel), findsNothing);
+    expect(find.byType(TerminalPanel), findsOneWidget);
+    expect(
+      find.byKey(const Key('configuration-panel')).hitTestable(),
+      findsNothing,
+    );
     expect(factory.backends.single.wasKilled, isFalse);
+    await tester.tap(find.byKey(const Key('configuration-panel-toggle')));
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const Key('configuration-panel')).hitTestable(),
+      findsOneWidget,
+    );
     expect(find.text('Second page'), findsOneWidget);
   });
 
-  testWidgets('maximizes the panel and changes the terminal font size', (
-    tester,
-  ) async {
-    tester.view.physicalSize = const Size(1200, 800);
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.resetPhysicalSize);
-    addTearDown(tester.view.resetDevicePixelRatio);
-    final factory = RecordingTerminalBackendFactory();
-    final navigatorKey = GlobalKey<NavigatorState>();
+  testWidgets(
+    'keeps terminal size while opening config and changes font size',
+    (tester) async {
+      tester.view.physicalSize = const Size(1200, 800);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final factory = RecordingTerminalBackendFactory();
+      final navigatorKey = GlobalKey<NavigatorState>();
 
-    await tester.pumpWidget(
-      MaterialApp(
-        navigatorKey: navigatorKey,
-        home: TerminalWorkspace(
-          backendFactory: factory.create,
+      await tester.pumpWidget(
+        MaterialApp(
           navigatorKey: navigatorKey,
-          child: const _FirstPage(),
+          home: TerminalWorkspace(
+            backendFactory: factory.create,
+            navigatorKey: navigatorKey,
+            child: const _FirstPage(),
+          ),
         ),
-      ),
-    );
-    await tester.tap(find.text('Send first'));
-    await tester.pumpAndSettle();
+      );
+      await tester.pumpAndSettle();
 
-    expect(
-      tester.getSize(find.byKey(const Key('terminal-side-panel'))).width,
-      520,
-    );
-    expect(
-      tester.widget<TerminalView>(find.byType(TerminalView)).textStyle.fontSize,
-      13,
-    );
+      expect(
+        tester.getSize(find.byKey(const Key('terminal-workspace'))).width,
+        1152,
+      );
+      expect(
+        tester
+            .widget<TerminalView>(find.byType(TerminalView))
+            .textStyle
+            .fontSize,
+        13,
+      );
 
-    await tester.tap(find.byKey(const Key('maximize-terminal-panel')));
-    await tester.pump();
-    expect(
-      tester.getSize(find.byKey(const Key('terminal-side-panel'))).width,
-      1200,
-    );
-    expect(find.text('First page'), findsOneWidget);
-    expect(factory.backends, hasLength(1));
+      await tester.tap(find.byKey(const Key('configuration-panel-toggle')));
+      await tester.pumpAndSettle();
+      expect(
+        tester.getSize(find.byKey(const Key('terminal-workspace'))).width,
+        1152,
+      );
+      expect(find.text('First page').hitTestable(), findsOneWidget);
+      expect(factory.backends, hasLength(1));
+      await tester.tap(find.byKey(const Key('configuration-panel-toggle')));
+      await tester.pumpAndSettle();
 
-    await tester.tap(find.byKey(const Key('terminal-zoom-in')));
-    await tester.pump();
-    expect(
-      tester.widget<TerminalView>(find.byType(TerminalView)).textStyle.fontSize,
-      14,
-    );
+      await tester.tap(find.byKey(const Key('terminal-zoom-in')));
+      await tester.pump();
+      expect(
+        tester
+            .widget<TerminalView>(find.byType(TerminalView))
+            .textStyle
+            .fontSize,
+        14,
+      );
 
-    await tester.tap(find.byKey(const Key('terminal-zoom-reset')));
-    await tester.pump();
-    expect(
-      tester.widget<TerminalView>(find.byType(TerminalView)).textStyle.fontSize,
-      13,
-    );
-  });
+      await tester.tap(find.byKey(const Key('terminal-zoom-reset')));
+      await tester.pump();
+      expect(
+        tester
+            .widget<TerminalView>(find.byType(TerminalView))
+            .textStyle
+            .fontSize,
+        13,
+      );
+    },
+  );
 
   testWidgets('searches the scrollback and jumps back to current output', (
     tester,
@@ -259,7 +285,6 @@ void main() {
         ),
       ),
     );
-    await tester.tap(find.text('Send first'));
     await tester.pumpAndSettle();
 
     final lines = List.generate(
@@ -323,7 +348,6 @@ void main() {
         ),
       ),
     );
-    await tester.tap(find.text('Send first'));
     await tester.pumpAndSettle();
 
     expect(
@@ -407,7 +431,6 @@ void main() {
         ),
       ),
     );
-    await tester.tap(find.text('Send first'));
     await tester.pumpAndSettle();
 
     factory.backends.single.emit(
@@ -550,7 +573,6 @@ void main() {
     final controller = TerminalPanelScope.of(
       tester.element(find.byType(_FirstPage)),
     );
-    await controller.open();
     await tester.pumpAndSettle();
     expect(factory.backends, hasLength(1));
 

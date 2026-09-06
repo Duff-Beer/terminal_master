@@ -21,8 +21,6 @@ import 'terminal_mouse_overlay.dart';
 
 enum TerminalSplitOrientation { vertical, horizontal }
 
-enum TerminalStartupView { closed, sidePanel, maximized }
-
 class TerminalPaneData {
   final String id;
   final ShellProfile profile;
@@ -136,8 +134,7 @@ class TerminalPanelController extends ChangeNotifier {
   var _nextTabId = 1;
   var _nextPaneId = 1;
   late String _activeTabId;
-  bool _isOpen = false;
-  bool _isMaximized = false;
+  bool _isAttached = false;
   bool _isLoadingSavedTabs = true;
   String? _savedTabsError;
   double _fontSize = defaultFontSize;
@@ -153,10 +150,8 @@ class TerminalPanelController extends ChangeNotifier {
   TextEditingController get commandController => activePane.commandController;
   ShellProfile get activeProfile => activePane.profile;
 
-  bool get isOpen => _isOpen;
   bool get isLoadingSavedTabs => _isLoadingSavedTabs;
   String? get savedTabsError => _savedTabsError;
-  bool get isMaximized => _isMaximized;
   bool get isSearchOpen => activePane.isSearchOpen;
   bool get isSplit =>
       activeTab.isVerticallySplit || activeTab.isHorizontallySplit;
@@ -166,28 +161,10 @@ class TerminalPanelController extends ChangeNotifier {
   bool isPaneMaximized(String paneId) => activeTab.maximizedPaneId == paneId;
   double get fontSize => _fontSize;
 
-  Future<void> open({bool maximized = false}) async {
-    if (!_isOpen || (maximized && !_isMaximized)) {
-      _isOpen = true;
-      if (maximized) _isMaximized = true;
-      notifyListeners();
-    }
+  Future<void> attach() async {
+    if (_isAttached) return;
+    _isAttached = true;
     await Future.wait(visiblePanes.map(_startForDisplay));
-  }
-
-  void hide() {
-    if (!_isOpen) return;
-    _isOpen = false;
-    _isMaximized = false;
-    notifyListeners();
-  }
-
-  Future<void> toggle() => _isOpen ? Future.sync(hide) : open();
-
-  void toggleMaximized() {
-    if (!_isOpen) return;
-    _isMaximized = !_isMaximized;
-    notifyListeners();
   }
 
   void toggleSearch([String? paneId]) {
@@ -217,7 +194,7 @@ class TerminalPanelController extends ChangeNotifier {
       _activeTabId = tab.id;
     }
     notifyListeners();
-    if (_isOpen) await _startForDisplay(tab.primaryPane);
+    if (_isAttached && activate) await _startForDisplay(tab.primaryPane);
   }
 
   Future<void> createSshTab(SshConnectionProfile connection) {
@@ -352,7 +329,6 @@ class TerminalPanelController extends ChangeNotifier {
     }
     _tabs.add(tab);
     _activeTabId = tab.id;
-    _isOpen = true;
     notifyListeners();
     await Future.wait(tab.visiblePanes.map(_startForDisplay));
     return tab;
@@ -390,7 +366,7 @@ class TerminalPanelController extends ChangeNotifier {
     if (!_tabs.any((tab) => tab.id == tabId)) return;
     _activeTabId = tabId;
     notifyListeners();
-    if (_isOpen) {
+    if (_isAttached) {
       final tab = _tab(tabId);
       await Future.wait(tab.visiblePanes.map(_startForDisplay));
     }
@@ -441,7 +417,9 @@ class TerminalPanelController extends ChangeNotifier {
       tab.maximizedPaneId = null;
     }
     notifyListeners();
-    if (_isOpen) await Future.wait(tab.visiblePanes.map(_startForDisplay));
+    if (_isAttached) {
+      await Future.wait(tab.visiblePanes.map(_startForDisplay));
+    }
   }
 
   void closeTab(String tabId) {
@@ -462,7 +440,7 @@ class TerminalPanelController extends ChangeNotifier {
     pane.session.dispose();
     pane.session = _newSession(pane.profile);
     notifyListeners();
-    if (_isOpen && _isVisiblePane(activeTab, paneId)) {
+    if (_isAttached && _isVisiblePane(activeTab, paneId)) {
       await _startForDisplay(pane);
     }
   }
@@ -482,7 +460,6 @@ class TerminalPanelController extends ChangeNotifier {
 
   Future<void> insertCommand(String command) async {
     final pane = activePane;
-    _isOpen = true;
     final controller = pane.commandController;
     final current = controller.text;
     controller.text = current.isEmpty ? command : '$current\n$command';
@@ -510,7 +487,6 @@ class TerminalPanelController extends ChangeNotifier {
 
   Future<void> stageSavedCommand(String paneId, String command) async {
     final pane = _pane(paneId);
-    _isOpen = true;
     activeTab.focusedPaneId = pane.id;
     pane.commandController
       ..text = command
@@ -753,21 +729,44 @@ class TerminalPanelScope extends InheritedNotifier<TerminalPanelController> {
   }
 }
 
-class TerminalPanelToggleButton extends StatelessWidget {
-  const TerminalPanelToggleButton({super.key});
+class ConfigurationPanelController extends ChangeNotifier {
+  bool _isOpen = false;
 
-  @override
-  Widget build(BuildContext context) {
-    final controller = TerminalPanelScope.maybeOf(context);
-    if (controller == null) return const SizedBox.shrink();
-    return IconButton(
-      key: const Key('terminal-panel-toggle'),
-      icon: const Icon(Icons.terminal),
-      tooltip: controller.isOpen
-          ? 'Terminal einklappen'
-          : 'Terminal ausklappen',
-      onPressed: controller.toggle,
-    );
+  bool get isOpen => _isOpen;
+
+  void open() {
+    if (_isOpen) return;
+    _isOpen = true;
+    notifyListeners();
+  }
+
+  void close() {
+    if (!_isOpen) return;
+    _isOpen = false;
+    notifyListeners();
+  }
+
+  void toggle() => _isOpen ? close() : open();
+}
+
+class ConfigurationPanelScope
+    extends InheritedNotifier<ConfigurationPanelController> {
+  const ConfigurationPanelScope({
+    super.key,
+    required ConfigurationPanelController controller,
+    required super.child,
+  }) : super(notifier: controller);
+
+  static ConfigurationPanelController of(BuildContext context) {
+    final scope = maybeOf(context);
+    assert(scope != null, 'ConfigurationPanelScope fehlt im Widget-Baum.');
+    return scope!;
+  }
+
+  static ConfigurationPanelController? maybeOf(BuildContext context) {
+    return context
+        .dependOnInheritedWidgetOfExactType<ConfigurationPanelScope>()
+        ?.notifier;
   }
 }
 
@@ -776,7 +775,6 @@ class TerminalWorkspace extends StatefulWidget {
   final GlobalKey<NavigatorState> navigatorKey;
   final List<ShellProfile>? profiles;
   final SavedTerminalTabStore? savedTabStore;
-  final TerminalStartupView startupView;
   final Widget child;
 
   const TerminalWorkspace({
@@ -785,7 +783,6 @@ class TerminalWorkspace extends StatefulWidget {
     required this.navigatorKey,
     this.profiles,
     this.savedTabStore,
-    this.startupView = TerminalStartupView.closed,
     required this.child,
   });
 
@@ -795,7 +792,8 @@ class TerminalWorkspace extends StatefulWidget {
 
 class _TerminalWorkspaceState extends State<TerminalWorkspace> {
   late final TerminalPanelController _controller;
-  double _panelWidth = 520;
+  late final ConfigurationPanelController _configurationController;
+  final _configurationFocusNode = FocusNode();
 
   @override
   void initState() {
@@ -806,20 +804,27 @@ class _TerminalWorkspaceState extends State<TerminalWorkspace> {
       profiles: widget.profiles,
       savedTabStore: widget.savedTabStore ?? MemorySavedTerminalTabStore(),
     );
-    switch (widget.startupView) {
-      case TerminalStartupView.closed:
-        break;
-      case TerminalStartupView.sidePanel:
-        unawaited(_controller.open());
-        break;
-      case TerminalStartupView.maximized:
-        unawaited(_controller.open(maximized: true));
-        break;
-    }
+    _configurationController = ConfigurationPanelController()
+      ..addListener(_handleConfigurationVisibility);
+    unawaited(_controller.attach());
+  }
+
+  void _handleConfigurationVisibility() {
+    if (!_configurationController.isOpen) return;
+    FocusManager.instance.primaryFocus?.unfocus();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _configurationController.isOpen) {
+        _configurationFocusNode.requestFocus();
+      }
+    });
   }
 
   @override
   void dispose() {
+    _configurationController
+      ..removeListener(_handleConfigurationVisibility)
+      ..dispose();
+    _configurationFocusNode.dispose();
     _controller.dispose();
     super.dispose();
   }
@@ -828,70 +833,133 @@ class _TerminalWorkspaceState extends State<TerminalWorkspace> {
   Widget build(BuildContext context) {
     return TerminalPanelScope(
       controller: _controller,
-      child: AnimatedBuilder(
-        animation: _controller,
-        builder: (context, child) => LayoutBuilder(
-          builder: (context, constraints) {
-            final maxPanelWidth = constraints.maxWidth * 0.7;
-            final minPanelWidth = maxPanelWidth < 280 ? maxPanelWidth : 280.0;
-            final panelWidth = _controller.isMaximized
-                ? constraints.maxWidth
-                : _panelWidth.clamp(minPanelWidth, maxPanelWidth);
-            final reservedPanelWidth =
-                _controller.isOpen && !_controller.isMaximized
-                ? panelWidth + 6
-                : 0.0;
-            return Stack(
-              children: [
-                Positioned(
-                  top: 0,
-                  bottom: 0,
-                  left: 0,
-                  right: reservedPanelWidth,
-                  child: widget.child,
-                ),
-                Positioned(
-                  top: 0,
-                  bottom: 0,
-                  right: 0,
-                  width: panelWidth,
-                  child: Offstage(
-                    offstage: !_controller.isOpen,
-                    child: IgnorePointer(
-                      ignoring: !_controller.isOpen,
-                      child: SizedBox(
-                        key: const Key('terminal-side-panel'),
-                        child: Material(
-                          color: TerminalMasterColors.background,
-                          child: TerminalPanel(controller: _controller),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-                if (_controller.isOpen && !_controller.isMaximized)
-                  Positioned(
-                    top: 0,
-                    bottom: 0,
-                    right: panelWidth,
-                    width: 6,
-                    child: MouseRegion(
-                      cursor: SystemMouseCursors.resizeColumn,
-                      child: GestureDetector(
-                        behavior: HitTestBehavior.opaque,
-                        onHorizontalDragUpdate: (details) {
-                          setState(() {
-                            _panelWidth = (_panelWidth - details.delta.dx)
-                                .clamp(minPanelWidth, maxPanelWidth);
-                          });
-                        },
-                        child: Container(color: TerminalMasterColors.border),
-                      ),
-                    ),
-                  ),
-              ],
-            );
+      child: ConfigurationPanelScope(
+        controller: _configurationController,
+        child: CallbackShortcuts(
+          bindings: {
+            const SingleActivator(LogicalKeyboardKey.keyB, control: true):
+                _configurationController.toggle,
+            const SingleActivator(LogicalKeyboardKey.keyB, meta: true):
+                _configurationController.toggle,
+            const SingleActivator(LogicalKeyboardKey.escape): () {
+              if (_configurationController.isOpen) {
+                _configurationController.close();
+              }
+            },
           },
+          child: AnimatedBuilder(
+            animation: Listenable.merge([
+              _controller,
+              _configurationController,
+            ]),
+            builder: (context, child) => Row(
+              children: [
+                _ConfigurationToolRail(controller: _configurationController),
+                Expanded(
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      final drawerWidth = constraints.maxWidth < 640
+                          ? constraints.maxWidth
+                          : 420.0;
+                      return Stack(
+                        children: [
+                          Positioned.fill(
+                            child: SizedBox(
+                              key: const Key('terminal-workspace'),
+                              child: Material(
+                                color: TerminalMasterColors.background,
+                                child: TerminalPanel(controller: _controller),
+                              ),
+                            ),
+                          ),
+                          Positioned.fill(
+                            child: IgnorePointer(
+                              ignoring: !_configurationController.isOpen,
+                              child: GestureDetector(
+                                key: const Key('configuration-panel-barrier'),
+                                behavior: HitTestBehavior.opaque,
+                                onTap: _configurationController.close,
+                              ),
+                            ),
+                          ),
+                          Positioned(
+                            top: 0,
+                            bottom: 0,
+                            left: 0,
+                            width: drawerWidth,
+                            child: ClipRect(
+                              child: AnimatedSlide(
+                                duration: const Duration(milliseconds: 180),
+                                curve: Curves.easeOutCubic,
+                                offset: _configurationController.isOpen
+                                    ? Offset.zero
+                                    : const Offset(-1, 0),
+                                child: IgnorePointer(
+                                  ignoring: !_configurationController.isOpen,
+                                  child: Focus(
+                                    focusNode: _configurationFocusNode,
+                                    child: Material(
+                                      key: const Key('configuration-panel'),
+                                      color: TerminalMasterColors.surface,
+                                      elevation: 16,
+                                      shadowColor: Colors.black87,
+                                      child: widget.child,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ConfigurationToolRail extends StatelessWidget {
+  final ConfigurationPanelController controller;
+
+  const _ConfigurationToolRail({required this.controller});
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      key: const Key('workspace-tool-rail'),
+      width: 48,
+      child: ColoredBox(
+        color: TerminalMasterColors.surfaceRaised,
+        child: Column(
+          children: [
+            SizedBox(
+              height: 48,
+              child: IconButton(
+                key: const Key('configuration-panel-toggle'),
+                tooltip: controller.isOpen
+                    ? 'Konfigurationen schließen'
+                    : 'Konfigurationen öffnen',
+                onPressed: controller.toggle,
+                icon: Icon(
+                  controller.isOpen ? Icons.menu_open : Icons.tune,
+                  color: controller.isOpen ? TerminalMasterColors.green : null,
+                ),
+              ),
+            ),
+            if (controller.isOpen)
+              Container(
+                key: const Key('configuration-panel-active-indicator'),
+                width: 24,
+                height: 2,
+                color: TerminalMasterColors.green,
+              ),
+          ],
         ),
       ),
     );
@@ -955,23 +1023,6 @@ class TerminalPanel extends StatelessWidget {
                   onPressed: () => controller.restartPane(pane.id),
                   icon: const Icon(Icons.restart_alt),
                 ),
-              IconButton(
-                key: const Key('maximize-terminal-panel'),
-                visualDensity: VisualDensity.compact,
-                constraints: const BoxConstraints.tightFor(
-                  width: 40,
-                  height: 40,
-                ),
-                tooltip: controller.isMaximized
-                    ? 'Terminal verkleinern'
-                    : 'Terminal maximieren',
-                onPressed: controller.toggleMaximized,
-                icon: Icon(
-                  controller.isMaximized
-                      ? Icons.fullscreen_exit
-                      : Icons.fullscreen,
-                ),
-              ),
               if (session.status != TerminalSessionStatus.exited &&
                   session.status != TerminalSessionStatus.failed)
                 IconButton(
@@ -986,16 +1037,6 @@ class TerminalPanel extends StatelessWidget {
                       : null,
                   icon: const Icon(Icons.stop_circle_outlined),
                 ),
-              IconButton(
-                key: const Key('hide-terminal-panel'),
-                visualDensity: VisualDensity.compact,
-                constraints: const BoxConstraints.tightFor(
-                  width: 40,
-                  height: 40,
-                ),
-                onPressed: controller.hide,
-                icon: const Icon(Icons.chevron_right),
-              ),
             ],
           ),
         ),
@@ -2459,10 +2500,6 @@ class _TerminalPaneState extends State<TerminalPane> {
         HardwareKeyboard.instance.isControlPressed ||
         HardwareKeyboard.instance.isMetaPressed;
 
-    if (key == LogicalKeyboardKey.f11) {
-      widget.panelController.toggleMaximized();
-      return KeyEventResult.handled;
-    }
     if (isShortcut && key == LogicalKeyboardKey.keyF) {
       widget.panelController.openSearch(widget.pane.id);
       return KeyEventResult.handled;

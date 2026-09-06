@@ -389,8 +389,8 @@ class _SshConnectionsPageState extends State<SshConnectionsPage> {
       if (!mounted) return;
       final controller = TerminalPanelScope.of(context);
       await controller.createSshTab(profile);
-      await controller.open();
       await _load();
+      if (mounted) ConfigurationPanelScope.maybeOf(context)?.close();
     } on Object catch (error) {
       if (mounted) {
         showOutputDialog(context, 'SSH-Verbindung fehlgeschlagen: $error');
@@ -573,7 +573,6 @@ class _SshConnectionsPageState extends State<SshConnectionsPage> {
                 : _exportBackup,
             icon: const Icon(Icons.file_upload_outlined),
           ),
-          const TerminalPanelToggleButton(),
         ],
       ),
       body: _loading

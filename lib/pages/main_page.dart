@@ -8,7 +8,6 @@ import '../services/ssh_host_key_verifier.dart';
 import '../utils/config_loader.dart';
 import '../widgets/config_tile.dart';
 import '../widgets/output_dialog.dart';
-import '../widgets/terminal_panel.dart';
 import 'command_generator_page.dart';
 import 'batch_command_page.dart';
 import 'ssh_connections_page.dart';
@@ -100,18 +99,6 @@ class _MainPageState extends State<MainPage> {
       appBar: AppBar(
         title: const Text('Terminal Master'),
         actions: [
-          SizedBox(
-            width: 200,
-            child: TextField(
-              controller: _controller,
-              decoration: const InputDecoration(
-                hintText: 'Suchen...',
-                isDense: true,
-                border: InputBorder.none,
-              ),
-            ),
-          ),
-          const TerminalPanelToggleButton(),
           IconButton(
             key: const Key('open-ssh-connections'),
             icon: const Icon(Icons.dns_outlined),
@@ -127,35 +114,58 @@ class _MainPageState extends State<MainPage> {
               ),
             ),
           ),
-          IconButton(
-            icon: const Icon(Icons.folder),
-            tooltip: 'Im Finder anzeigen',
-            onPressed: _openDirectory,
-          ),
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            tooltip: 'Erneuern',
-            onPressed: _loadConfigs,
-          ),
         ],
       ),
       body: Column(
         children: [
           Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: InkWell(
-              onTap: () {
-                Clipboard.setData(ClipboardData(text: widget.displayPath));
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Pfad in die Zwischenablage kopiert'),
-                  ),
-                );
-              },
-              child: Text(
-                'Config Directory: ${widget.displayPath}',
-                style: const TextStyle(decoration: TextDecoration.underline),
+            padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
+            child: TextField(
+              controller: _controller,
+              decoration: const InputDecoration(
+                hintText: 'Konfigurationen durchsuchen',
+                prefixIcon: Icon(Icons.search),
+                isDense: true,
               ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 4, 4, 4),
+            child: Row(
+              children: [
+                Expanded(
+                  child: InkWell(
+                    onTap: () {
+                      Clipboard.setData(
+                        ClipboardData(text: widget.displayPath),
+                      );
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Pfad in die Zwischenablage kopiert'),
+                        ),
+                      );
+                    },
+                    child: Text(
+                      widget.displayPath,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        decoration: TextDecoration.underline,
+                      ),
+                    ),
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.folder_outlined),
+                  tooltip: 'Im Finder anzeigen',
+                  onPressed: _openDirectory,
+                ),
+                IconButton(
+                  icon: const Icon(Icons.refresh),
+                  tooltip: 'Erneuern',
+                  onPressed: _loadConfigs,
+                ),
+              ],
             ),
           ),
           Expanded(

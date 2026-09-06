@@ -182,6 +182,7 @@ class _CommandGeneratorPageState extends State<CommandGeneratorPage> {
     try {
       if (_useIntegratedTerminal) {
         await TerminalPanelScope.of(context).insertCommand(command);
+        if (mounted) ConfigurationPanelScope.maybeOf(context)?.close();
         return;
       }
       final approved = await showCommandConfirmationDialog(
@@ -232,10 +233,7 @@ class _CommandGeneratorPageState extends State<CommandGeneratorPage> {
 
     final config = _config!;
     return Scaffold(
-      appBar: AppBar(
-        title: Text(config.displayName),
-        actions: const [TerminalPanelToggleButton()],
-      ),
+      appBar: AppBar(title: Text(config.displayName)),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [

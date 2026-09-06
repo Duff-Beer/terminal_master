@@ -7,7 +7,9 @@ import 'package:terminal_master/app.dart';
 import 'support/fake_terminal_backend.dart';
 
 void main() {
-  testWidgets('opens the terminal maximized at startup', (tester) async {
+  testWidgets('opens config over the persistent terminal workspace', (
+    tester,
+  ) async {
     tester.view.physicalSize = const Size(1200, 800);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
@@ -29,9 +31,40 @@ void main() {
 
     expect(factory.backends, hasLength(1));
     expect(
-      tester.getSize(find.byKey(const Key('terminal-side-panel'))).width,
-      1200,
+      tester.getSize(find.byKey(const Key('workspace-tool-rail'))).width,
+      48,
     );
-    expect(find.byKey(const Key('maximize-terminal-panel')), findsOneWidget);
+    expect(
+      tester.getSize(find.byKey(const Key('terminal-workspace'))).width,
+      1152,
+    );
+    expect(
+      find.byKey(const Key('configuration-panel')).hitTestable(),
+      findsNothing,
+    );
+    expect(find.byKey(const Key('maximize-terminal-panel')), findsNothing);
+    expect(find.byKey(const Key('hide-terminal-panel')), findsNothing);
+
+    await tester.tap(find.byKey(const Key('configuration-panel-toggle')));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const Key('configuration-panel')).hitTestable(),
+      findsOneWidget,
+    );
+    expect(find.text('No config files found').hitTestable(), findsOneWidget);
+    expect(factory.backends, hasLength(1));
+    expect(
+      tester.getSize(find.byKey(const Key('terminal-workspace'))).width,
+      1152,
+    );
+
+    await tester.tap(find.byKey(const Key('configuration-panel-barrier')));
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const Key('configuration-panel')).hitTestable(),
+      findsNothing,
+    );
+    expect(factory.backends, hasLength(1));
   });
 }

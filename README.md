@@ -5,12 +5,12 @@ commands from reusable YAML definitions. It keeps command options discoverable,
 checks conditional input requirements, and asks for explicit confirmation before
 returning commands marked as risky.
 
-Commands can run in a persistent, resizable `xterm` side panel backed by a
-native pseudo terminal (`flutter_pty`). The panel stays active while navigating
-between YAML definitions, and the configured external terminal remains
-available as a fallback. It can be maximized inside the app and provides font
-zoom, highlighted scrollback search, a visible scrollbar, and a shortcut back
-to the latest output.
+Commands run in a persistent `xterm` workspace backed by a native pseudo
+terminal (`flutter_pty`). The terminal is the primary view; a slim tool rail
+opens YAML configuration pages in an overlay without resizing running terminal
+applications. The configured external terminal remains available as a fallback.
+The workspace provides font zoom, highlighted scrollback search, a visible
+scrollbar, and a shortcut back to the latest output.
 
 Generated commands are collected in the panel's editable command field without
 an execution confirmation. This allows commands from multiple YAML definitions
@@ -25,8 +25,8 @@ background; sessions in other tabs remain active as well.
 Terminal keyboard shortcuts use `Cmd` on macOS and `Ctrl` on Windows/Linux:
 
 - `Cmd/Ctrl+F`: search the scrollback
+- `Cmd/Ctrl+B`: open or close the configuration overlay
 - `Cmd/Ctrl++`, `Cmd/Ctrl+-`, `Cmd/Ctrl+0`: adjust or reset the font size
-- `F11`: maximize or restore the terminal panel
 
 The PTY advertises `xterm-256color` and `COLORTERM=truecolor`. The renderer
 supports ANSI styles, 16/256/24-bit colors, wide Unicode characters, and system

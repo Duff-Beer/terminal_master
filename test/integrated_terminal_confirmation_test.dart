@@ -43,7 +43,15 @@ parameters:
         ),
       ),
     );
-    await tester.enterText(find.byType(TextField), 'hello');
+    await tester.tap(find.byKey(const Key('configuration-panel-toggle')));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.descendant(
+        of: find.byKey(const Key('parameter-message')),
+        matching: find.byType(TextField),
+      ),
+      'hello',
+    );
     await tester.tap(find.text('Ins Terminal einfügen'));
     await tester.pumpAndSettle();
 
@@ -55,15 +63,19 @@ parameters:
     );
     expect(input.controller!.text, 'echo hello');
     expect(find.text('Echo test'), findsOneWidget);
-    expect(find.byKey(const Key('terminal-side-panel')), findsOneWidget);
+    expect(find.byKey(const Key('terminal-workspace')), findsOneWidget);
+    expect(
+      find.byKey(const Key('configuration-panel')).hitTestable(),
+      findsNothing,
+    );
 
-    await tester.tap(find.byKey(const Key('hide-terminal-panel')));
-    await tester.pump();
-    expect(find.byKey(const Key('terminal-side-panel')), findsNothing);
-
-    await tester.tap(find.byKey(const Key('terminal-panel-toggle')));
-    await tester.pump();
-    expect(find.byKey(const Key('terminal-side-panel')), findsOneWidget);
+    await tester.tap(find.byKey(const Key('configuration-panel-toggle')));
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const Key('configuration-panel')).hitTestable(),
+      findsOneWidget,
+    );
+    expect(find.text('Echo test').hitTestable(), findsOneWidget);
     final reopenedInput = tester.widget<TextField>(
       find.byKey(const Key('terminal-command-input')),
     );
