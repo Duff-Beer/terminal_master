@@ -212,12 +212,17 @@ class _BatchCommandPageState extends State<BatchCommandPage> {
               itemCount: _commands.length,
               itemBuilder: (context, index) {
                 final command = _commands[index];
-                return ListTile(
-                  title: Text(command.title),
-                  subtitle: Text(command.description),
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
+                return ExpansionTile(
+                  key: Key('batch-command-$index'),
+                  title: Row(
                     children: [
+                      Expanded(
+                        child: Text(
+                          command.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
                       IconButton(
                         key: Key('stage-batch-command-$index'),
                         icon: const Icon(Icons.play_arrow),
@@ -226,33 +231,53 @@ class _BatchCommandPageState extends State<BatchCommandPage> {
                             ? null
                             : () => _stageCommand(command),
                       ),
-                      IconButton(
-                        key: Key('copy-batch-command-$index'),
-                        icon: const Icon(Icons.copy),
-                        tooltip: 'Befehl kopieren',
-                        onPressed: () {
-                          Clipboard.setData(
-                            ClipboardData(text: command.command),
-                          );
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text(
-                                'Befehl in die Zwischenablage kopiert',
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-                      IconButton(
-                        key: Key('delete-batch-command-$index'),
-                        icon: const Icon(Icons.delete_outline),
-                        tooltip: 'Batch Command löschen',
-                        onPressed: _isStaging || _isMutating
-                            ? null
-                            : () => _deleteCommand(index),
-                      ),
                     ],
                   ),
+                  trailing: const SizedBox.shrink(),
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 0, 8, 8),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          SizedBox(
+                            width: double.infinity,
+                            child: Text(command.description),
+                          ),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.end,
+                            children: [
+                              IconButton(
+                                key: Key('copy-batch-command-$index'),
+                                icon: const Icon(Icons.copy),
+                                tooltip: 'Befehl kopieren',
+                                onPressed: () {
+                                  Clipboard.setData(
+                                    ClipboardData(text: command.command),
+                                  );
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text(
+                                        'Befehl in die Zwischenablage kopiert',
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                              IconButton(
+                                key: Key('delete-batch-command-$index'),
+                                icon: const Icon(Icons.delete_outline),
+                                tooltip: 'Batch Command löschen',
+                                onPressed: _isStaging || _isMutating
+                                    ? null
+                                    : () => _deleteCommand(index),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 );
               },
             ),

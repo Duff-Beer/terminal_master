@@ -153,11 +153,12 @@ the last remaining option and entries referenced by defaults or conditions are
 protected from deletion.
 
 Batch command views also support persistent editing. The add action stores a
-title, optional description, and command in the current batch YAML file. Each
-row provides play, copy, and delete actions. Play stages that command in the
-editable field of the internal terminal without executing it immediately;
-delete requires confirmation. Mutations validate the updated YAML and preserve
-the previous source in a `.bak` file.
+title, optional description, and command in the current batch YAML file. Rows
+always show their title and play action without a separate expansion arrow.
+Clicking the row reveals its description plus copy and delete actions. Play
+stages that command in the editable field of the internal terminal without
+executing it immediately; delete requires confirmation. Mutations validate the
+updated YAML and preserve the previous source in a `.bak` file.
 
 ## Command Blocks
 

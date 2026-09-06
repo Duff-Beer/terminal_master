@@ -120,6 +120,7 @@ commands:
     expect(find.byType(CheckboxListTile), findsNothing);
     expect(find.byType(SwitchListTile), findsNothing);
     expect(find.byType(FloatingActionButton), findsNothing);
+    expect(find.text('Show current directory'), findsNothing);
     await tester.tap(find.byKey(const Key('stage-batch-command-0')));
     await tester.pumpAndSettle();
 
