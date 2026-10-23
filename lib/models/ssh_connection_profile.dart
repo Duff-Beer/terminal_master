@@ -1,3 +1,5 @@
+import 'persisted_data_exception.dart';
+
 enum SshAuthenticationType { password, privateKey }
 
 class SshConnectionProfile {
@@ -70,7 +72,9 @@ class SshConnectionProfile {
     final authenticationType = switch (authenticationTypeValue) {
       null || 'password' => SshAuthenticationType.password,
       'privateKey' => SshAuthenticationType.privateKey,
-      _ => throw const FormatException('Ungültige SSH-Authentifizierung.'),
+      _ => throw const PersistedDataException(
+        PersistedDataProblem.invalidSshAuthentication,
+      ),
     };
     if (id is! String ||
         id.trim().isEmpty ||
@@ -95,13 +99,17 @@ class SshConnectionProfile {
             (privateKeyPath is! String || privateKeyPath.trim().isEmpty)) ||
         (authenticationType == SshAuthenticationType.password &&
             privateKeyPath != null)) {
-      throw const FormatException('Ungültiges SSH-Verbindungsprofil.');
+      throw const PersistedDataException(
+        PersistedDataProblem.invalidSshProfile,
+      );
     }
     final hostKeyType = json['hostKeyType'];
     final hostKeyFingerprint = json['hostKeyFingerprint'];
     if ((hostKeyType != null && hostKeyType is! String) ||
         (hostKeyFingerprint != null && hostKeyFingerprint is! String)) {
-      throw const FormatException('Ungültiger SSH-Host-Key.');
+      throw const PersistedDataException(
+        PersistedDataProblem.invalidSshHostKey,
+      );
     }
     return SshConnectionProfile(
       id: id.trim(),

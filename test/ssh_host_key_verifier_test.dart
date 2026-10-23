@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+import 'support/localized_app.dart';
 import 'package:terminal_master/models/ssh_connection_profile.dart';
 import 'package:terminal_master/services/ssh_connection_profile_store.dart';
 import 'package:terminal_master/services/ssh_host_key_verifier.dart';
@@ -20,7 +22,7 @@ void main() {
     late final DialogSshHostKeyVerifier verifier;
     bool? result;
     await tester.pumpWidget(
-      MaterialApp(
+      localizedApp(
         navigatorKey: navigatorKey,
         home: Builder(
           builder: (context) => ElevatedButton(
@@ -69,7 +71,7 @@ void main() {
     late final DialogSshHostKeyVerifier verifier;
     bool? result;
     await tester.pumpWidget(
-      MaterialApp(
+      localizedApp(
         navigatorKey: navigatorKey,
         home: Builder(
           builder: (context) => ElevatedButton(
@@ -115,7 +117,7 @@ void main() {
     late final DialogSshHostKeyVerifier verifier;
     bool? result;
     await tester.pumpWidget(
-      MaterialApp(
+      localizedApp(
         navigatorKey: navigatorKey,
         home: Builder(
           builder: (context) => ElevatedButton(

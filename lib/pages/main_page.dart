@@ -1,6 +1,8 @@
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import '../l10n/app_localizations.dart';
+import '../l10n/error_presenter.dart';
 import '../utils/settings_loader.dart';
 import '../models/config_item.dart';
 import '../utils/config_loader.dart';
@@ -47,16 +49,28 @@ class _MainPageState extends State<MainPage> {
   @override
   void initState() {
     super.initState();
-    _loadConfigs();
     _controller.addListener(_onSearch);
-    widget.yamlDirectoryPath?.addListener(_loadConfigs);
+    widget.yamlDirectoryPath?.addListener(_reloadConfigs);
   }
 
-  void _loadConfigs() {
-    _all = ConfigLoader.loadConfigs(_directoryPath);
-    _filtered = List.from(_all);
-    setState(() {});
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Not initState: the templates' titles and descriptions come from the YAML
+    // files and are resolved per language, so the list has to be read with the
+    // active locale available — and re-read whenever that locale changes.
+    _readConfigs();
   }
+
+  void _readConfigs() {
+    _all = ConfigLoader.loadConfigs(
+      _directoryPath,
+      languageCode: Localizations.localeOf(context).languageCode,
+    );
+    _filtered = List.from(_all);
+  }
+
+  void _reloadConfigs() => setState(_readConfigs);
 
   void _onSearch() {
     final q = _controller.text.trim().toLowerCase();
@@ -73,14 +87,19 @@ class _MainPageState extends State<MainPage> {
       await Process.run(SettingsLoader.fileManagerCommand, [directory.path]);
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Verzeichnis nicht gefunden.')),
+        SnackBar(
+          content: Text(AppLocalizations.of(context).mainDirectoryNotFound),
+        ),
       );
     }
   }
 
   void _openItem(ConfigItem item) {
-    if (item.error != null) {
-      showOutputDialog(context, item.error!);
+    if (item.error case final error?) {
+      showOutputDialog(
+        context,
+        localizeError(AppLocalizations.of(context), error),
+      );
       return;
     }
     Navigator.push(
@@ -96,24 +115,25 @@ class _MainPageState extends State<MainPage> {
   @override
   void dispose() {
     _controller.removeListener(_onSearch);
-    widget.yamlDirectoryPath?.removeListener(_loadConfigs);
+    widget.yamlDirectoryPath?.removeListener(_reloadConfigs);
     _controller.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Scaffold(
-      appBar: AppBar(title: const Text('Command Builder')),
+      appBar: AppBar(title: Text(l10n.mainTitle)),
       body: Column(
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
             child: TextField(
               controller: _controller,
-              decoration: const InputDecoration(
-                hintText: 'Vorlagen durchsuchen',
-                prefixIcon: Icon(Icons.search),
+              decoration: InputDecoration(
+                hintText: l10n.mainSearchHint,
+                prefixIcon: const Icon(Icons.search),
                 isDense: true,
               ),
             ),
@@ -127,9 +147,7 @@ class _MainPageState extends State<MainPage> {
                     onTap: () {
                       Clipboard.setData(ClipboardData(text: _directoryPath));
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Pfad in die Zwischenablage kopiert'),
-                        ),
+                        SnackBar(content: Text(l10n.mainPathCopied)),
                       );
                     },
                     child: Text(
@@ -144,20 +162,20 @@ class _MainPageState extends State<MainPage> {
                 ),
                 IconButton(
                   icon: const Icon(Icons.folder_outlined),
-                  tooltip: 'Im Finder anzeigen',
+                  tooltip: l10n.mainRevealInFileManager,
                   onPressed: _openDirectory,
                 ),
                 IconButton(
                   icon: const Icon(Icons.refresh),
-                  tooltip: 'Erneuern',
-                  onPressed: _loadConfigs,
+                  tooltip: l10n.mainRefresh,
+                  onPressed: _reloadConfigs,
                 ),
               ],
             ),
           ),
           Expanded(
             child: _filtered.isEmpty
-                ? const Center(child: Text('No config files found'))
+                ? Center(child: Text(l10n.mainNoConfigFiles))
                 : ListView(children: _buildMenuItems()),
           ),
         ],

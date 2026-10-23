@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../l10n/app_localizations.dart';
 import '../models/command_config.dart';
 
 class SearchableOptionsField extends StatelessWidget {
@@ -27,6 +28,7 @@ class SearchableOptionsField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final selected = options
         .where((option) => option.value == value)
         .firstOrNull;
@@ -47,8 +49,8 @@ class SearchableOptionsField extends StatelessWidget {
           child: Text(
             selected == null
                 ? required
-                      ? 'Bitte auswählen'
-                      : 'Nicht verwenden'
+                      ? l10n.optionsPleaseSelect
+                      : l10n.optionsNotUsed
                 : '${selected.value}: ${selected.description}',
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
@@ -157,6 +159,7 @@ class _SearchableOptionsDialogState extends State<_SearchableOptionsDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final options = _filteredOptions;
     return Shortcuts(
       shortcuts: const {
@@ -201,9 +204,9 @@ class _SearchableOptionsDialogState extends State<_SearchableOptionsDialog> {
                     controller: _searchController,
                     focusNode: _searchFocusNode,
                     autofocus: true,
-                    decoration: const InputDecoration(
-                      prefixIcon: Icon(Icons.search),
-                      hintText: 'Wert oder Beschreibung durchsuchen',
+                    decoration: InputDecoration(
+                      prefixIcon: const Icon(Icons.search),
+                      hintText: l10n.optionsSearchHint,
                       isDense: true,
                     ),
                     onChanged: (value) {
@@ -217,9 +220,9 @@ class _SearchableOptionsDialogState extends State<_SearchableOptionsDialog> {
                   const SizedBox(height: 12),
                   Flexible(
                     child: _selectionCount == 0
-                        ? const Padding(
-                            padding: EdgeInsets.symmetric(vertical: 32),
-                            child: Text('Keine Treffer'),
+                        ? Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 32),
+                            child: Text(l10n.optionsNoMatches),
                           )
                         : ListView.builder(
                             key: const Key('searchable-options-results'),
@@ -231,7 +234,9 @@ class _SearchableOptionsDialogState extends State<_SearchableOptionsDialog> {
                               if (!widget.required && index == 0) {
                                 return _optionTile(
                                   index: index,
-                                  title: 'Nicht verwenden',
+                                  title: l10n.optionsNotUsed,
+                                  // Keys must not shift with the UI language.
+                                  keyValue: 'none',
                                   selected: _selectedValue == null,
                                   onTap: () => Navigator.pop(
                                     context,
@@ -240,9 +245,13 @@ class _SearchableOptionsDialogState extends State<_SearchableOptionsDialog> {
                                 );
                               }
                               if (options.isEmpty) {
-                                return const Padding(
-                                  padding: EdgeInsets.symmetric(vertical: 24),
-                                  child: Center(child: Text('Keine Treffer')),
+                                return Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 24,
+                                  ),
+                                  child: Center(
+                                    child: Text(l10n.optionsNoMatches),
+                                  ),
                                 );
                               }
                               final option =
@@ -276,11 +285,11 @@ class _SearchableOptionsDialogState extends State<_SearchableOptionsDialog> {
                 key: const Key('add-searchable-option'),
                 onPressed: _isMutating ? null : _addOption,
                 icon: const Icon(Icons.add),
-                label: const Text('Eintrag hinzufügen'),
+                label: Text(l10n.optionsAddEntry),
               ),
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text('Abbrechen'),
+              child: Text(l10n.commonCancel),
             ),
           ],
         ),
@@ -295,9 +304,10 @@ class _SearchableOptionsDialogState extends State<_SearchableOptionsDialog> {
     required bool selected,
     required VoidCallback onTap,
     VoidCallback? onDelete,
+    String? keyValue,
   }) {
     return ListTile(
-      key: Key('searchable-option-$title'),
+      key: Key('searchable-option-${keyValue ?? title}'),
       dense: true,
       selected: index == _highlightedIndex,
       leading: Icon(
@@ -309,8 +319,8 @@ class _SearchableOptionsDialogState extends State<_SearchableOptionsDialog> {
       trailing: onDelete == null
           ? null
           : IconButton(
-              key: Key('delete-searchable-option-$title'),
-              tooltip: 'Eintrag löschen',
+              key: Key('delete-searchable-option-${keyValue ?? title}'),
+              tooltip: AppLocalizations.of(context).optionsDeleteEntry,
               onPressed: onDelete,
               icon: const Icon(Icons.delete_outline),
             ),
@@ -367,22 +377,21 @@ class _SearchableOptionsDialogState extends State<_SearchableOptionsDialog> {
   }
 
   Future<void> _confirmDeleteOption(CommandOption option) async {
+    final l10n = AppLocalizations.of(context);
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Eintrag löschen?'),
-        content: Text(
-          'Soll „${option.value}“ dauerhaft aus der YAML-Datei gelöscht werden?',
-        ),
+        title: Text(l10n.optionsDeleteTitle),
+        content: Text(l10n.optionsDeleteMessage(option.value)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Abbrechen'),
+            child: Text(l10n.commonCancel),
           ),
           FilledButton(
             key: const Key('confirm-delete-option'),
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Löschen'),
+            child: Text(l10n.commonDelete),
           ),
         ],
       ),

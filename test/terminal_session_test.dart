@@ -196,7 +196,13 @@ void main() {
     expect(trackedPayload, isNot(contains(successful.marker)));
     expect(
       () => session.sendTrackedCommand('echo too-early'),
-      throwsStateError,
+      throwsA(
+        isA<TerminalSessionException>().having(
+          (error) => error.failure,
+          'failure',
+          TerminalSessionFailure.trackedCommandAlreadyRunning,
+        ),
+      ),
     );
 
     factory.backends.single.emit(
@@ -467,11 +473,20 @@ void main() {
     addTearDown(session.dispose);
     await session.start();
 
-    await expectLater(session.stop(), throwsStateError);
+    await expectLater(
+      session.stop(),
+      throwsA(
+        isA<TerminalSessionException>().having(
+          (error) => error.failure,
+          'failure',
+          TerminalSessionFailure.processCouldNotBeTerminated,
+        ),
+      ),
+    );
 
     expect(session.status, TerminalSessionStatus.failed);
     expect(session.isRunning, isTrue);
-    expect(session.error, contains('nicht beendet'));
+    expect(session.error, contains('could not be terminated'));
   });
 }
 

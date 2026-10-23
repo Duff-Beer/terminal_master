@@ -2,6 +2,8 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+import 'support/localized_app.dart';
 import 'package:terminal_master/pages/command_generator_page.dart';
 
 void main() {
@@ -39,7 +41,7 @@ parameters:
 ''');
 
     await tester.pumpWidget(
-      MaterialApp(home: CommandGeneratorPage(configPath: config.path)),
+      localizedApp(home: CommandGeneratorPage(configPath: config.path)),
     );
 
     expect(find.text('advanced_value'), findsNothing);

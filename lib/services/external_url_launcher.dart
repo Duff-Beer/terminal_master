@@ -1,12 +1,14 @@
 import 'dart:io';
 
+import 'service_exception.dart';
+
 abstract final class ExternalUrlLauncher {
   static bool isSupported(Uri uri) =>
       uri.hasScheme && const {'http', 'https', 'mailto'}.contains(uri.scheme);
 
   static Future<void> open(Uri uri) async {
     if (!isSupported(uri)) {
-      throw UnsupportedError('Nicht unterstützter Link: $uri');
+      throw ServiceException(ServiceFailure.unsupportedLink, '$uri');
     }
 
     if (Platform.isMacOS) {
@@ -28,6 +30,6 @@ abstract final class ExternalUrlLauncher {
       ], mode: ProcessStartMode.detached);
       return;
     }
-    throw UnsupportedError('Links werden auf dieser Plattform nicht geöffnet.');
+    throw const ServiceException(ServiceFailure.linksNotOpenableOnPlatform);
   }
 }

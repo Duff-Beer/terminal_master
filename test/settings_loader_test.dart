@@ -142,4 +142,40 @@ integrated_terminal:
       throwsFormatException,
     );
   });
+
+  test('round-trips the interface language through settings.yaml', () async {
+    final directory = Directory.systemTemp.createTempSync(
+      'terminal-master-settings-',
+    );
+    addTearDown(() => directory.deleteSync(recursive: true));
+    final file = File('${directory.path}/settings.yaml')
+      ..writeAsStringSync('terminal: Example Terminal\n');
+
+    // Absent means "follow the operating system".
+    SettingsLoader.initialize(directory.path);
+    expect(SettingsLoader.languageCode, isNull);
+
+    await SettingsLoader.saveLanguage(directory.path, 'de');
+    SettingsLoader.initialize(directory.path);
+    expect(SettingsLoader.languageCode, 'de');
+    // The rest of the file survives the write.
+    expect(file.readAsStringSync(), contains('terminal: Example Terminal'));
+
+    await SettingsLoader.saveLanguage(directory.path, null);
+    SettingsLoader.initialize(directory.path);
+    expect(SettingsLoader.languageCode, isNull);
+    expect(file.readAsStringSync(), contains('language: "system"'));
+  });
+
+  test('falls back to the system locale for an unsupported language', () {
+    final directory = Directory.systemTemp.createTempSync(
+      'terminal-master-settings-',
+    );
+    addTearDown(() => directory.deleteSync(recursive: true));
+    File('${directory.path}/settings.yaml').writeAsStringSync('language: xx\n');
+
+    // A stale or hand-edited language code must not break startup.
+    SettingsLoader.initialize(directory.path);
+    expect(SettingsLoader.languageCode, isNull);
+  });
 }

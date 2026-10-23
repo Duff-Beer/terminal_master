@@ -1,16 +1,19 @@
-schema_version: 1
+schema_version: 2
 command: dd
 description: A low-level utility for copying and converting data
+description.de: Ein Low-Level-Werkzeug zum Kopieren und Konvertieren von Daten
 parameters:
   - name: use_sudo
     type: boolean
     flag: "sudo"
     description: Run the command with elevated privileges
+    description.de: Den Befehl mit erhöhten Rechten ausführen
     default: false
     order: 0
   - name: "list_files"
     type: "button"
-    label: "Liste Dateien"
+    label: "List files"
+    label.de: "Liste Dateien"
     executable: "ls"
     args: "-la"
     order: 1
@@ -19,6 +22,7 @@ parameters:
     mode: file
     required: true
     description: Specify the input file or device
+    description.de: Eingabedatei oder -gerät angeben
     flag: "if="
     example: "/dev/sda"
     order: 2
@@ -30,30 +34,35 @@ parameters:
       - input_file
     must_differ: true
     description: Specify the output file or device
+    description.de: Ausgabedatei oder -gerät angeben
     flag: "of="
     example: "/dev/sdb"
     order: 3
   - name: block_size
     type: text
     description: Specify the block size for data transfer (e.g., 512, 4k, 1M)
+    description.de: Blockgröße für die Datenübertragung angeben (z. B. 512, 4k, 1M)
     flag: "bs="
     example: "4M"
     order: 4
   - name: count
     type: text
     description: Number of blocks to copy
+    description.de: Anzahl der zu kopierenden Blöcke
     flag: "count="
     example: "100"
     order: 5
   - name: skip
     type: text
     description: Number of blocks to skip in the input file
+    description.de: Anzahl der in der Eingabedatei zu überspringenden Blöcke
     flag: "skip="
     example: "10"
     order: 6
   - name: seek
     type: text
     description: Number of blocks to skip in the output file
+    description.de: Anzahl der in der Ausgabedatei zu überspringenden Blöcke
     flag: "seek="
     example: "10"
     order: 7
@@ -61,29 +70,39 @@ parameters:
     type: options
     flag: "conv="
     description: Specify conversion options
+    description.de: Konvertierungsoptionen angeben
     options:
       - value: "noerror"
         description: Continue after read errors
+        description.de: Nach Lesefehlern weitermachen
       - value: "sync"
         description: Pad blocks with zeros
+        description.de: Blöcke mit Nullen auffüllen
       - value: "notrunc"
         description: Do not truncate the output file
+        description.de: Die Ausgabedatei nicht abschneiden
       - value: "fdatasync"
         description: Physically write output file data before finishing
+        description.de: Daten der Ausgabedatei vor dem Ende physisch schreiben
       - value: "fsync"
         description: Physically write output file data and metadata
+        description.de: Daten und Metadaten der Ausgabedatei physisch schreiben
     order: 8
   - name: status
     type: options
     flag: "status="
     description: Specify the level of information to display during execution
+    description.de: Umfang der Informationen während der Ausführung angeben
     options:
       - value: "none"
         description: Do not display any information
+        description.de: Keine Informationen anzeigen
       - value: "noxfer"
         description: Display all information except the final transfer statistics
+        description.de: Alles außer der abschließenden Übertragungsstatistik anzeigen
       - value: "progress"
         description: Display transfer progress during execution
+        description.de: Übertragungsfortschritt während der Ausführung anzeigen
     default: "progress"
     order: 9
 help_text: |
@@ -95,3 +114,12 @@ help_text: |
   - Cloning a disk: `dd if=/dev/sda of=/dev/sdb bs=4M conv=noerror,sync`
 
   **Note:** Use `dd` with caution. Incorrect usage can result in data loss.
+help_text.de: |
+  `dd` ist ein Low-Level-Werkzeug zum Kopieren und Konvertieren von Daten. Es arbeitet direkt mit Dateien und Geräten und erlaubt präzise Kontrolle über Datenübertragungen.
+
+  Typische Anwendungsfälle:
+  - Datenträgerabbild erstellen: `dd if=/dev/sda of=/pfad/zum/image.img bs=4M`
+  - Abbild auf ein Gerät schreiben: `dd if=/pfad/zum/image.img of=/dev/sdb bs=4M status=progress`
+  - Datenträger klonen: `dd if=/dev/sda of=/dev/sdb bs=4M conv=noerror,sync`
+
+  **Hinweis:** Verwende `dd` mit Vorsicht. Falsche Anwendung kann zu Datenverlust führen.

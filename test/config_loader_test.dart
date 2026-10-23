@@ -49,7 +49,7 @@ void main() {
       );
 
       expect(ssh.command, 'ssh');
-      expect(ssh.displayName, 'SSH-Verbindung');
+      expect(ssh.displayName, 'SSH connection');
       expect(host.type, CommandParameterType.options);
       expect(host.required, isTrue);
       expect(host.defaultValue, 'localhost');
@@ -73,7 +73,7 @@ void main() {
       expect(pishrink.defaultValues['use_sudo'], isTrue);
       expect(dd.defaultValues['status'], 'progress');
       expect(input.mode, FilePickerMode.file);
-      expect(action.label, 'Liste Dateien');
+      expect(action.label, 'List files');
       expect(action.executable, 'ls');
       expect(action.args, ['-la']);
     });
@@ -135,7 +135,12 @@ parameters:
                 'fieldPath',
                 'parameters[1].name',
               )
-              .having((error) => error.message, 'message', contains('doppelt')),
+              .having(
+                (error) => error.reason,
+                'reason',
+                ConfigErrorReason.duplicateParameterName,
+              )
+              .having((error) => error.detail, 'detail', 'value'),
         ),
       );
     });
@@ -178,11 +183,13 @@ parameters:
       expect(
         () => ConfigLoader.loadConfig(file.path),
         throwsA(
-          isA<ConfigFormatException>().having(
-            (error) => error.message,
-            'message',
-            contains('missing'),
-          ),
+          isA<ConfigFormatException>()
+              .having(
+                (error) => error.reason,
+                'reason',
+                ConfigErrorReason.unknownParameterReference,
+              )
+              .having((error) => error.detail, 'detail', 'missing'),
         ),
       );
     });
@@ -248,11 +255,13 @@ parameters:
       expect(
         () => ConfigLoader.loadConfig(file.path),
         throwsA(
-          isA<ConfigFormatException>().having(
-            (error) => error.message,
-            'message',
-            contains('eqauls'),
-          ),
+          isA<ConfigFormatException>()
+              .having(
+                (error) => error.reason,
+                'reason',
+                ConfigErrorReason.unknownFields,
+              )
+              .having((error) => error.detail, 'detail', contains('eqauls')),
         ),
       );
     });
@@ -276,11 +285,13 @@ parameters:
       expect(
         () => ConfigLoader.loadConfig(file.path),
         throwsA(
-          isA<ConfigFormatException>().having(
-            (error) => error.message,
-            'message',
-            contains('typo'),
-          ),
+          isA<ConfigFormatException>()
+              .having(
+                (error) => error.reason,
+                'reason',
+                ConfigErrorReason.unknownGroupFields,
+              )
+              .having((error) => error.detail, 'detail', contains('typo')),
         ),
       );
     });
@@ -347,7 +358,7 @@ commands:
       final item = ConfigLoader.loadConfigs(directory.path).single;
 
       expect(item.command, 'Server Wartung');
-      expect(item.description, '1 Befehl in dieser Datei');
+      expect(item.batchCommandCount, 1);
       expect(item.isBatch, isTrue);
     });
 
@@ -355,7 +366,10 @@ commands:
       final config = ConfigLoader.loadBatchConfig('data/-netzwerk.yaml');
 
       expect(config.commands, hasLength(1));
-      expect(config.commands.single.title, 'Aktive Geräte im Netzwerk finden');
+      expect(
+        config.commands.single.title,
+        'Find active devices on the network',
+      );
       expect(
         config.commands.single.command,
         "sudo nmap -sn -n -PR -T5 --min-rate 1000 --max-retries 1 "
@@ -363,6 +377,48 @@ commands:
         "awk '/Status: Up/{print \$2}'",
       );
     });
+
+    test(
+      'prefers language-suffixed fields and falls back to the base ones',
+      () {
+        final german = ConfigLoader.loadBatchConfig(
+          'data/-netzwerk.yaml',
+          languageCode: 'de',
+        );
+        expect(
+          german.commands.single.title,
+          'Aktive Geräte im Netzwerk finden',
+        );
+
+        // No French translation exists, so the base (English) fields are used.
+        final french = ConfigLoader.loadBatchConfig(
+          'data/-netzwerk.yaml',
+          languageCode: 'fr',
+        );
+        expect(
+          french.commands.single.title,
+          'Find active devices on the network',
+        );
+
+        final germanCommand = ConfigLoader.loadConfig(
+          'data/git_status.yaml',
+          languageCode: 'de',
+        );
+        expect(
+          germanCommand.description,
+          'Zeigt den Arbeitsverzeichnis‑Status an',
+        );
+        expect(
+          germanCommand.parameters
+              .firstWhere((parameter) => parameter.name == 'short')
+              .description,
+          'Kompakte Ausgabe',
+        );
+
+        final baseCommand = ConfigLoader.loadConfig('data/git_status.yaml');
+        expect(baseCommand.description, 'Shows the working tree status');
+      },
+    );
   });
 }
 

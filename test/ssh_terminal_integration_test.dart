@@ -105,11 +105,23 @@ void main() {
 
     await expectLater(
       controller.saveActiveTab('Remote'),
-      throwsA(isA<StateError>()),
+      throwsA(
+        isA<TerminalTabException>().having(
+          (error) => error.failure,
+          'failure',
+          TerminalTabFailure.sshTabsCannotBeSnapshotted,
+        ),
+      ),
     );
     await expectLater(
       controller.openSavedTab('remote'),
-      throwsA(isA<StateError>()),
+      throwsA(
+        isA<TerminalTabException>().having(
+          (error) => error.failure,
+          'failure',
+          TerminalTabFailure.shellProfileUnavailable,
+        ),
+      ),
     );
     expect(controller.tabs, hasLength(2));
   });

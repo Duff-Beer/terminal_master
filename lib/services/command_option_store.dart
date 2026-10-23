@@ -5,10 +5,64 @@ import 'package:yaml/yaml.dart';
 import '../models/command_config.dart';
 import '../utils/config_loader.dart';
 
-class CommandOptionStoreException implements Exception {
-  final String message;
+/// Why editing the option list in a YAML file failed.
+///
+/// A code, not a sentence: the store runs without a `BuildContext`, so the UI
+/// renders the reason in the active language.
+enum CommandOptionStoreFailure {
+  valueAndDescriptionRequired,
+  controlCharactersNotAllowed,
+  fileChangedMeanwhile,
+  duplicateOptionValue,
+  newEntryNotValid,
+  optionValueNotFound,
+  lastOptionCannotBeDeleted,
+  unsupportedOptionListFormat,
+  entryNotFullyDeleted,
+  invalidYamlRoot,
+  missingParameterList,
+  optionsParameterNotFound,
+  missingOptionList,
+  missingField,
+}
 
-  const CommandOptionStoreException(this.message);
+class CommandOptionStoreException implements Exception {
+  final CommandOptionStoreFailure failure;
+
+  /// The value, parameter or field name the failure refers to, when it has one.
+  final String? detail;
+
+  const CommandOptionStoreException(this.failure, [this.detail]);
+
+  /// Developer-facing English description; the UI renders the localized form.
+  String get message => switch (failure) {
+    CommandOptionStoreFailure.valueAndDescriptionRequired =>
+      'Value and description must not be empty.',
+    CommandOptionStoreFailure.controlCharactersNotAllowed =>
+      'Value and description must not contain control characters.',
+    CommandOptionStoreFailure.fileChangedMeanwhile =>
+      'The YAML file changed in the meantime. Open it again.',
+    CommandOptionStoreFailure.duplicateOptionValue =>
+      'The option value "$detail" already exists.',
+    CommandOptionStoreFailure.newEntryNotValid =>
+      'The new entry could not be validated.',
+    CommandOptionStoreFailure.optionValueNotFound =>
+      'The option value "$detail" was not found.',
+    CommandOptionStoreFailure.lastOptionCannotBeDeleted =>
+      'The last option value cannot be deleted.',
+    CommandOptionStoreFailure.unsupportedOptionListFormat =>
+      'The option list uses an unsupported YAML format.',
+    CommandOptionStoreFailure.entryNotFullyDeleted =>
+      'The entry could not be deleted completely.',
+    CommandOptionStoreFailure.invalidYamlRoot => 'The YAML root is invalid.',
+    CommandOptionStoreFailure.missingParameterList =>
+      'The parameter list is missing.',
+    CommandOptionStoreFailure.optionsParameterNotFound =>
+      'The options parameter "$detail" was not found.',
+    CommandOptionStoreFailure.missingOptionList =>
+      'The option list is missing.',
+    CommandOptionStoreFailure.missingField => 'The field "$detail" is missing.',
+  };
 
   @override
   String toString() => message;
@@ -27,13 +81,13 @@ class CommandOptionStore {
     final description = option.description.trim();
     if (value.isEmpty || description.isEmpty) {
       throw const CommandOptionStoreException(
-        'Wert und Beschreibung dürfen nicht leer sein.',
+        CommandOptionStoreFailure.valueAndDescriptionRequired,
       );
     }
     if (_containsControlCharacters(value) ||
         _containsControlCharacters(description)) {
       throw const CommandOptionStoreException(
-        'Wert und Beschreibung dürfen keine Steuerzeichen enthalten.',
+        CommandOptionStoreFailure.controlCharactersNotAllowed,
       );
     }
 
@@ -41,7 +95,7 @@ class CommandOptionStore {
     final content = await file.readAsString();
     if (content != expectedContent) {
       throw const CommandOptionStoreException(
-        'Die YAML-Datei wurde zwischenzeitlich geändert. Öffne sie erneut.',
+        CommandOptionStoreFailure.fileChangedMeanwhile,
       );
     }
     final (:parameter, :optionsNode) = _optionNodes(content, parameterName);
@@ -49,7 +103,8 @@ class CommandOptionStore {
       (entry) => entry is YamlMap && entry['value']?.toString() == value,
     )) {
       throw CommandOptionStoreException(
-        'Der Optionswert "$value" ist bereits vorhanden.',
+        CommandOptionStoreFailure.duplicateOptionValue,
+        value,
       );
     }
 
@@ -98,7 +153,7 @@ class CommandOptionStore {
               candidate.value == value && candidate.description == description,
         )) {
           throw const CommandOptionStoreException(
-            'Der neue Eintrag konnte nicht validiert werden.',
+            CommandOptionStoreFailure.newEntryNotValid,
           );
         }
       },
@@ -115,7 +170,7 @@ class CommandOptionStore {
     final content = await file.readAsString();
     if (content != expectedContent) {
       throw const CommandOptionStoreException(
-        'Die YAML-Datei wurde zwischenzeitlich geändert. Öffne sie erneut.',
+        CommandOptionStoreFailure.fileChangedMeanwhile,
       );
     }
     final (:parameter, :optionsNode) = _optionNodes(content, parameterName);
@@ -124,12 +179,13 @@ class CommandOptionStore {
     );
     if (optionIndex < 0) {
       throw CommandOptionStoreException(
-        'Der Optionswert "$optionValue" wurde nicht gefunden.',
+        CommandOptionStoreFailure.optionValueNotFound,
+        optionValue,
       );
     }
     if (optionsNode.nodes.length == 1) {
       throw const CommandOptionStoreException(
-        'Der letzte Optionswert kann nicht gelöscht werden.',
+        CommandOptionStoreFailure.lastOptionCannotBeDeleted,
       );
     }
 
@@ -156,7 +212,7 @@ class CommandOptionStore {
     }
     if (itemLines.length != optionsNode.nodes.length) {
       throw const CommandOptionStoreException(
-        'Die Optionsliste verwendet ein nicht unterstütztes YAML-Format.',
+        CommandOptionStoreFailure.unsupportedOptionListFormat,
       );
     }
     final start = itemLines[optionIndex];
@@ -182,7 +238,7 @@ class CommandOptionStore {
           (candidate) => candidate.value == optionValue,
         )) {
           throw const CommandOptionStoreException(
-            'Der Eintrag konnte nicht vollständig gelöscht werden.',
+            CommandOptionStoreFailure.entryNotFullyDeleted,
           );
         }
       },
@@ -204,7 +260,7 @@ class CommandOptionStore {
       validate(parsed);
       if (await file.readAsString() != expectedContent) {
         throw const CommandOptionStoreException(
-          'Die YAML-Datei wurde zwischenzeitlich geändert. Öffne sie erneut.',
+          CommandOptionStoreFailure.fileChangedMeanwhile,
         );
       }
       if (await backup.exists()) await backup.delete();
@@ -212,7 +268,7 @@ class CommandOptionStore {
       if (await backup.readAsString() != expectedContent ||
           await file.readAsString() != expectedContent) {
         throw const CommandOptionStoreException(
-          'Die YAML-Datei wurde zwischenzeitlich geändert. Öffne sie erneut.',
+          CommandOptionStoreFailure.fileChangedMeanwhile,
         );
       }
       await temporary.rename(file.path);
@@ -227,11 +283,15 @@ class CommandOptionStore {
   ) {
     final document = loadYamlNode(content);
     if (document is! YamlMap) {
-      throw const CommandOptionStoreException('Die YAML-Wurzel ist ungültig.');
+      throw const CommandOptionStoreException(
+        CommandOptionStoreFailure.invalidYamlRoot,
+      );
     }
     final parameters = _nodeFor(document, 'parameters');
     if (parameters is! YamlList) {
-      throw const CommandOptionStoreException('Die Parameterliste fehlt.');
+      throw const CommandOptionStoreException(
+        CommandOptionStoreFailure.missingParameterList,
+      );
     }
     YamlMap? parameter;
     for (final node in parameters.nodes) {
@@ -244,12 +304,15 @@ class CommandOptionStore {
     }
     if (parameter == null || parameter['type'] != 'options') {
       throw CommandOptionStoreException(
-        'Der Optionsparameter "$parameterName" wurde nicht gefunden.',
+        CommandOptionStoreFailure.optionsParameterNotFound,
+        parameterName,
       );
     }
     final optionsNode = _nodeFor(parameter, 'options');
     if (optionsNode is! YamlList) {
-      throw const CommandOptionStoreException('Die Optionsliste fehlt.');
+      throw const CommandOptionStoreException(
+        CommandOptionStoreFailure.missingOptionList,
+      );
     }
     return (parameter: parameter, optionsNode: optionsNode);
   }
@@ -271,7 +334,10 @@ class CommandOptionStore {
     for (final entry in map.nodes.entries) {
       if (entry.key.value == key) return entry.key.span.start.line;
     }
-    throw CommandOptionStoreException('Das Feld "$key" fehlt.');
+    throw CommandOptionStoreException(
+      CommandOptionStoreFailure.missingField,
+      key,
+    );
   }
 
   static String _leadingWhitespace(String value) =>

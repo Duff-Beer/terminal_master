@@ -6,10 +6,49 @@ import 'package:yaml/yaml.dart';
 import '../models/batch_command.dart';
 import '../utils/config_loader.dart';
 
-class BatchCommandStoreException implements Exception {
-  final String message;
+/// Why editing the command list in a batch YAML file failed.
+///
+/// A code, not a sentence: the store runs without a `BuildContext`, so the UI
+/// renders the reason in the active language.
+enum BatchCommandStoreFailure {
+  titleAndCommandRequired,
+  unsupportedCommandListFormat,
+  newCommandNotValid,
+  commandToDeleteNotFound,
+  commandNotFullyDeleted,
+  invalidYamlRoot,
+  missingCommandList,
+  fileChangedMeanwhile,
+  missingField,
+}
 
-  const BatchCommandStoreException(this.message);
+class BatchCommandStoreException implements Exception {
+  final BatchCommandStoreFailure failure;
+
+  /// The field name the failure refers to, when it has one.
+  final String? detail;
+
+  const BatchCommandStoreException(this.failure, [this.detail]);
+
+  /// Developer-facing English description; the UI renders the localized form.
+  String get message => switch (failure) {
+    BatchCommandStoreFailure.titleAndCommandRequired =>
+      'Title and command must not be empty.',
+    BatchCommandStoreFailure.unsupportedCommandListFormat =>
+      'The command list uses an unsupported YAML format.',
+    BatchCommandStoreFailure.newCommandNotValid =>
+      'The new command could not be validated.',
+    BatchCommandStoreFailure.commandToDeleteNotFound =>
+      'The command to delete was not found.',
+    BatchCommandStoreFailure.commandNotFullyDeleted =>
+      'The command could not be deleted completely.',
+    BatchCommandStoreFailure.invalidYamlRoot => 'The YAML root is invalid.',
+    BatchCommandStoreFailure.missingCommandList =>
+      'The command list is missing.',
+    BatchCommandStoreFailure.fileChangedMeanwhile =>
+      'The YAML file changed in the meantime. Open it again.',
+    BatchCommandStoreFailure.missingField => 'The field "$detail" is missing.',
+  };
 
   @override
   String toString() => message;
@@ -28,7 +67,7 @@ class BatchCommandStore {
     final commandText = command.command.trim();
     if (title.isEmpty || commandText.isEmpty) {
       throw const BatchCommandStoreException(
-        'Titel und Befehl dürfen nicht leer sein.',
+        BatchCommandStoreFailure.titleAndCommandRequired,
       );
     }
 
@@ -45,7 +84,7 @@ class BatchCommandStore {
       lines[commandsLine] = '${' ' * commandsIndent}commands:';
     } else if (!keyContent.endsWith(':')) {
       throw const BatchCommandStoreException(
-        'Die Befehlsliste verwendet ein nicht unterstütztes YAML-Format.',
+        BatchCommandStoreFailure.unsupportedCommandListFormat,
       );
     }
 
@@ -70,7 +109,7 @@ class BatchCommandStore {
             added.description != description ||
             added.command != commandText) {
           throw const BatchCommandStoreException(
-            'Der neue Befehl konnte nicht validiert werden.',
+            BatchCommandStoreFailure.newCommandNotValid,
           );
         }
       },
@@ -88,7 +127,7 @@ class BatchCommandStore {
     final (:document, :commands) = _commandNodes(content);
     if (commandIndex < 0 || commandIndex >= commands.length) {
       throw const BatchCommandStoreException(
-        'Der zu löschende Befehl wurde nicht gefunden.',
+        BatchCommandStoreFailure.commandToDeleteNotFound,
       );
     }
 
@@ -109,7 +148,7 @@ class BatchCommandStore {
     }
     if (itemLines.length != commands.length) {
       throw const BatchCommandStoreException(
-        'Die Befehlsliste verwendet ein nicht unterstütztes YAML-Format.',
+        BatchCommandStoreFailure.unsupportedCommandListFormat,
       );
     }
 
@@ -131,7 +170,7 @@ class BatchCommandStore {
       validate: (config) {
         if (config.commands.length != commands.length - 1) {
           throw const BatchCommandStoreException(
-            'Der Befehl konnte nicht vollständig gelöscht werden.',
+            BatchCommandStoreFailure.commandNotFullyDeleted,
           );
         }
       },
@@ -164,11 +203,15 @@ class BatchCommandStore {
   static ({YamlMap document, YamlList commands}) _commandNodes(String content) {
     final document = loadYamlNode(content);
     if (document is! YamlMap) {
-      throw const BatchCommandStoreException('Die YAML-Wurzel ist ungültig.');
+      throw const BatchCommandStoreException(
+        BatchCommandStoreFailure.invalidYamlRoot,
+      );
     }
     final commands = _nodeFor(document, 'commands');
     if (commands is! YamlList) {
-      throw const BatchCommandStoreException('Die Befehlsliste fehlt.');
+      throw const BatchCommandStoreException(
+        BatchCommandStoreFailure.missingCommandList,
+      );
     }
     return (document: document, commands: commands);
   }
@@ -189,7 +232,7 @@ class BatchCommandStore {
   static void _ensureUnchanged(String content, String expectedContent) {
     if (content != expectedContent) {
       throw const BatchCommandStoreException(
-        'Die YAML-Datei wurde zwischenzeitlich geändert. Öffne sie erneut.',
+        BatchCommandStoreFailure.fileChangedMeanwhile,
       );
     }
   }
@@ -205,7 +248,10 @@ class BatchCommandStore {
     for (final entry in map.nodes.entries) {
       if (entry.key.value == key) return entry.key.span.start.line;
     }
-    throw BatchCommandStoreException('Das Feld "$key" fehlt.');
+    throw BatchCommandStoreException(
+      BatchCommandStoreFailure.missingField,
+      key,
+    );
   }
 
   static String _leadingWhitespace(String value) =>

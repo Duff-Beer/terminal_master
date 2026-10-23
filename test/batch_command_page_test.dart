@@ -2,6 +2,8 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+import 'support/localized_app.dart';
 import 'package:terminal_master/pages/batch_command_page.dart';
 
 void main() {
@@ -24,7 +26,7 @@ commands:
 ''');
 
     await tester.pumpWidget(
-      MaterialApp(home: BatchCommandPage(filePath: file.path)),
+      localizedApp(home: BatchCommandPage(filePath: file.path)),
     );
 
     expect(find.byKey(const Key('add-batch-command')), findsOneWidget);

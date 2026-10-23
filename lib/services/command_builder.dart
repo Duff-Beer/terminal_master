@@ -7,10 +7,68 @@ import '../models/command_config.dart';
 
 enum CommandShell { posix, windowsCmd, powerShell }
 
-class CommandBuildException implements Exception {
-  final String message;
+/// Why a command could not be assembled.
+///
+/// The builder has no `BuildContext`, so it reports a code and the offending
+/// names rather than a finished sentence; the UI localizes it.
+enum CommandBuildFailure {
+  pipelineNeedsCommand,
+  commandIsEmpty,
+  invalidButtonAction,
+  requiredParameterMissing,
+  parameterRequiresOther,
+  parameterConflictsWithOther,
+  parameterMustDifferFromOther,
+  invalidOptionValue,
+  ddInputEqualsOutput,
+  multipleValuesNotAttachable,
+  invalidConfigurationValue,
+  parameterMustBeList,
+  controlCharactersNotAllowed,
+  unsafeWindowsCharacter,
+}
 
-  const CommandBuildException(this.message);
+class CommandBuildException implements Exception {
+  final CommandBuildFailure failure;
+
+  /// Parameter name the failure refers to, when it has one.
+  final String? parameter;
+
+  /// Second name or nested error the failure refers to, when it has one.
+  final String? detail;
+
+  const CommandBuildException(this.failure, {this.parameter, this.detail});
+
+  /// Developer-facing English description; the UI renders the localized form.
+  String get message => switch (failure) {
+    CommandBuildFailure.pipelineNeedsCommand =>
+      'pipeline "$parameter" needs a command.',
+    CommandBuildFailure.commandIsEmpty => 'The command to run is empty.',
+    CommandBuildFailure.invalidButtonAction => 'Invalid button action.',
+    CommandBuildFailure.requiredParameterMissing =>
+      'Required parameter "$parameter" is missing.',
+    CommandBuildFailure.parameterRequiresOther =>
+      'Parameter "$parameter" requires "$detail".',
+    CommandBuildFailure.parameterConflictsWithOther =>
+      'Parameter "$parameter" cannot be used with "$detail".',
+    CommandBuildFailure.parameterMustDifferFromOther =>
+      'Parameter "$parameter" must differ from "$detail".',
+    CommandBuildFailure.invalidOptionValue =>
+      'Parameter "$parameter" contains an invalid option value.',
+    CommandBuildFailure.ddInputEqualsOutput =>
+      'The input and output of dd must differ.',
+    CommandBuildFailure.multipleValuesNotAttachable =>
+      'Parameter "$parameter" cannot attach multiple values to a single flag.',
+    CommandBuildFailure.invalidConfigurationValue =>
+      'Invalid configuration value: $detail',
+    CommandBuildFailure.parameterMustBeList =>
+      'Parameter "$parameter" must contain a list.',
+    CommandBuildFailure.controlCharactersNotAllowed =>
+      'Command arguments must not contain control characters.',
+    CommandBuildFailure.unsafeWindowsCharacter =>
+      'The Windows shell does not safely support this character in input '
+          'values.',
+  };
 
   @override
   String toString() => message;
@@ -53,7 +111,8 @@ class CommandBuilder {
         if (pipeline.firstOrNull == '|') pipeline.removeAt(0);
         if (pipeline.isEmpty) {
           throw CommandBuildException(
-            'Pipeline "${parameter.name}" benötigt ein Kommando.',
+            CommandBuildFailure.pipelineNeedsCommand,
+            parameter: parameter.name,
           );
         }
         pipelines.add(pipeline);
@@ -72,7 +131,7 @@ class CommandBuilder {
       config.command.replaceAll('_', ' '),
     );
     if (commandTokens.isEmpty) {
-      throw const CommandBuildException('Das auszuführende Kommando ist leer.');
+      throw const CommandBuildException(CommandBuildFailure.commandIsEmpty);
     }
 
     var result = _render([...beforeCommand, ...commandTokens, ...arguments]);
@@ -85,7 +144,9 @@ class CommandBuilder {
   String buildAction(CommandParameter parameter) {
     if (parameter.type != CommandParameterType.button ||
         parameter.executable == null) {
-      throw const CommandBuildException('Ungültige Button-Aktion.');
+      throw const CommandBuildException(
+        CommandBuildFailure.invalidButtonAction,
+      );
     }
     return _render([parameter.executable!, ...parameter.args]);
   }
@@ -100,7 +161,8 @@ class CommandBuilder {
       final active = _isActive(value);
       if (config.isParameterRequired(parameter, values) && !active) {
         throw CommandBuildException(
-          'Erforderlicher Parameter "${parameter.name}" fehlt.',
+          CommandBuildFailure.requiredParameterMissing,
+          parameter: parameter.name,
         );
       }
       if (!active) continue;
@@ -112,7 +174,9 @@ class CommandBuilder {
         if (!config.isParameterVisible(dependencyParameter, values) ||
             !_isActive(values[dependency])) {
           throw CommandBuildException(
-            'Parameter "${parameter.name}" erfordert "$dependency".',
+            CommandBuildFailure.parameterRequiresOther,
+            parameter: parameter.name,
+            detail: dependency,
           );
         }
       }
@@ -123,7 +187,9 @@ class CommandBuilder {
         if (config.isParameterVisible(conflictParameter, values) &&
             _isActive(values[conflict])) {
           throw CommandBuildException(
-            'Parameter "${parameter.name}" kann nicht mit "$conflict" verwendet werden.',
+            CommandBuildFailure.parameterConflictsWithOther,
+            parameter: parameter.name,
+            detail: conflict,
           );
         }
       }
@@ -139,14 +205,17 @@ class CommandBuilder {
             : _normalized(value) == _normalized(values[dependency]);
         if (valuesAreEqual) {
           throw CommandBuildException(
-            'Parameter "${parameter.name}" muss sich von "$dependency" unterscheiden.',
+            CommandBuildFailure.parameterMustDifferFromOther,
+            parameter: parameter.name,
+            detail: dependency,
           );
         }
       }
       if (parameter.type == CommandParameterType.options &&
           !parameter.options.any((option) => option.value == value)) {
         throw CommandBuildException(
-          'Parameter "${parameter.name}" enthält einen ungültigen Optionswert.',
+          CommandBuildFailure.invalidOptionValue,
+          parameter: parameter.name,
         );
       }
     }
@@ -160,7 +229,7 @@ class CommandBuilder {
           values['output_file'].toString(),
         )) {
       throw const CommandBuildException(
-        'Eingabe und Ausgabe von dd müssen sich unterscheiden.',
+        CommandBuildFailure.ddInputEqualsOutput,
       );
     }
   }
@@ -188,7 +257,8 @@ class CommandBuilder {
     if (join == CommandValueJoin.attached) {
       if (valueTokens.length != 1) {
         throw CommandBuildException(
-          'Parameter "${parameter.name}" kann mehrere Werte nicht direkt an ein Flag anhängen.',
+          CommandBuildFailure.multipleValuesNotAttachable,
+          parameter: parameter.name,
         );
       }
       return ['$flag${valueTokens.single}'];
@@ -214,14 +284,18 @@ class CommandBuilder {
     try {
       return stringToArguments(value.trim());
     } on Object catch (error) {
-      throw CommandBuildException('Ungültiger Konfigurationswert: $error');
+      throw CommandBuildException(
+        CommandBuildFailure.invalidConfigurationValue,
+        detail: '$error',
+      );
     }
   }
 
   List<String> _textListTokens(CommandParameter parameter, Object? value) {
     if (value is! Iterable) {
       throw CommandBuildException(
-        'Parameter "${parameter.name}" muss eine Liste enthalten.',
+        CommandBuildFailure.parameterMustBeList,
+        parameter: parameter.name,
       );
     }
     return value
@@ -240,7 +314,7 @@ class CommandBuilder {
         value.contains('\r') ||
         value.contains('\n')) {
       throw const CommandBuildException(
-        'Kommandoargumente dürfen keine Steuerzeichen enthalten.',
+        CommandBuildFailure.controlCharactersNotAllowed,
       );
     }
     return switch (shell) {
@@ -259,7 +333,7 @@ class CommandBuilder {
   String _quoteWindows(String value) {
     if (value.contains('%') || value.contains('!') || value.contains('"')) {
       throw const CommandBuildException(
-        'Die Windows-Shell unterstützt dieses Zeichen in Eingabewerten nicht sicher.',
+        CommandBuildFailure.unsafeWindowsCharacter,
       );
     }
     if (value.isEmpty) return '""';

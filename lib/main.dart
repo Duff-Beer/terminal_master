@@ -20,6 +20,7 @@ Future<void> main() async {
       displayPath: initData.displayPath,
       terminalBackendFactory: FlutterPtyBackend.start,
       shellProfiles: SettingsLoader.integratedTerminalProfiles,
+      languageCode: SettingsLoader.languageCode,
       sshProfileStore: FileSshConnectionProfileStore(
         Directory(initData.configPath),
       ),

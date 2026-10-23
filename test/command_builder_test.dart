@@ -377,7 +377,7 @@ parameters:
           isA<CommandBuildException>().having(
             (error) => error.message,
             'message',
-            contains('unterscheiden'),
+            contains('must differ'),
           ),
         ),
       );

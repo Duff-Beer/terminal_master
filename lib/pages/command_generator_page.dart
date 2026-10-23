@@ -3,6 +3,8 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../l10n/app_localizations.dart';
+import '../l10n/error_presenter.dart';
 import '../models/command_config.dart';
 import '../models/shell_profile.dart';
 import '../services/command_builder.dart';
@@ -29,7 +31,7 @@ class _CommandGeneratorPageState extends State<CommandGeneratorPage> {
   bool _useIntegratedTerminal = true;
   bool _isExecuting = false;
   CommandConfig? _config;
-  String? _loadError;
+  Object? _loadError;
   late String _configSource;
   final Map<String, Object?> _values = {};
 
@@ -48,37 +50,47 @@ class _CommandGeneratorPageState extends State<CommandGeneratorPage> {
   }
 
   @override
-  void initState() {
-    super.initState();
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Not initState: labels, descriptions and examples come from the YAML file
+    // and are resolved per language, so the config is read with the active
+    // locale available and re-read when that locale changes.
+    final isFirstLoad = _config == null && _loadError == null;
     try {
-      _config = ConfigLoader.loadConfig(widget.configPath);
+      _config = ConfigLoader.loadConfig(
+        widget.configPath,
+        languageCode: Localizations.localeOf(context).languageCode,
+      );
       _configSource = File(widget.configPath).readAsStringSync();
-      _values.addAll(_config!.defaultValues);
+      // Only on the first load — a language switch must not discard what the
+      // user has already entered.
+      if (isFirstLoad) _values.addAll(_config!.defaultValues);
     } on Object catch (error) {
-      _loadError = error.toString();
+      _loadError = error;
     }
   }
 
   Future<CommandOption?> _addOption(CommandParameter parameter) async {
+    final l10n = AppLocalizations.of(context);
     var enteredValue = '';
     var enteredDescription = '';
     final option = await showDialog<CommandOption>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('Eintrag zu ${parameter.name} hinzufügen'),
+        title: Text(l10n.generatorAddOptionTitle(parameter.name)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             TextField(
               key: const Key('new-option-value'),
               autofocus: true,
-              decoration: const InputDecoration(labelText: 'Wert'),
+              decoration: InputDecoration(labelText: l10n.generatorFieldValue),
               onChanged: (value) => enteredValue = value,
             ),
             const SizedBox(height: 12),
             TextField(
               key: const Key('new-option-description'),
-              decoration: const InputDecoration(labelText: 'Beschreibung'),
+              decoration: InputDecoration(labelText: l10n.commonDescription),
               onChanged: (value) => enteredDescription = value,
             ),
           ],
@@ -86,7 +98,7 @@ class _CommandGeneratorPageState extends State<CommandGeneratorPage> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Abbrechen'),
+            child: Text(l10n.commonCancel),
           ),
           FilledButton(
             key: const Key('confirm-add-option'),
@@ -99,7 +111,7 @@ class _CommandGeneratorPageState extends State<CommandGeneratorPage> {
                 CommandOption(value: value, description: description),
               );
             },
-            child: const Text('Hinzufügen'),
+            child: Text(l10n.commonAdd),
           ),
         ],
       ),
@@ -113,7 +125,10 @@ class _CommandGeneratorPageState extends State<CommandGeneratorPage> {
         expectedContent: _configSource,
       );
       if (!mounted) return null;
-      final updatedConfig = ConfigLoader.loadConfig(widget.configPath);
+      final updatedConfig = ConfigLoader.loadConfig(
+        widget.configPath,
+        languageCode: Localizations.localeOf(context).languageCode,
+      );
       setState(() {
         _config = updatedConfig;
         _configSource = File(widget.configPath).readAsStringSync();
@@ -124,7 +139,7 @@ class _CommandGeneratorPageState extends State<CommandGeneratorPage> {
       if (!mounted) return null;
       showOutputDialog(
         context,
-        'Eintrag konnte nicht gespeichert werden: $error',
+        l10n.generatorOptionSaveFailed(localizeError(l10n, error)),
       );
       return null;
     }
@@ -134,6 +149,7 @@ class _CommandGeneratorPageState extends State<CommandGeneratorPage> {
     CommandParameter parameter,
     CommandOption option,
   ) async {
+    final l10n = AppLocalizations.of(context);
     try {
       await CommandOptionStore.deleteOption(
         filePath: widget.configPath,
@@ -142,7 +158,10 @@ class _CommandGeneratorPageState extends State<CommandGeneratorPage> {
         expectedContent: _configSource,
       );
       if (!mounted) return false;
-      final updatedConfig = ConfigLoader.loadConfig(widget.configPath);
+      final updatedConfig = ConfigLoader.loadConfig(
+        widget.configPath,
+        languageCode: Localizations.localeOf(context).languageCode,
+      );
       setState(() {
         _config = updatedConfig;
         _configSource = File(widget.configPath).readAsStringSync();
@@ -150,7 +169,10 @@ class _CommandGeneratorPageState extends State<CommandGeneratorPage> {
       return true;
     } on Object catch (error) {
       if (!mounted) return false;
-      showOutputDialog(context, 'Eintrag konnte nicht gelöscht werden: $error');
+      showOutputDialog(
+        context,
+        l10n.generatorOptionDeleteFailed(localizeError(l10n, error)),
+      );
       return false;
     }
   }
@@ -167,7 +189,11 @@ class _CommandGeneratorPageState extends State<CommandGeneratorPage> {
         shell: _shell,
       ).build();
     } on Object catch (error) {
-      showOutputDialog(context, 'Fehler: $error');
+      final l10n = AppLocalizations.of(context);
+      showOutputDialog(
+        context,
+        l10n.generatorBuildFailed(localizeError(l10n, error)),
+      );
       return null;
     }
   }
@@ -178,6 +204,7 @@ class _CommandGeneratorPageState extends State<CommandGeneratorPage> {
     bool alwaysOpenNew,
   ) async {
     if (_isExecuting) return;
+    final l10n = AppLocalizations.of(context);
     setState(() => _isExecuting = true);
     try {
       if (_useIntegratedTerminal) {
@@ -194,13 +221,17 @@ class _CommandGeneratorPageState extends State<CommandGeneratorPage> {
       await CommandExecutor.executeInTerminal(command, alwaysOpenNew);
     } on Object catch (error) {
       if (!mounted) return;
-      showOutputDialog(context, 'Fehler beim Ausführen: $error');
+      showOutputDialog(
+        context,
+        l10n.generatorExecuteFailed(localizeError(l10n, error)),
+      );
     } finally {
       if (mounted) setState(() => _isExecuting = false);
     }
   }
 
   Future<void> _executeAction(CommandParameter parameter) async {
+    final l10n = AppLocalizations.of(context);
     try {
       final command = CommandBuilder(
         config: _config!,
@@ -213,19 +244,26 @@ class _CommandGeneratorPageState extends State<CommandGeneratorPage> {
       await _confirmAndExecute(command, assessment, true);
     } on Object catch (error) {
       if (!mounted) return;
-      showOutputDialog(context, 'Fehler bei der Aktion: $error');
+      showOutputDialog(
+        context,
+        l10n.generatorActionFailed(localizeError(l10n, error)),
+      );
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_loadError != null) {
+    final l10n = AppLocalizations.of(context);
+    if (_loadError case final error?) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Konfigurationsfehler')),
+        appBar: AppBar(title: Text(l10n.configErrorTitle)),
         body: Center(
           child: Padding(
             padding: const EdgeInsets.all(24),
-            child: SelectableText(_loadError!, textAlign: TextAlign.center),
+            child: SelectableText(
+              localizeError(l10n, error),
+              textAlign: TextAlign.center,
+            ),
           ),
         ),
       );
@@ -277,12 +315,9 @@ class _CommandGeneratorPageState extends State<CommandGeneratorPage> {
               if (command == null) return;
               await Clipboard.setData(ClipboardData(text: command));
               if (!context.mounted) return;
-              showOutputDialog(
-                context,
-                'Kommando in die Zwischenablage kopiert:\n$command',
-              );
+              showOutputDialog(context, l10n.generatorCommandCopied(command));
             },
-            child: const Text('Kommando erzeugen'),
+            child: Text(l10n.generatorBuildCommand),
           ),
           const SizedBox(height: 8),
           ElevatedButton(
@@ -304,19 +339,19 @@ class _CommandGeneratorPageState extends State<CommandGeneratorPage> {
                   },
             child: Text(
               _isExecuting
-                  ? 'Wird vorbereitet...'
+                  ? l10n.generatorPreparing
                   : _useIntegratedTerminal
-                  ? 'Ins Terminal einfügen'
-                  : 'Kommando ausführen',
+                  ? l10n.generatorInsertIntoTerminal
+                  : l10n.generatorRunCommand,
             ),
           ),
           SwitchListTile(
             key: const Key('integrated-terminal-toggle'),
-            title: const Text('Integriertes Terminal'),
+            title: Text(l10n.generatorIntegratedTerminal),
             subtitle: Text(
               _useIntegratedTerminal
-                  ? 'Befehl direkt in Terminal Master ausführen'
-                  : 'Konfigurierte externe Terminal-App verwenden',
+                  ? l10n.generatorIntegratedTerminalOn
+                  : l10n.generatorIntegratedTerminalOff,
             ),
             value: _useIntegratedTerminal,
             onChanged: _isExecuting
@@ -326,7 +361,7 @@ class _CommandGeneratorPageState extends State<CommandGeneratorPage> {
           ),
           if (!_useIntegratedTerminal)
             SwitchListTile(
-              title: const Text('Neues externes Terminal'),
+              title: Text(l10n.generatorNewExternalTerminal),
               value: _openInNewTerminal,
               onChanged: _isExecuting
                   ? null

@@ -1,11 +1,13 @@
-schema_version: 1
+schema_version: 2
 command: hashcat
 description: Advanced password recovery utility
+description.de: Fortgeschrittenes Werkzeug zur Passwort-Wiederherstellung
 parameters:
   - name: use_sudo
     type: boolean
     flag: "sudo"
     description: Run the command with elevated privileges
+    description.de: Den Befehl mit erhöhten Rechten ausführen
     default: false
     order: 0
   - name: hash_file
@@ -13,12 +15,14 @@ parameters:
     mode: file
     required: true
     description: Path to the hash file to crack
+    description.de: Pfad zur zu knackenden Hash-Datei
     example: "/path/to/hashfile.txt"
     order: 1
   - name: hash_type
     type: options
     flag: "-m"
     description: Specify the hash type
+    description.de: Hash-Typ angeben
     options:
       - value: "0"
         description: MD5
@@ -34,52 +38,67 @@ parameters:
     type: options
     flag: "-a"
     description: Specify the attack mode
+    description.de: Angriffsmodus angeben
     options:
       - value: "0"
         description: Dictionary attack
+        description.de: Wörterbuchangriff
       - value: "1"
         description: Combination attack
+        description.de: Kombinationsangriff
       - value: "3"
         description: Mask attack
+        description.de: Maskenangriff
       - value: "6"
         description: Hybrid Wordlist + Mask
+        description.de: Hybrid Wortliste + Maske
       - value: "7"
         description: Hybrid Mask + Wordlist
+        description.de: Hybrid Maske + Wortliste
     required: true
     order: 3
   - name: wordlist
     type: filepath
     mode: file
     description: Path to the wordlist for cracking (required for dictionary-based attacks)
+    description.de: Pfad zur Wortliste (für wörterbuchbasierte Angriffe erforderlich)
     example: "/path/to/wordlist.txt"
     order: 4
   - name: predefined_mask
     type: options
     flag: ""
     description: Select a predefined mask (for mask-based attacks)
+    description.de: Vordefinierte Maske wählen (für maskenbasierte Angriffe)
     options:
       - value: "?l?l?l?l?l"
         description: Lowercase letters, 5 characters
+        description.de: Kleinbuchstaben, 5 Zeichen
       - value: "?u?u?u?u?u"
         description: Uppercase letters, 5 characters
+        description.de: Großbuchstaben, 5 Zeichen
       - value: "?d?d?d?d"
         description: Digits, 4 characters
+        description.de: Ziffern, 4 Zeichen
       - value: "?l?u?d?d?d"
         description: Mixed case + digits, 5 characters
+        description.de: Gemischte Schreibweise + Ziffern, 5 Zeichen
       - value: "?a?a?a?a?a?a"
         description: All character types, 6 characters
+        description.de: Alle Zeichentypen, 6 Zeichen
     required: false
     order: 5
   - name: output_file
     type: filepath
     mode: file
     description: Specify the output file for results
+    description.de: Ausgabedatei für die Ergebnisse angeben
     example: "/path/to/output.txt"
     flag: "-o"
     order: 6
   - name: session
     type: text
     description: Resume or specify a session name
+    description.de: Sitzung fortsetzen oder einen Sitzungsnamen angeben
     example: "my_session"
     flag: "--session"
     order: 7
@@ -87,6 +106,7 @@ parameters:
     type: filepath
     mode: file
     description: Specify a rules file for advanced cracking
+    description.de: Regeldatei für fortgeschrittene Angriffe angeben
     example: "/path/to/rules.txt"
     flag: "-r"
     order: 8
@@ -94,25 +114,31 @@ parameters:
     type: boolean
     flag: "--verbose"
     description: Enable verbose output
+    description.de: Ausführliche Ausgabe aktivieren
     default: false
     order: 9
   - name: show_cracked
     type: boolean
     flag: "--show"
     description: Display cracked hashes and exit
+    description.de: Geknackte Hashes anzeigen und beenden
     default: false
     order: 10
   - name: speed
     type: options
     flag: "-w"
     description: Set the workload profile (speed vs. resources)
+    description.de: Lastprofil festlegen (Geschwindigkeit gegen Ressourcen)
     options:
       - value: "1"
         description: Slow (low resources)
+        description.de: Langsam (wenig Ressourcen)
       - value: "2"
         description: Default (balanced)
+        description.de: Standard (ausgewogen)
       - value: "3"
         description: Fast (high resources)
+        description.de: Schnell (viele Ressourcen)
     default: "2"
     order: 11
 help_text: |
@@ -123,3 +149,11 @@ help_text: |
   - Saving results to an output file: `hashcat -o cracked.txt`
 
   Always ensure you have proper authorization before using Hashcat on any system or data.
+help_text.de: |
+  Hashcat ist ein schnelles und flexibles Werkzeug zur Passwort-Wiederherstellung. Es knackt verschiedene Hash-Typen mit unterschiedlichen Angriffsmodi.
+  Typische Anwendungsfälle:
+  - MD5-Hashes mit Wörterbuch knacken: `hashcat -m 0 -a 0 hashfile.txt wordlist.txt`
+  - Vordefinierte Maske für Brute-Force: `hashcat -m 1000 -a 3 hashfile.txt ?l?l?l?l?l`
+  - Ergebnisse in eine Datei schreiben: `hashcat -o cracked.txt`
+
+  Stelle immer sicher, dass du für den Einsatz von Hashcat auf einem System oder mit Daten autorisiert bist.

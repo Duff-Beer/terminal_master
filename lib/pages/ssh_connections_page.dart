@@ -5,6 +5,8 @@ import 'dart:typed_data';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
+import '../l10n/app_localizations.dart';
+import '../l10n/error_presenter.dart';
 import '../models/ssh_connection_profile.dart';
 import '../services/ssh_authentication.dart';
 import '../services/ssh_backup_import_service.dart';
@@ -53,6 +55,9 @@ class _SshConnectionsPageState extends State<SshConnectionsPage> {
     if (terms.isEmpty) return _profiles;
     return _profiles
         .where((profile) {
+          // Deliberately bilingual and not localized: the haystack carries
+          // both German and English terms so a search matches either way,
+          // regardless of the active UI language.
           final authentication =
               profile.authenticationType == SshAuthenticationType.privateKey
               ? 'ssh-key key schlüssel private key'
@@ -110,6 +115,7 @@ class _SshConnectionsPageState extends State<SshConnectionsPage> {
 
   Future<void> _edit([SshConnectionProfile? existing]) async {
     if (_busyProfileId != null || _isTransferring) return;
+    final l10n = AppLocalizations.of(context);
     final result = await showDialog<_SshProfileInput>(
       context: context,
       builder: (context) => _SshProfileDialog(profile: existing),
@@ -165,9 +171,7 @@ class _SshConnectionsPageState extends State<SshConnectionsPage> {
         }
         if (current == null ||
             jsonEncode(current.toJson()) != jsonEncode(existing.toJson())) {
-          throw StateError(
-            'Das SSH-Profil wurde zwischenzeitlich geändert. Öffne es erneut.',
-          );
+          throw StateError(l10n.sshProfileChangedReopen);
         }
       }
       final oldCredentialId = existing?.credentialId;
@@ -185,7 +189,7 @@ class _SshConnectionsPageState extends State<SshConnectionsPage> {
           : '';
       if (profile.authenticationType == SshAuthenticationType.password &&
           newSecret.isEmpty) {
-        throw StateError('Bitte gib ein SSH-Passwort ein.');
+        throw StateError(l10n.sshPasswordRequired);
       }
       if (profile.authenticationType == SshAuthenticationType.privateKey) {
         await const SshPrivateKeyLoader().load(
@@ -214,9 +218,7 @@ class _SshConnectionsPageState extends State<SshConnectionsPage> {
         replacement: replacement,
       );
       if (!profilesCommitted) {
-        throw StateError(
-          'Die SSH-Profile wurden zwischenzeitlich geändert. Versuche es erneut.',
-        );
+        throw StateError(l10n.sshProfilesChangedRetry);
       }
       Object? cleanupError;
       if (credentialChanged &&
@@ -235,8 +237,9 @@ class _SshConnectionsPageState extends State<SshConnectionsPage> {
       if (cleanupError != null && mounted) {
         showOutputDialog(
           context,
-          'Das Profil wurde gespeichert, aber die vorherigen Anmeldedaten '
-          'konnten nicht aus dem Schlüsselbund entfernt werden: $cleanupError',
+          l10n.sshSavedButCredentialCleanupFailed(
+            localizeError(l10n, cleanupError),
+          ),
         );
       }
     } on Object catch (error) {
@@ -247,9 +250,10 @@ class _SshConnectionsPageState extends State<SshConnectionsPage> {
           if (mounted) {
             showOutputDialog(
               context,
-              'SSH-Profil konnte nicht gespeichert werden: $error\n'
-              'Zusätzlich konnten temporäre Anmeldedaten nicht entfernt '
-              'werden: $cleanupError',
+              l10n.sshSaveFailedWithCleanup(
+                localizeError(l10n, error),
+                localizeError(l10n, cleanupError),
+              ),
             );
           }
           return;
@@ -258,7 +262,7 @@ class _SshConnectionsPageState extends State<SshConnectionsPage> {
       if (mounted) {
         showOutputDialog(
           context,
-          'SSH-Profil konnte nicht gespeichert werden: $error',
+          l10n.sshSaveFailed(localizeError(l10n, error)),
         );
       }
     } finally {
@@ -268,23 +272,21 @@ class _SshConnectionsPageState extends State<SshConnectionsPage> {
 
   Future<void> _delete(SshConnectionProfile profile) async {
     if (_busyProfileId != null || _isTransferring) return;
+    final l10n = AppLocalizations.of(context);
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('SSH-Verbindung löschen?'),
-        content: Text(
-          'Soll „${profile.name}“ einschließlich der gespeicherten '
-          'Anmeldedaten gelöscht werden?',
-        ),
+        title: Text(l10n.sshDeleteTitle),
+        content: Text(l10n.sshDeleteMessage(profile.name)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Abbrechen'),
+            child: Text(l10n.commonCancel),
           ),
           FilledButton(
             key: const Key('confirm-delete-ssh-profile'),
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Löschen'),
+            child: Text(l10n.commonDelete),
           ),
         ],
       ),
@@ -303,9 +305,7 @@ class _SshConnectionsPageState extends State<SshConnectionsPage> {
       }
       if (current == null ||
           jsonEncode(current.toJson()) != jsonEncode(profile.toJson())) {
-        throw StateError(
-          'Das SSH-Profil wurde zwischenzeitlich geändert. Lösche es erneut.',
-        );
+        throw StateError(l10n.sshProfileChangedDeleteAgain);
       }
       final remainingProfiles = expectedProfiles
           .where((candidate) => candidate.id != profile.id)
@@ -315,9 +315,7 @@ class _SshConnectionsPageState extends State<SshConnectionsPage> {
         replacement: remainingProfiles,
       );
       if (!deleted) {
-        throw StateError(
-          'Die SSH-Profile wurden zwischenzeitlich geändert. Versuche es erneut.',
-        );
+        throw StateError(l10n.sshProfilesChangedRetry);
       }
       Object? cleanupError;
       if (!remainingProfiles.any(
@@ -333,15 +331,16 @@ class _SshConnectionsPageState extends State<SshConnectionsPage> {
       if (cleanupError != null && mounted) {
         showOutputDialog(
           context,
-          'Das Profil wurde gelöscht, aber die Anmeldedaten konnten nicht aus '
-          'dem Schlüsselbund entfernt werden: $cleanupError',
+          l10n.sshDeletedButCredentialCleanupFailed(
+            localizeError(l10n, cleanupError),
+          ),
         );
       }
     } on Object catch (error) {
       if (mounted) {
         showOutputDialog(
           context,
-          'SSH-Profil konnte nicht gelöscht werden: $error',
+          l10n.sshDeleteFailed(localizeError(l10n, error)),
         );
       }
     } finally {
@@ -351,6 +350,7 @@ class _SshConnectionsPageState extends State<SshConnectionsPage> {
 
   Future<void> _test(SshConnectionProfile profile) async {
     if (_busyProfileId != null || _isTransferring) return;
+    final l10n = AppLocalizations.of(context);
     setState(() => _busyProfileId = profile.id);
     try {
       final authentication = await SshAuthenticationResolver(
@@ -366,13 +366,16 @@ class _SshConnectionsPageState extends State<SshConnectionsPage> {
       backend.kill();
       await _load();
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('SSH-Verbindung erfolgreich.')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(l10n.sshConnectionSucceeded)));
       }
     } on Object catch (error) {
       if (mounted) {
-        showOutputDialog(context, 'SSH-Verbindung fehlgeschlagen: $error');
+        showOutputDialog(
+          context,
+          l10n.sshConnectionFailed(localizeError(l10n, error)),
+        );
       }
     } finally {
       if (mounted) setState(() => _busyProfileId = null);
@@ -381,6 +384,7 @@ class _SshConnectionsPageState extends State<SshConnectionsPage> {
 
   Future<void> _connect(SshConnectionProfile profile) async {
     if (_busyProfileId != null || _isTransferring) return;
+    final l10n = AppLocalizations.of(context);
     setState(() => _busyProfileId = profile.id);
     try {
       await SshAuthenticationResolver(
@@ -393,7 +397,10 @@ class _SshConnectionsPageState extends State<SshConnectionsPage> {
       if (mounted) ConfigurationPanelScope.maybeOf(context)?.close();
     } on Object catch (error) {
       if (mounted) {
-        showOutputDialog(context, 'SSH-Verbindung fehlgeschlagen: $error');
+        showOutputDialog(
+          context,
+          l10n.sshConnectionFailed(localizeError(l10n, error)),
+        );
       }
     } finally {
       if (mounted) setState(() => _busyProfileId = null);
@@ -402,6 +409,7 @@ class _SshConnectionsPageState extends State<SshConnectionsPage> {
 
   Future<void> _exportBackup() async {
     if (_profiles.isEmpty || _isTransferring || _busyProfileId != null) return;
+    final l10n = AppLocalizations.of(context);
     final request = await showDialog<_SshBackupExportRequest>(
       context: context,
       builder: (context) => _SshBackupExportDialog(profiles: _profiles),
@@ -425,7 +433,7 @@ class _SshConnectionsPageState extends State<SshConnectionsPage> {
       final path =
           await (widget.exportPathPicker?.call() ??
               FilePicker.platform.saveFile(
-                dialogTitle: 'Verschlüsseltes SSH-Backup exportieren',
+                dialogTitle: l10n.sshExportDialogTitle,
                 fileName:
                     'terminal-master-ssh.${SshBackupService.fileExtension}',
                 type: FileType.custom,
@@ -442,16 +450,15 @@ class _SshConnectionsPageState extends State<SshConnectionsPage> {
       }
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              '${selected.length} SSH-Verbindungen verschlüsselt exportiert.',
-            ),
-          ),
+          SnackBar(content: Text(l10n.sshExportSuccess(selected.length))),
         );
       }
     } on Object catch (error) {
       if (mounted) {
-        showOutputDialog(context, 'SSH-Export fehlgeschlagen: $error');
+        showOutputDialog(
+          context,
+          l10n.sshExportFailed(localizeError(l10n, error)),
+        );
       }
     } finally {
       backupBytes?.fillRange(0, backupBytes.length, 0);
@@ -461,6 +468,7 @@ class _SshConnectionsPageState extends State<SshConnectionsPage> {
 
   Future<void> _importBackup() async {
     if (_isTransferring || _busyProfileId != null) return;
+    final l10n = AppLocalizations.of(context);
     String? path;
     try {
       path = await (widget.importPathPicker?.call() ?? _pickImportPath());
@@ -468,7 +476,7 @@ class _SshConnectionsPageState extends State<SshConnectionsPage> {
       if (mounted) {
         showOutputDialog(
           context,
-          'Backup-Datei konnte nicht gewählt werden: $error',
+          l10n.sshBackupFilePickFailed(localizeError(l10n, error)),
         );
       }
       return;
@@ -500,17 +508,28 @@ class _SshConnectionsPageState extends State<SshConnectionsPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            '${result.imported} importiert, ${result.replaced} ersetzt, '
-            '${result.skipped} übersprungen.',
+            l10n.sshImportSummary(
+              result.imported,
+              result.replaced,
+              result.skipped,
+            ),
           ),
         ),
       );
       if (result.cleanupWarnings.isNotEmpty) {
-        showOutputDialog(context, result.cleanupWarnings.join('\n'));
+        showOutputDialog(
+          context,
+          result.cleanupWarnings
+              .map((warning) => localizeImportWarning(l10n, warning))
+              .join('\n'),
+        );
       }
     } on Object catch (error) {
       if (mounted) {
-        showOutputDialog(context, 'SSH-Import fehlgeschlagen: $error');
+        showOutputDialog(
+          context,
+          l10n.sshImportFailed(localizeError(l10n, error)),
+        );
       }
     } finally {
       if (mounted) setState(() => _isTransferring = false);
@@ -519,7 +538,7 @@ class _SshConnectionsPageState extends State<SshConnectionsPage> {
 
   Future<String?> _pickImportPath() async {
     final selection = await FilePicker.platform.pickFiles(
-      dialogTitle: 'Verschlüsseltes SSH-Backup importieren',
+      dialogTitle: AppLocalizations.of(context).sshImportDialogTitle,
       type: FileType.custom,
       allowedExtensions: const [SshBackupService.fileExtension],
     );
@@ -530,7 +549,7 @@ class _SshConnectionsPageState extends State<SshConnectionsPage> {
     final bytes = BytesBuilder(copy: false);
     await for (final chunk in file.openRead()) {
       if (bytes.length + chunk.length > SshBackupService.maximumFileBytes) {
-        throw const SshBackupException('Die Backup-Datei ist zu groß.');
+        throw const SshBackupException(SshBackupFailure.fileTooLarge);
       }
       bytes.add(chunk);
     }
@@ -551,14 +570,15 @@ class _SshConnectionsPageState extends State<SshConnectionsPage> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final filteredProfiles = _filteredProfiles;
     return Scaffold(
       appBar: AppBar(
-        title: const Text('SSH-Verbindungen'),
+        title: Text(l10n.sshPageTitle),
         actions: [
           IconButton(
             key: const Key('import-ssh-backup'),
-            tooltip: 'Verschlüsseltes Backup importieren',
+            tooltip: l10n.sshImportBackupTooltip,
             onPressed: _isTransferring || _busyProfileId != null
                 ? null
                 : _importBackup,
@@ -566,7 +586,7 @@ class _SshConnectionsPageState extends State<SshConnectionsPage> {
           ),
           IconButton(
             key: const Key('export-ssh-backup'),
-            tooltip: 'Verschlüsseltes Backup exportieren',
+            tooltip: l10n.sshExportBackupTooltip,
             onPressed:
                 _profiles.isEmpty || _isTransferring || _busyProfileId != null
                 ? null
@@ -585,9 +605,7 @@ class _SshConnectionsPageState extends State<SshConnectionsPage> {
               ),
             )
           : _profiles.isEmpty
-          ? const Center(
-              child: Text('Noch keine SSH-Verbindungen gespeichert.'),
-            )
+          ? Center(child: Text(l10n.sshNoProfilesYet))
           : Column(
               children: [
                 Padding(
@@ -597,13 +615,13 @@ class _SshConnectionsPageState extends State<SshConnectionsPage> {
                     controller: _searchController,
                     textInputAction: TextInputAction.search,
                     decoration: InputDecoration(
-                      hintText: 'SSH-Verbindungen durchsuchen',
+                      hintText: l10n.sshSearchHint,
                       prefixIcon: const Icon(Icons.search),
                       suffixIcon: _searchController.text.isEmpty
                           ? null
                           : IconButton(
                               key: const Key('clear-ssh-profile-search'),
-                              tooltip: 'Suche löschen',
+                              tooltip: l10n.sshClearSearch,
                               onPressed: () {
                                 _searchController.clear();
                                 setState(() {});
@@ -616,9 +634,7 @@ class _SshConnectionsPageState extends State<SshConnectionsPage> {
                 ),
                 Expanded(
                   child: filteredProfiles.isEmpty
-                      ? const Center(
-                          child: Text('Keine SSH-Verbindungen gefunden.'),
-                        )
+                      ? Center(child: Text(l10n.sshNoProfilesFound))
                       : ListView.separated(
                           padding: const EdgeInsets.all(16),
                           itemCount: filteredProfiles.length,
@@ -656,14 +672,14 @@ class _SshConnectionsPageState extends State<SshConnectionsPage> {
                                                 profile.authenticationType ==
                                                         SshAuthenticationType
                                                             .privateKey
-                                                    ? 'Authentifizierung: SSH-Key'
-                                                    : 'Authentifizierung: Passwort',
+                                                    ? l10n.sshAuthenticationKeyLabel
+                                                    : l10n.sshAuthenticationPasswordLabel,
                                               ),
                                               Text(
                                                 profile.hostKeyFingerprint ==
                                                         null
-                                                    ? 'Host-Key nicht bestätigt'
-                                                    : 'Host-Key bestätigt',
+                                                    ? l10n.sshHostKeyUnconfirmed
+                                                    : l10n.sshHostKeyConfirmed,
                                               ),
                                             ],
                                           ),
@@ -680,14 +696,14 @@ class _SshConnectionsPageState extends State<SshConnectionsPage> {
                                               ? null
                                               : () => _test(profile),
                                           icon: const Icon(Icons.network_check),
-                                          label: const Text('Testen'),
+                                          label: Text(l10n.sshTest),
                                         ),
                                         OutlinedButton.icon(
                                           onPressed: actionsDisabled
                                               ? null
                                               : () => _edit(profile),
                                           icon: const Icon(Icons.edit_outlined),
-                                          label: const Text('Bearbeiten'),
+                                          label: Text(l10n.sshEdit),
                                         ),
                                         OutlinedButton.icon(
                                           key: Key(
@@ -699,7 +715,7 @@ class _SshConnectionsPageState extends State<SshConnectionsPage> {
                                           icon: const Icon(
                                             Icons.delete_outline,
                                           ),
-                                          label: const Text('Löschen'),
+                                          label: Text(l10n.commonDelete),
                                         ),
                                         FilledButton.icon(
                                           key: Key(
@@ -717,7 +733,7 @@ class _SshConnectionsPageState extends State<SshConnectionsPage> {
                                                       ),
                                                 )
                                               : const Icon(Icons.terminal),
-                                          label: const Text('Verbinden'),
+                                          label: Text(l10n.sshConnect),
                                         ),
                                       ],
                                     ),
@@ -734,7 +750,7 @@ class _SshConnectionsPageState extends State<SshConnectionsPage> {
         key: const Key('add-ssh-profile'),
         onPressed: _busyProfileId == null && !_isTransferring ? _edit : null,
         icon: const Icon(Icons.add),
-        label: const Text('Verbindung hinzufügen'),
+        label: Text(l10n.sshAddConnection),
       ),
     );
   }
@@ -781,8 +797,9 @@ class _SshBackupExportDialogState extends State<_SshBackupExportDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return AlertDialog(
-      title: const Text('Verschlüsseltes SSH-Backup'),
+      title: Text(l10n.sshBackupDialogTitle),
       content: SizedBox(
         width: 600,
         child: Form(
@@ -792,12 +809,7 @@ class _SshBackupExportDialogState extends State<_SshBackupExportDialog> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'Das Backup enthält die ausgewählten Verbindungen und deren '
-                  'Passwörter beziehungsweise Key-Passphrases. Private '
-                  'Schlüsseldateien werden nicht eingebettet. Das Backup wird '
-                  'mit Argon2id und AES-256-GCM geschützt.',
-                ),
+                Text(l10n.sshBackupExportExplanation),
                 const SizedBox(height: 12),
                 ConstrainedBox(
                   constraints: const BoxConstraints(maxHeight: 220),
@@ -827,8 +839,8 @@ class _SshBackupExportDialogState extends State<_SshBackupExportDialog> {
                   controller: _passwordController,
                   obscureText: _obscurePassword,
                   decoration: InputDecoration(
-                    labelText: 'Backup-Passwort',
-                    helperText: 'Mindestens 12 Zeichen',
+                    labelText: l10n.sshBackupPasswordLabel,
+                    helperText: l10n.sshBackupPasswordHelper,
                     suffixIcon: IconButton(
                       onPressed: () =>
                           setState(() => _obscurePassword = !_obscurePassword),
@@ -840,7 +852,7 @@ class _SshBackupExportDialogState extends State<_SshBackupExportDialog> {
                     ),
                   ),
                   validator: (value) => (value?.length ?? 0) < 12
-                      ? 'Mindestens 12 Zeichen erforderlich.'
+                      ? l10n.sshBackupPasswordTooShort
                       : null,
                 ),
                 const SizedBox(height: 12),
@@ -848,11 +860,11 @@ class _SshBackupExportDialogState extends State<_SshBackupExportDialog> {
                   key: const Key('ssh-backup-export-confirmation'),
                   controller: _confirmationController,
                   obscureText: true,
-                  decoration: const InputDecoration(
-                    labelText: 'Backup-Passwort wiederholen',
+                  decoration: InputDecoration(
+                    labelText: l10n.sshBackupPasswordRepeatLabel,
                   ),
                   validator: (value) => value != _passwordController.text
-                      ? 'Die Passwörter stimmen nicht überein.'
+                      ? l10n.sshBackupPasswordMismatch
                       : null,
                 ),
               ],
@@ -863,12 +875,12 @@ class _SshBackupExportDialogState extends State<_SshBackupExportDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: const Text('Abbrechen'),
+          child: Text(l10n.commonCancel),
         ),
         FilledButton(
           key: const Key('confirm-export-ssh-backup'),
           onPressed: _submit,
-          child: const Text('Exportieren'),
+          child: Text(l10n.sshExport),
         ),
       ],
     );
@@ -877,7 +889,9 @@ class _SshBackupExportDialogState extends State<_SshBackupExportDialog> {
   void _submit() {
     if (_selectedIds.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Wähle mindestens eine Verbindung aus.')),
+        SnackBar(
+          content: Text(AppLocalizations.of(context).sshSelectAtLeastOne),
+        ),
       );
       return;
     }
@@ -913,8 +927,9 @@ class _SshBackupPasswordDialogState extends State<_SshBackupPasswordDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return AlertDialog(
-      title: const Text('SSH-Backup entschlüsseln'),
+      title: Text(l10n.sshBackupDecryptTitle),
       content: Form(
         key: _formKey,
         child: TextFormField(
@@ -923,7 +938,7 @@ class _SshBackupPasswordDialogState extends State<_SshBackupPasswordDialog> {
           autofocus: true,
           obscureText: _obscurePassword,
           decoration: InputDecoration(
-            labelText: 'Backup-Passwort',
+            labelText: l10n.sshBackupPasswordLabel,
             suffixIcon: IconButton(
               onPressed: () =>
                   setState(() => _obscurePassword = !_obscurePassword),
@@ -935,7 +950,7 @@ class _SshBackupPasswordDialogState extends State<_SshBackupPasswordDialog> {
             ),
           ),
           validator: (value) => value == null || value.isEmpty
-              ? 'Backup-Passwort erforderlich.'
+              ? l10n.sshBackupPasswordNeeded
               : null,
           onFieldSubmitted: (_) => _submit(),
         ),
@@ -943,12 +958,12 @@ class _SshBackupPasswordDialogState extends State<_SshBackupPasswordDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: const Text('Abbrechen'),
+          child: Text(l10n.commonCancel),
         ),
         FilledButton(
           key: const Key('open-ssh-backup'),
           onPressed: _submit,
-          child: const Text('Entschlüsseln'),
+          child: Text(l10n.sshDecrypt),
         ),
       ],
     );
@@ -982,11 +997,12 @@ class _SshBackupImportPreviewDialogState
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final actionable = _items.any(
       (item) => item.action != SshBackupConflictAction.skip,
     );
     return AlertDialog(
-      title: const Text('SSH-Import prüfen'),
+      title: Text(l10n.sshImportReviewTitle),
       content: SizedBox(
         width: 720,
         child: ConstrainedBox(
@@ -1008,13 +1024,13 @@ class _SshBackupImportPreviewDialogState
                 title: Text(item.entry.name),
                 subtitle: Text(
                   '${item.entry.endpoint}\n'
-                  '${item.entry.authenticationType == SshAuthenticationType.privateKey ? 'SSH-Key' : 'Passwort'}\n'
+                  '${item.entry.authenticationType == SshAuthenticationType.privateKey ? l10n.sshKeyShort : l10n.sshPasswordShort}\n'
                   '${item.duplicateInBackup
-                      ? 'Doppelter Endpunkt im Backup'
+                      ? l10n.sshImportDuplicateEndpoint
                       : item.hasConflict
-                      ? 'Vorhandene Verbindung gefunden'
-                      : 'Neue Verbindung'}'
-                  '${hostKeyConflict ? '\nWarnung: Host-Key unterscheidet sich' : ''}',
+                      ? l10n.sshImportExistingFound
+                      : l10n.sshImportNewConnection}'
+                  '${hostKeyConflict ? '\n${l10n.sshImportHostKeyWarning}' : ''}',
                   style: hostKeyConflict
                       ? TextStyle(color: Theme.of(context).colorScheme.error)
                       : null,
@@ -1025,18 +1041,18 @@ class _SshBackupImportPreviewDialogState
                         key: Key('ssh-import-action-$index'),
                         value: item.action,
                         items: [
-                          const DropdownMenuItem(
+                          DropdownMenuItem(
                             value: SshBackupConflictAction.skip,
-                            child: Text('Überspringen'),
+                            child: Text(l10n.sshImportSkip),
                           ),
                           if (item.existing != null)
-                            const DropdownMenuItem(
+                            DropdownMenuItem(
                               value: SshBackupConflictAction.replace,
-                              child: Text('Ersetzen'),
+                              child: Text(l10n.sshImportReplace),
                             ),
-                          const DropdownMenuItem(
+                          DropdownMenuItem(
                             value: SshBackupConflictAction.copy,
-                            child: Text('Als Kopie'),
+                            child: Text(l10n.sshImportAsCopy),
                           ),
                         ],
                         onChanged: (action) {
@@ -1046,7 +1062,7 @@ class _SshBackupImportPreviewDialogState
                           );
                         },
                       )
-                    : const Chip(label: Text('Neu')),
+                    : Chip(label: Text(l10n.sshImportNew)),
               );
             },
           ),
@@ -1055,7 +1071,7 @@ class _SshBackupImportPreviewDialogState
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: const Text('Abbrechen'),
+          child: Text(l10n.commonCancel),
         ),
         FilledButton(
           key: const Key('confirm-import-ssh-backup'),
@@ -1065,7 +1081,7 @@ class _SshBackupImportPreviewDialogState
                   List<SshBackupImportItem>.unmodifiable(_items),
                 )
               : null,
-          child: const Text('Importieren'),
+          child: Text(l10n.sshImport),
         ),
       ],
     );
@@ -1143,11 +1159,10 @@ class _SshProfileDialogState extends State<_SshProfileDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final editing = widget.profile != null;
     return AlertDialog(
-      title: Text(
-        editing ? 'SSH-Verbindung bearbeiten' : 'SSH-Verbindung hinzufügen',
-      ),
+      title: Text(editing ? l10n.sshEditTitle : l10n.sshAddTitle),
       content: SizedBox(
         width: 520,
         child: Form(
@@ -1159,24 +1174,24 @@ class _SshProfileDialogState extends State<_SshProfileDialog> {
                 _field(
                   key: const Key('ssh-profile-name'),
                   controller: _nameController,
-                  label: 'Anzeigename',
+                  label: l10n.sshFieldDisplayName,
                 ),
                 const SizedBox(height: 12),
                 _field(
                   key: const Key('ssh-profile-host'),
                   controller: _hostController,
-                  label: 'Serveradresse',
+                  label: l10n.sshFieldHost,
                 ),
                 const SizedBox(height: 12),
                 TextFormField(
                   key: const Key('ssh-profile-port'),
                   controller: _portController,
                   keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(labelText: 'Port'),
+                  decoration: InputDecoration(labelText: l10n.sshFieldPort),
                   validator: (value) {
                     final port = int.tryParse(value?.trim() ?? '');
                     return port == null || port < 1 || port > 65535
-                        ? 'Port muss zwischen 1 und 65535 liegen.'
+                        ? l10n.sshPortRange
                         : null;
                   },
                 ),
@@ -1184,27 +1199,27 @@ class _SshProfileDialogState extends State<_SshProfileDialog> {
                 _field(
                   key: const Key('ssh-profile-username'),
                   controller: _usernameController,
-                  label: 'Benutzername',
+                  label: l10n.sshFieldUsername,
                 ),
                 const SizedBox(height: 12),
                 DropdownButtonFormField<SshAuthenticationType>(
                   key: const Key('ssh-profile-authentication-type'),
                   initialValue: _authenticationType,
-                  decoration: const InputDecoration(
-                    labelText: 'Authentifizierung',
+                  decoration: InputDecoration(
+                    labelText: l10n.sshFieldAuthentication,
                   ),
                   items: [
-                    const DropdownMenuItem(
+                    DropdownMenuItem(
                       value: SshAuthenticationType.password,
-                      child: Text('Passwort'),
+                      child: Text(l10n.sshPasswordShort),
                     ),
                     DropdownMenuItem(
                       value: SshAuthenticationType.privateKey,
                       enabled: !Platform.isAndroid && !Platform.isIOS,
                       child: Text(
                         Platform.isAndroid || Platform.isIOS
-                            ? 'SSH-Key (Desktop)'
-                            : 'SSH-Key',
+                            ? l10n.sshAuthenticationKeyDesktop
+                            : l10n.sshKeyShort,
                       ),
                     ),
                   ],
@@ -1220,10 +1235,10 @@ class _SshProfileDialogState extends State<_SshProfileDialog> {
                     key: const Key('ssh-profile-private-key-path'),
                     controller: _privateKeyPathController,
                     decoration: InputDecoration(
-                      labelText: 'Private Schlüsseldatei',
+                      labelText: l10n.sshFieldPrivateKeyFile,
                       suffixIcon: IconButton(
                         key: const Key('pick-ssh-private-key'),
-                        tooltip: 'Schlüsseldatei auswählen',
+                        tooltip: l10n.sshPickKeyFile,
                         onPressed: _pickPrivateKey,
                         icon: const Icon(Icons.folder_open_outlined),
                       ),
@@ -1234,7 +1249,7 @@ class _SshProfileDialogState extends State<_SshProfileDialog> {
                         return null;
                       }
                       return value == null || value.trim().isEmpty
-                          ? 'Wähle eine private Schlüsseldatei aus.'
+                          ? l10n.sshPrivateKeyRequired
                           : null;
                     },
                   ),
@@ -1245,7 +1260,7 @@ class _SshProfileDialogState extends State<_SshProfileDialog> {
                     CheckboxListTile(
                       key: const Key('clear-ssh-key-passphrase'),
                       contentPadding: EdgeInsets.zero,
-                      title: const Text('Gespeicherte Passphrase entfernen'),
+                      title: Text(l10n.sshClearStoredPassphrase),
                       value: _clearSecret,
                       onChanged: (value) => setState(() {
                         _clearSecret = value ?? false;
@@ -1264,15 +1279,15 @@ class _SshProfileDialogState extends State<_SshProfileDialog> {
                     labelText:
                         _authenticationType == SshAuthenticationType.privateKey
                         ? editing
-                              ? 'Key-Passphrase (leer lassen zum Beibehalten)'
-                              : 'Key-Passphrase (optional)'
+                              ? l10n.sshKeyPassphraseKeep
+                              : l10n.sshKeyPassphraseOptional
                         : editing
-                        ? 'Neues Passwort (leer lassen zum Beibehalten)'
-                        : 'Passwort',
+                        ? l10n.sshPasswordKeep
+                        : l10n.sshPasswordLabel,
                     suffixIcon: IconButton(
                       tooltip: _obscurePassword
-                          ? 'Passwort anzeigen'
-                          : 'Passwort ausblenden',
+                          ? l10n.sshShowPassword
+                          : l10n.sshHidePassword,
                       onPressed: () =>
                           setState(() => _obscurePassword = !_obscurePassword),
                       icon: Icon(
@@ -1289,18 +1304,14 @@ class _SshProfileDialogState extends State<_SshProfileDialog> {
                             widget.profile!.authenticationType !=
                                 SshAuthenticationType.password);
                     return requiresPassword && (value == null || value.isEmpty)
-                        ? 'Passwort darf nicht leer sein.'
+                        ? l10n.sshPasswordNotEmpty
                         : null;
                   },
                 ),
                 const SizedBox(height: 8),
-                const Align(
+                Align(
                   alignment: Alignment.centerLeft,
-                  child: Text(
-                    'Passwörter und Key-Passphrases werden ausschließlich im '
-                    'Schlüsselbund des Betriebssystems gespeichert. Private '
-                    'Schlüssel verbleiben in der ausgewählten Datei.',
-                  ),
+                  child: Text(l10n.sshCredentialStorageNote),
                 ),
               ],
             ),
@@ -1310,12 +1321,12 @@ class _SshProfileDialogState extends State<_SshProfileDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: const Text('Abbrechen'),
+          child: Text(l10n.commonCancel),
         ),
         FilledButton(
           key: const Key('save-ssh-profile'),
           onPressed: _submit,
-          child: const Text('Speichern'),
+          child: Text(l10n.sshSave),
         ),
       ],
     );
@@ -1326,14 +1337,15 @@ class _SshProfileDialogState extends State<_SshProfileDialog> {
     required TextEditingController controller,
     required String label,
   }) {
+    final l10n = AppLocalizations.of(context);
     return TextFormField(
       key: key,
       controller: controller,
       decoration: InputDecoration(labelText: label),
       validator: (value) => value == null || value.trim().isEmpty
-          ? '$label darf nicht leer sein.'
+          ? l10n.sshFieldNotEmpty(label)
           : value.runes.any((rune) => rune < 0x20 || rune == 0x7f)
-          ? '$label enthält ungültige Steuerzeichen.'
+          ? l10n.sshFieldInvalidControlCharacters(label)
           : null,
     );
   }
@@ -1342,14 +1354,12 @@ class _SshProfileDialogState extends State<_SshProfileDialog> {
     if (Platform.isAndroid || Platform.isIOS) {
       showOutputDialog(
         context,
-        'SSH-Key-Dateien werden derzeit nur auf Desktop-Plattformen '
-        'unterstützt, da mobile Dateiauswahlen keine dauerhaft nutzbaren '
-        'Pfade bereitstellen.',
+        AppLocalizations.of(context).sshKeyFilesDesktopOnly,
       );
       return;
     }
     final selection = await FilePicker.platform.pickFiles(
-      dialogTitle: 'Private SSH-Schlüsseldatei auswählen',
+      dialogTitle: AppLocalizations.of(context).sshPickPrivateKeyDialogTitle,
       type: FileType.any,
     );
     final path = selection?.files.single.path;

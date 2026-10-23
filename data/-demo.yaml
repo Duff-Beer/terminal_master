@@ -1,22 +1,32 @@
 # -demo.yaml
-schema_version: 1
+schema_version: 2
 commands:
-  - title: Zeige aktuelles Verzeichnis
-    description: Führt `pwd` aus und zeigt den aktuellen Pfad.
+  - title: Show current directory
+    title.de: Zeige aktuelles Verzeichnis
+    description: Runs `pwd` and shows the current path.
+    description.de: Führt `pwd` aus und zeigt den aktuellen Pfad.
     command: pwd
 
-  - title: Zeige Inhalt des Verzeichnisses
-    description: Listet Dateien im aktuellen Verzeichnis mit Details.
+  - title: Show directory contents
+    title.de: Zeige Inhalt des Verzeichnisses
+    description: Lists files in the current directory with details.
+    description.de: Listet Dateien im aktuellen Verzeichnis mit Details.
     command: ls -la
 
-  - title: Zeige Datum und Uhrzeit
-    description: Gibt das aktuelle Datum und die Uhrzeit aus.
+  - title: Show date and time
+    title.de: Zeige Datum und Uhrzeit
+    description: Prints the current date and time.
+    description.de: Gibt das aktuelle Datum und die Uhrzeit aus.
     command: date
 
-  - title: Zeige Netzwerk-Konfiguration
-    description: Gibt IP- und Netzwerkdetails aus.
+  - title: Show network configuration
+    title.de: Zeige Netzwerk-Konfiguration
+    description: Prints IP and network details.
+    description.de: Gibt IP- und Netzwerkdetails aus.
     command: ifconfig
 
-  - title: Umgebungsvariablen anzeigen
-    description: Druckt alle Umgebungsvariablen.
+  - title: Show environment variables
+    title.de: Umgebungsvariablen anzeigen
+    description: Prints all environment variables.
+    description.de: Druckt alle Umgebungsvariablen.
     command: env

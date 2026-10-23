@@ -1,19 +1,23 @@
-schema_version: 1
+schema_version: 2
 command: ssh
-display_name: SSH-Verbindung
-description: Erstellt eine SSH-Verbindung zu einem vordefinierten Host
+display_name: SSH connection
+display_name.de: SSH-Verbindung
+description: Opens an SSH connection to a predefined host
+description.de: Erstellt eine SSH-Verbindung zu einem vordefinierten Host
 parameters:
   - name: username
     type: text
     flag: -l
-    description: Benutzername auf dem entfernten System
+    description: User name on the remote system
+    description.de: Benutzername auf dem entfernten System
     example: deploy
     order: 10
 
   - name: port
     type: text
     flag: -p
-    description: SSH-Port des Zielsystems
+    description: SSH port of the target system
+    description.de: SSH-Port des Zielsystems
     example: "22"
     order: 20
 
@@ -21,21 +25,24 @@ parameters:
     type: filepath
     mode: file
     flag: -i
-    description: Privater SSH-Schlüssel für die Anmeldung
+    description: Private SSH key used for the login
+    description.de: Privater SSH-Schlüssel für die Anmeldung
     example: ~/.ssh/id_ed25519
     order: 30
 
   - name: jump_host
     type: text
     flag: -J
-    description: Optionaler ProxyJump- oder Bastion-Host
+    description: Optional ProxyJump or bastion host
+    description.de: Optionaler ProxyJump- oder Bastion-Host
     example: bastion.example.com
     order: 40
 
   - name: force_ipv4
     type: boolean
     flag: "-4"
-    description: Ausschließlich IPv4 verwenden
+    description: Use IPv4 only
+    description.de: Ausschließlich IPv4 verwenden
     conflicts_with: [force_ipv6]
     default: false
     order: 50
@@ -43,7 +50,8 @@ parameters:
   - name: force_ipv6
     type: boolean
     flag: "-6"
-    description: Ausschließlich IPv6 verwenden
+    description: Use IPv6 only
+    description.de: Ausschließlich IPv6 verwenden
     conflicts_with: [force_ipv4]
     default: false
     order: 51
@@ -51,78 +59,103 @@ parameters:
   - name: compression
     type: boolean
     flag: -C
-    description: Komprimierung für die Verbindung aktivieren
+    description: Enable compression for the connection
+    description.de: Komprimierung für die Verbindung aktivieren
     default: false
     order: 60
 
   - name: agent_forwarding
     type: boolean
     flag: -A
-    description: Weiterleitung des lokalen SSH-Agenten aktivieren
+    description: Enable forwarding of the local SSH agent
+    description.de: Weiterleitung des lokalen SSH-Agenten aktivieren
     default: false
     order: 70
 
   - name: x11_forwarding
     type: boolean
     flag: -X
-    description: X11-Weiterleitung aktivieren
+    description: Enable X11 forwarding
+    description.de: X11-Weiterleitung aktivieren
     default: false
     order: 71
 
   - name: batch_mode
     type: boolean
     flag: -o BatchMode=yes
-    description: Interaktive Passwort- und Bestätigungsabfragen deaktivieren
+    description: Disable interactive password and confirmation prompts
+    description.de: Interaktive Passwort- und Bestätigungsabfragen deaktivieren
     default: false
     order: 80
 
   - name: host_key_checking
     type: options
     flag: ""
-    description: Verhalten bei unbekannten oder geänderten Host-Schlüsseln
+    description: Behaviour for unknown or changed host keys
+    description.de: Verhalten bei unbekannten oder geänderten Host-Schlüsseln
     order: 90
     options:
       - value: -o StrictHostKeyChecking=yes
-        description: Nur bereits bekannte, unveränderte Host-Schlüssel zulassen
+        description: Allow only known, unchanged host keys
+        description.de: Nur bereits bekannte, unveränderte Host-Schlüssel zulassen
       - value: -o StrictHostKeyChecking=accept-new
-        description: Neue Host-Schlüssel akzeptieren, geänderte ablehnen
+        description: Accept new host keys, reject changed ones
+        description.de: Neue Host-Schlüssel akzeptieren, geänderte ablehnen
 
   - name: verbosity
     type: options
     flag: ""
-    description: Umfang der SSH-Diagnoseausgabe
+    description: Amount of SSH diagnostic output
+    description.de: Umfang der SSH-Diagnoseausgabe
     order: 95
     options:
       - value: -v
-        description: Ausführliche Diagnoseausgabe
+        description: Verbose diagnostic output
+        description.de: Ausführliche Diagnoseausgabe
       - value: -vv
-        description: Sehr ausführliche Diagnoseausgabe
+        description: Very verbose diagnostic output
+        description.de: Sehr ausführliche Diagnoseausgabe
       - value: -vvv
-        description: Maximale Diagnoseausgabe
+        description: Maximum diagnostic output
+        description.de: Maximale Diagnoseausgabe
 
   - name: host
     type: options
     flag: ""
-    description: Zielhost oder Alias aus ~/.ssh/config
+    description: Target host or alias from ~/.ssh/config
+    description.de: Zielhost oder Alias aus ~/.ssh/config
     required: true
     default: localhost
     order: 100
     options:
       - value: localhost
-        description: Lokaler SSH-Server
+        description: Local SSH server
+        description.de: Lokaler SSH-Server
       - value: staging.example.com
-        description: Beispielhost für eine Staging-Umgebung
+        description: Example host for a staging environment
+        description.de: Beispielhost für eine Staging-Umgebung
       - value: production.example.com
-        description: Beispielhost für eine Produktionsumgebung
+        description: Example host for a production environment
+        description.de: Beispielhost für eine Produktionsumgebung
 
   - name: remote_command
     type: text
     flag: ""
-    description: Optionaler Befehl, der nach dem Verbinden ausgeführt wird
+    description: Optional command to run after connecting
+    description.de: Optionaler Befehl, der nach dem Verbinden ausgeführt wird
     example: uptime && whoami
     order: 110
 
 help_text: |
+  Pick the target host from the dropdown. Replace the example hosts in ssh.yaml
+  with real host names, IP addresses or aliases from ~/.ssh/config.
+
+  Examples:
+  - Connect: `ssh production.example.com`
+  - With user and port: `ssh -l deploy -p 2222 production.example.com`
+  - Via bastion host: `ssh -J bastion.example.com production.example.com`
+  - Remote command: `ssh production.example.com 'uptime && whoami'`
+help_text.de: |
   Wähle den Zielhost im Dropdown aus. Ersetze die Beispielhosts in ssh.yaml
   durch reale Hostnamen, IP-Adressen oder Aliase aus ~/.ssh/config.
 

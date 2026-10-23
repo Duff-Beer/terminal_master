@@ -50,6 +50,9 @@ parameters: []
         displayPath: directory.path,
         terminalBackendFactory: factory.create,
         shellProfiles: profiles,
+        // Pinned so the German expectations below stay independent of the
+        // locale the test host happens to run in.
+        languageCode: 'de',
         saveDefaultShellProfile: (profileId) async {
           savedDefaultProfileId = profileId;
         },
@@ -87,7 +90,10 @@ parameters: []
       findsOneWidget,
     );
     expect(find.text('Command Builder').hitTestable(), findsOneWidget);
-    expect(find.text('No config files found').hitTestable(), findsOneWidget);
+    expect(
+      find.text('Keine Konfigurationsdateien gefunden').hitTestable(),
+      findsOneWidget,
+    );
     expect(factory.backends, hasLength(1));
     expect(
       tester.getSize(find.byKey(const Key('terminal-workspace'))).width,

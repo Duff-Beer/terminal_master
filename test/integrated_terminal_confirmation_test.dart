@@ -2,6 +2,8 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+import 'support/localized_app.dart';
 import 'package:terminal_master/pages/batch_command_page.dart';
 import 'package:terminal_master/pages/command_generator_page.dart';
 import 'package:terminal_master/widgets/terminal_panel.dart';
@@ -29,7 +31,7 @@ parameters:
     final navigatorKey = GlobalKey<NavigatorState>();
 
     await tester.pumpWidget(
-      MaterialApp(
+      localizedApp(
         navigatorKey: navigatorKey,
         home: TerminalWorkspace(
           backendFactory: factory.create,
@@ -100,7 +102,7 @@ commands:
     final navigatorKey = GlobalKey<NavigatorState>();
 
     await tester.pumpWidget(
-      MaterialApp(
+      localizedApp(
         navigatorKey: navigatorKey,
         home: TerminalWorkspace(
           backendFactory: factory.create,

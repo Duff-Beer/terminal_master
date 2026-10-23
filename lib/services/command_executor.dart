@@ -1,5 +1,6 @@
 import 'dart:io';
 import '../utils/settings_loader.dart';
+import 'service_exception.dart';
 
 class CommandExecutor {
   /// Prüft, ob bereits ein Terminal-Prozess läuft.
@@ -43,9 +44,7 @@ class CommandExecutor {
       ]);
       return res.stdout.toString().trim().isNotEmpty;
     } else {
-      throw UnsupportedError(
-        'Terminal-Erkennung nicht unterstützt auf dieser Plattform',
-      );
+      throw const ServiceException(ServiceFailure.terminalDetectionUnsupported);
     }
   }
 

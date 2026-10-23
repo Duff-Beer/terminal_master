@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import '../models/persisted_data_exception.dart';
 import '../models/ssh_connection_profile.dart';
 
 abstract interface class SshConnectionProfileStore {
@@ -147,7 +148,9 @@ class FileSshConnectionProfileStore implements SshConnectionProfileStore {
     final ids = <String>{};
     for (final value in (decoded['profiles'] as List<Object?>? ?? const [])) {
       if (value is! Map<String, Object?>) {
-        throw const FormatException('Ungültige SSH-Profilliste.');
+        throw const PersistedDataException(
+          PersistedDataProblem.invalidSshProfileList,
+        );
       }
       final profile = SshConnectionProfile.fromJson(value);
       if (!ids.add(profile.id)) {

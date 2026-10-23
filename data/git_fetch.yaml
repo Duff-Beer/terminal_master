@@ -1,19 +1,22 @@
 # git_fetch.yaml
-schema_version: 1
+schema_version: 2
 command: git_fetch
-description: Holt Änderungen von einem Remote‑Repository
+description: Fetches changes from a remote repository
+description.de: Holt Änderungen von einem Remote‑Repository
 parameters:
   - name: use_sudo
     type: boolean
     flag: "sudo"
-    description: Mit Root‑Rechten ausführen
+    description: Run with root privileges
+    description.de: Mit Root‑Rechten ausführen
     default: false
     order: 0
 
   - name: remote
     type: text
     flag: ""
-    description: Name des Remotes (z. B. origin)
+    description: Name of the remote (e.g. origin)
+    description.de: Name des Remotes (z. B. origin)
     example: "origin"
     required: false
     order: 1
@@ -21,25 +24,33 @@ parameters:
   - name: prune
     type: boolean
     flag: "--prune"
-    description: Entfernt lokal nicht mehr existierende Branches
+    description: Removes branches that no longer exist on the remote
+    description.de: Entfernt lokal nicht mehr existierende Branches
     default: false
     order: 2
 
   - name: all
     type: boolean
     flag: "--all"
-    description: Alle Remotes abrufen
+    description: Fetch from all remotes
+    description.de: Alle Remotes abrufen
     default: false
     order: 3
 
   - name: verbose
     type: boolean
     flag: "-v"
-    description: Ausführliche Ausgabe
+    description: Verbose output
+    description.de: Ausführliche Ausgabe
     default: false
     order: 4
 
 help_text: |
+  Common usage:
+  - Fetch from the default remote: `git fetch`
+  - Fetch from a specific remote: `git fetch origin`
+  - Delete branches that are gone: `git fetch --prune`
+help_text.de: |
   Standard‑Anwendung:
   - Änderungen vom Default‑Remote holen: `git fetch`
   - Von spezieller Remote holen: `git fetch origin`

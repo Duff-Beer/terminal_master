@@ -1,11 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+import 'support/localized_app.dart';
 import 'package:terminal_master/widgets/output_dialog.dart';
 
 void main() {
   testWidgets('closes after the caller context is disposed', (tester) async {
     final harnessKey = GlobalKey<_DialogHarnessState>();
-    await tester.pumpWidget(MaterialApp(home: _DialogHarness(key: harnessKey)));
+    await tester.pumpWidget(
+      localizedApp(home: _DialogHarness(key: harnessKey)),
+    );
 
     await tester.tap(find.text('Fehler anzeigen'));
     await tester.pumpAndSettle();

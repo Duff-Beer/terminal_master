@@ -3,6 +3,8 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+import 'support/localized_app.dart';
 import 'package:terminal_master/models/ssh_connection_profile.dart';
 import 'package:terminal_master/pages/ssh_connections_page.dart';
 import 'package:terminal_master/services/ssh_backup_service.dart';
@@ -21,7 +23,7 @@ void main() {
     final profiles = MemorySshConnectionProfileStore();
     final credentials = MemorySshCredentialStore();
     await tester.pumpWidget(
-      MaterialApp(
+      localizedApp(
         home: SshConnectionsPage(
           profileStore: profiles,
           credentialStore: credentials,
@@ -134,7 +136,7 @@ void main() {
       ),
     ]);
     await tester.pumpWidget(
-      MaterialApp(
+      localizedApp(
         home: SshConnectionsPage(
           profileStore: profiles,
           credentialStore: MemorySshCredentialStore(),
@@ -206,7 +208,7 @@ void main() {
     final file = File('${directory.path}/backup.tmsshbackup')
       ..writeAsStringSync(backup);
     await tester.pumpWidget(
-      MaterialApp(
+      localizedApp(
         home: SshConnectionsPage(
           profileStore: profiles,
           credentialStore: credentials,
@@ -269,7 +271,7 @@ void main() {
     final profiles = MemorySshConnectionProfileStore([profile]);
     final credentials = MemorySshCredentialStore({'credential': 'password'});
     await tester.pumpWidget(
-      MaterialApp(
+      localizedApp(
         home: SshConnectionsPage(
           profileStore: profiles,
           credentialStore: credentials,
@@ -298,7 +300,7 @@ void main() {
     final profiles = MemorySshConnectionProfileStore();
     final credentials = MemorySshCredentialStore();
     await tester.pumpWidget(
-      MaterialApp(
+      localizedApp(
         home: SshConnectionsPage(
           profileStore: profiles,
           credentialStore: credentials,
@@ -373,7 +375,7 @@ void main() {
     final profiles = MemorySshConnectionProfileStore([original]);
     final credentials = MemorySshCredentialStore({'old-credential': '123456'});
     await tester.pumpWidget(
-      MaterialApp(
+      localizedApp(
         home: SshConnectionsPage(
           profileStore: profiles,
           credentialStore: credentials,
@@ -464,7 +466,7 @@ void main() {
       'credential': 'server-password',
     });
     await tester.pumpWidget(
-      MaterialApp(
+      localizedApp(
         home: SshConnectionsPage(
           profileStore: profiles,
           credentialStore: credentials,

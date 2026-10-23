@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'l10n/app_localizations.dart';
 import 'models/shell_profile.dart';
 import 'services/routing_terminal_backend_factory.dart';
 import 'services/saved_terminal_tab_store.dart';
@@ -26,6 +27,10 @@ class MyApp extends StatefulWidget {
   final Future<void> Function(String path)? saveYamlDirectoryPath;
   final Future<String?> Function()? selectYamlDirectory;
 
+  /// Initial UI language. `null` follows the operating system locale.
+  final String? languageCode;
+  final Future<void> Function(String? code)? saveLanguage;
+
   const MyApp({
     super.key,
     required this.configDirectoryPath,
@@ -38,6 +43,8 @@ class MyApp extends StatefulWidget {
     this.saveDefaultShellProfile,
     this.saveYamlDirectoryPath,
     this.selectYamlDirectory,
+    this.languageCode,
+    this.saveLanguage,
   });
 
   @override
@@ -51,10 +58,12 @@ class _MyAppState extends State<MyApp> {
   late final SshHostKeyVerifier _sshHostKeyVerifier;
   late final RoutingTerminalBackendFactory _backendRouter;
   late final ValueNotifier<String> _yamlDirectoryPath;
+  String? _languageCode;
 
   @override
   void initState() {
     super.initState();
+    _languageCode = widget.languageCode;
     _sshProfileStore =
         widget.sshProfileStore ?? MemorySshConnectionProfileStore();
     _sshCredentialStore =
@@ -86,6 +95,9 @@ class _MyAppState extends State<MyApp> {
       navigatorKey: _navigatorKey,
       title: 'Terminal Master',
       theme: buildDarkTheme(),
+      locale: _languageCode == null ? null : Locale(_languageCode!),
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
       home: TerminalWorkspace(
         backendFactory: _backendRouter.create,
         navigatorKey: _navigatorKey,
@@ -105,6 +117,9 @@ class _MyAppState extends State<MyApp> {
           saveYamlDirectoryPath: widget.saveYamlDirectoryPath,
           selectYamlDirectory: widget.selectYamlDirectory,
           onYamlDirectoryChanged: (path) => _yamlDirectoryPath.value = path,
+          languageCode: _languageCode,
+          saveLanguage: widget.saveLanguage,
+          onLanguageChanged: (code) => setState(() => _languageCode = code),
         ),
         child: Navigator(
           onGenerateRoute: (settings) => MaterialPageRoute<void>(

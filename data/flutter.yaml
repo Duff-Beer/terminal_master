@@ -1,41 +1,54 @@
-schema_version: 1
+schema_version: 2
 command: flutter
 description: Flutter command-line interface for app development
+description.de: Flutter-Kommandozeile für die App-Entwicklung
 parameters:
   - name: use_sudo
     type: boolean
     flag: "sudo"
     description: Run the command with elevated privileges (sudo, if necessary)
+    description.de: Den Befehl mit erhöhten Rechten ausführen (sudo, falls nötig)
     default: false
     order: 0
   - name: action
     type: options
     flag: ""
     description: Specify the Flutter action to perform
+    description.de: Die auszuführende Flutter-Aktion wählen
     order: 1
     options:
       - value: "doctor"
         description: Check your Flutter environment and dependencies
+        description.de: Flutter-Umgebung und Abhängigkeiten prüfen
       - value: "clean"
         description: Delete build/ and .dart_tool/ directories
+        description.de: Die Verzeichnisse build/ und .dart_tool/ löschen
       - value: "pub get"
         description: Get the dependencies for the current project
+        description.de: Abhängigkeiten des aktuellen Projekts holen
       - value: "pub upgrade"
         description: Upgrade all dependencies to their latest versions
+        description.de: Alle Abhängigkeiten auf die neuesten Versionen aktualisieren
       - value: "run"
         description: Run your Flutter app on an emulator or device
+        description.de: Die Flutter-App im Emulator oder auf einem Gerät starten
       - value: "build apk"
         description: Build an APK file for the app
+        description.de: Eine APK-Datei für die App bauen
       - value: "build ios"
         description: Build an iOS bundle for the app
+        description.de: Ein iOS-Bundle für die App bauen
       - value: "test"
         description: Run all tests in the project
+        description.de: Alle Tests im Projekt ausführen
       - value: "analyze"
         description: Analyze the project's Dart code for issues
+        description.de: Den Dart-Code des Projekts auf Probleme prüfen
   - name: target
     type: text
     flag: "--target"
     description: Specify the main entry-point file (for `flutter run` or `flutter build`)
+    description.de: Die Haupt-Einstiegsdatei angeben (für `flutter run` oder `flutter build`)
     example: "lib/main.dart"
     required: false
     order: 2
@@ -43,6 +56,7 @@ parameters:
     type: text
     flag: "-d"
     description: Specify the target device by its ID (for `flutter run` or `flutter build`)
+    description.de: Zielgerät über seine ID angeben (für `flutter run` oder `flutter build`)
     example: "emulator-5554"
     required: false
     order: 3
@@ -50,6 +64,7 @@ parameters:
     type: text
     flag: "--flavor"
     description: Specify the build flavor (e.g., staging, production)
+    description.de: Build-Flavor angeben (z. B. staging, production)
     example: "production"
     required: false
     order: 4
@@ -57,19 +72,24 @@ parameters:
     type: options
     flag: ""
     description: Specify the build mode (for `flutter build` or `flutter run`)
+    description.de: Build-Modus angeben (für `flutter build` oder `flutter run`)
     options:
       - value: "--debug"
         description: Build or run the app in debug mode
+        description.de: Die App im Debug-Modus bauen oder starten
       - value: "--profile"
         description: Build or run the app in profile mode
+        description.de: Die App im Profile-Modus bauen oder starten
       - value: "--release"
         description: Build or run the app in release mode
+        description.de: Die App im Release-Modus bauen oder starten
     required: false
     order: 5
   - name: verbose
     type: boolean
     flag: "--verbose"
     description: Enable verbose output for debugging
+    description.de: Ausführliche Ausgabe zur Fehlersuche aktivieren
     default: false
     order: 6
 help_text: |
@@ -80,3 +100,11 @@ help_text: |
   - Build an APK for production: `flutter build apk --release --flavor production`
 
   For more options and details, visit: https://flutter.dev/docs
+help_text.de: |
+  Die Flutter-CLI verwaltet Flutter-Projekte, baut Apps und führt Tests aus.
+  Typische Anwendungsfälle:
+  - Flutter-Umgebung prüfen: `flutter doctor`
+  - App auf einem Gerät starten: `flutter run -d emulator-5554`
+  - APK für die Produktion bauen: `flutter build apk --release --flavor production`
+
+  Weitere Optionen und Details: https://flutter.dev/docs

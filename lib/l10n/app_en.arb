@@ -1,0 +1,753 @@
+{
+  "@@locale": "en",
+
+  "commonCancel": "Cancel",
+  "commonAdd": "Add",
+  "commonDelete": "Delete",
+  "commonClose": "Close",
+  "commonDescription": "Description",
+  "buildFailurePipelineNeedsCommand": "Pipeline “{parameter}” needs a command.",
+  "@buildFailurePipelineNeedsCommand": {
+    "placeholders": { "parameter": { "type": "String" } }
+  },
+  "buildFailureCommandIsEmpty": "The command to run is empty.",
+  "buildFailureInvalidButtonAction": "Invalid button action.",
+  "buildFailureRequiredParameterMissing": "Required parameter “{parameter}” is missing.",
+  "@buildFailureRequiredParameterMissing": {
+    "placeholders": { "parameter": { "type": "String" } }
+  },
+  "buildFailureParameterRequiresOther": "Parameter “{parameter}” requires “{other}”.",
+  "@buildFailureParameterRequiresOther": {
+    "placeholders": {
+      "parameter": { "type": "String" },
+      "other": { "type": "String" }
+    }
+  },
+  "buildFailureParameterConflictsWithOther": "Parameter “{parameter}” cannot be used together with “{other}”.",
+  "@buildFailureParameterConflictsWithOther": {
+    "placeholders": {
+      "parameter": { "type": "String" },
+      "other": { "type": "String" }
+    }
+  },
+  "buildFailureParameterMustDifferFromOther": "Parameter “{parameter}” must differ from “{other}”.",
+  "@buildFailureParameterMustDifferFromOther": {
+    "placeholders": {
+      "parameter": { "type": "String" },
+      "other": { "type": "String" }
+    }
+  },
+  "buildFailureInvalidOptionValue": "Parameter “{parameter}” contains an invalid option value.",
+  "@buildFailureInvalidOptionValue": {
+    "placeholders": { "parameter": { "type": "String" } }
+  },
+  "buildFailureDdInputEqualsOutput": "The input and output of dd must differ.",
+  "buildFailureMultipleValuesNotAttachable": "Parameter “{parameter}” cannot attach multiple values directly to one flag.",
+  "@buildFailureMultipleValuesNotAttachable": {
+    "placeholders": { "parameter": { "type": "String" } }
+  },
+  "buildFailureInvalidConfigurationValue": "Invalid configuration value: {detail}",
+  "@buildFailureInvalidConfigurationValue": {
+    "placeholders": { "detail": { "type": "String" } }
+  },
+  "buildFailureParameterMustBeList": "Parameter “{parameter}” must contain a list.",
+  "@buildFailureParameterMustBeList": {
+    "placeholders": { "parameter": { "type": "String" } }
+  },
+  "buildFailureControlCharactersNotAllowed": "Command arguments must not contain control characters.",
+  "buildFailureUnsafeWindowsCharacter": "The Windows shell cannot safely handle this character in input values.",
+
+  "optionStoreValueAndDescriptionRequired": "Value and description must not be empty.",
+  "optionStoreControlCharactersNotAllowed": "Value and description must not contain control characters.",
+  "optionStoreFileChangedMeanwhile": "The YAML file changed in the meantime. Open it again.",
+  "optionStoreDuplicateOptionValue": "The option value “{value}” already exists.",
+  "@optionStoreDuplicateOptionValue": {
+    "placeholders": { "value": { "type": "String" } }
+  },
+  "optionStoreNewEntryNotValid": "The new entry could not be validated.",
+  "optionStoreOptionValueNotFound": "The option value “{value}” was not found.",
+  "@optionStoreOptionValueNotFound": {
+    "placeholders": { "value": { "type": "String" } }
+  },
+  "optionStoreLastOptionCannotBeDeleted": "The last option value cannot be deleted.",
+  "optionStoreUnsupportedOptionListFormat": "The option list uses an unsupported YAML format.",
+  "optionStoreEntryNotFullyDeleted": "The entry could not be deleted completely.",
+  "optionStoreInvalidYamlRoot": "The YAML root is invalid.",
+  "optionStoreMissingParameterList": "The parameter list is missing.",
+  "optionStoreOptionsParameterNotFound": "The options parameter “{name}” was not found.",
+  "@optionStoreOptionsParameterNotFound": {
+    "placeholders": { "name": { "type": "String" } }
+  },
+  "optionStoreMissingOptionList": "The option list is missing.",
+  "optionStoreMissingField": "The field “{field}” is missing.",
+  "@optionStoreMissingField": {
+    "placeholders": { "field": { "type": "String" } }
+  },
+
+  "batchStoreTitleAndCommandRequired": "Title and command must not be empty.",
+  "batchStoreUnsupportedCommandListFormat": "The command list uses an unsupported YAML format.",
+  "batchStoreNewCommandNotValid": "The new command could not be validated.",
+  "batchStoreCommandToDeleteNotFound": "The command to delete was not found.",
+  "batchStoreCommandNotFullyDeleted": "The command could not be deleted completely.",
+  "batchStoreInvalidYamlRoot": "The YAML root is invalid.",
+  "batchStoreMissingCommandList": "The command list is missing.",
+  "batchStoreFileChangedMeanwhile": "The YAML file changed in the meantime. Open it again.",
+  "batchStoreMissingField": "The field “{field}” is missing.",
+  "@batchStoreMissingField": {
+    "placeholders": { "field": { "type": "String" } }
+  },
+
+  "tabFailureUnknownProfile": "Unknown profile.",
+  "tabFailureSavedTabsUnreadable": "Saved tabs could not be loaded: {detail}",
+  "@tabFailureSavedTabsUnreadable": {
+    "placeholders": { "detail": { "type": "String" } }
+  },
+  "tabFailureSshTabsCannotBeSnapshotted": "For security reasons, SSH terminal tabs cannot be stored as a terminal snapshot.",
+  "tabFailureNameMustNotBeEmpty": "The name must not be empty.",
+  "tabFailureSavedTabChangedMeanwhile": "This saved tab changed in the meantime. Open the current version again.",
+  "tabFailureInvalidTabName": "Invalid terminal tab name.",
+  "tabFailureIntegratedTerminalUnavailable": "The built-in terminal is not available.",
+  "tabFailureShellProfileUnavailable": "The shell profile “{profile}” is not available.",
+  "@tabFailureShellProfileUnavailable": {
+    "placeholders": { "profile": { "type": "String" } }
+  },
+
+  "authFailurePassphraseTooLong": "The key passphrase is too long.",
+  "authFailurePassphraseRequired": "The private SSH key needs a passphrase.",
+  "authFailureNoPrivateKeyInFile": "The file does not contain a private SSH key.",
+  "authFailureInvalidKeyOrPassphrase": "The private SSH key or its passphrase is invalid or unsupported.",
+  "authFailureInvalidOrUnsupportedKey": "The private SSH key is invalid or unsupported.",
+  "authFailureKeyFileTooLarge": "The private key file is too large.",
+  "authFailureKeyFileUnreadable": "The private key file could not be read.",
+  "authFailureKeyFileNotUtf8": "The private key file is not a valid UTF-8 text file.",
+  "authFailureNoStoredPassword": "No password is stored in the keychain for “{profile}”.",
+  "@authFailureNoStoredPassword": {
+    "placeholders": { "profile": { "type": "String" } }
+  },
+  "authFailureNoPrivateKeyConfigured": "No private key file is configured for “{profile}”.",
+  "@authFailureNoPrivateKeyConfigured": {
+    "placeholders": { "profile": { "type": "String" } }
+  },
+
+  "backupFailureInvalidAuthenticationInBackup": "The SSH backup contains an invalid authentication type.",
+  "backupFailureInvalidDataInBackup": "The SSH backup contains invalid data.",
+  "backupFailureSelectAtLeastOneConnection": "Select at least one SSH connection.",
+  "backupFailureTooManyConnectionsSelected": "Too many SSH connections selected.",
+  "backupFailureBackupPasswordTooShort": "The backup password must be at least 12 characters long.",
+  "backupFailureCredentialsNotStored": "The credentials required for “{profile}” are not stored.",
+  "@backupFailureCredentialsNotStored": {
+    "placeholders": { "profile": { "type": "String" } }
+  },
+  "backupFailureFileTooLarge": "The backup file is too large.",
+  "backupFailureBackupPasswordMissing": "The backup password is missing.",
+  "backupFailureInvalidBackupParameters": "Invalid backup parameters.",
+  "backupFailureInvalidBackupCryptoData": "Invalid backup cryptographic data.",
+  "backupFailureInvalidBackupContent": "Invalid backup content.",
+  "backupFailureInvalidConnectionCount": "The backup contains an invalid number of connections.",
+  "backupFailureInvalidConnections": "The backup contains invalid connections.",
+  "backupFailureWrongPasswordOrTampered": "The backup password is wrong or the file was modified.",
+  "backupFailureConnectionNotExportable": "An SSH connection contains data that cannot be exported.",
+  "backupFailureUnknownBackupFormat": "Unknown SSH backup format.",
+  "backupFailureProfileReplacedTwice": "The profile “{profile}” cannot be replaced more than once.",
+  "@backupFailureProfileReplacedTwice": {
+    "placeholders": { "profile": { "type": "String" } }
+  },
+  "backupFailureProfileToReplaceNotFound": "An SSH profile to be replaced was not found.",
+  "backupFailureProfilesChangedDuringImport": "The SSH profiles changed during the import. Start the import again.",
+  "backupFailureImportFailedWithCleanup": "{error}\nTemporary keychain entries could not be removed either: {detail}",
+  "@backupFailureImportFailedWithCleanup": {
+    "placeholders": {
+      "error": { "type": "String" },
+      "detail": { "type": "String" }
+    }
+  },
+  "importWarningPreviousPasswordNotRemoved": "A previous password could not be removed: {detail}",
+  "@importWarningPreviousPasswordNotRemoved": {
+    "placeholders": { "detail": { "type": "String" } }
+  },
+
+  "persistedInvalidSavedCommand": "Invalid saved command.",
+  "persistedInvalidSavedPane": "Invalid saved terminal pane.",
+  "persistedInvalidSavedTab": "Invalid saved terminal tab.",
+  "persistedInvalidPaneTopology": "Invalid pane topology.",
+  "persistedIncompleteSplitPanes": "The split panes are incomplete.",
+  "persistedInvalidFocusedPane": "The focused pane is invalid.",
+  "persistedInvalidSshAuthentication": "Invalid SSH authentication.",
+  "persistedInvalidSshProfile": "Invalid SSH connection profile.",
+  "persistedInvalidSshHostKey": "Invalid SSH host key.",
+  "persistedInvalidSshProfileList": "Invalid SSH profile list.",
+
+  "serviceUnsupportedLink": "Unsupported link: {uri}",
+  "@serviceUnsupportedLink": {
+    "placeholders": { "uri": { "type": "String" } }
+  },
+  "serviceLinksNotOpenableOnPlatform": "Links are not opened on this platform.",
+  "serviceTerminalDetectionUnsupported": "Terminal detection is not supported on this platform.",
+  "serviceSshProfileNotFound": "The SSH connection profile was not found.",
+
+  "sessionFailureSessionNotRunning": "The terminal session is not running.",
+  "sessionFailureTrackedCommandAlreadyRunning": "A tracked command is already running in this terminal.",
+  "sessionFailureNulNotAllowed": "NUL is not allowed.",
+  "sessionFailureProcessCouldNotBeTerminated": "The terminal process could not be terminated.",
+  "sessionFailureProcessDidNotExitInTime": "The terminal process did not exit within the time limit.",
+  "sessionFailureWindowsHomePathNotAscii": "flutter_pty does not currently support Windows user paths containing non-ASCII characters. Use the external terminal for now.",
+  "sessionFailureShellExecutableEmpty": "The shell program must not be empty.",
+  "sessionFailureWindowsProfileNotAscii": "flutter_pty currently supports only ASCII characters in built-in shell profiles on Windows. Use the external terminal for now.",
+
+  "configErrorAt": "{file}: {field}: {reason}",
+  "@configErrorAt": {
+    "placeholders": {
+      "file": { "type": "String" },
+      "field": { "type": "String" },
+      "reason": { "type": "String" }
+    }
+  },
+  "configReasonMustBeList": "must be a list",
+  "configReasonMustBeNonEmptyList": "must be a non-empty list",
+  "configReasonMustBeObject": "must be an object",
+  "configReasonMustBeText": "must contain text",
+  "configReasonMustBeBoolean": "must be true or false",
+  "configReasonMustBeInteger": "must be a whole number",
+  "configReasonMustBeTextList": "must be a list of text",
+  "configReasonMustBeTextOrBoolean": "must be text, true or false",
+  "configReasonMustBeFilePickerMode": "must be file, directory or any",
+  "configReasonMustBeExecutionMode": "must be automatic, before_command, argument or pipeline",
+  "configReasonMustBeAttachmentMode": "must be automatic, separated or attached",
+  "configReasonOptionsParameterNeedsEntry": "an options parameter needs at least one entry",
+  "configReasonButtonNeedsExecutable": "a button needs an executable program",
+  "configReasonTypeMismatch": "does not have the data type matching the parameter type",
+  "configReasonNotInOptions": "is not contained in options",
+  "configReasonDuplicateParameterName": "parameter name “{name}” appears more than once",
+  "@configReasonDuplicateParameterName": {
+    "placeholders": { "name": { "type": "String" } }
+  },
+  "configReasonDuplicateOptionValue": "option value “{value}” appears more than once",
+  "@configReasonDuplicateOptionValue": {
+    "placeholders": { "value": { "type": "String" } }
+  },
+  "configReasonUnknownParameterType": "unknown parameter type “{type}”",
+  "@configReasonUnknownParameterType": {
+    "placeholders": { "type": { "type": "String" } }
+  },
+  "configReasonUnknownParameterReference": "refers to unknown parameter “{name}”",
+  "@configReasonUnknownParameterReference": {
+    "placeholders": { "name": { "type": "String" } }
+  },
+  "configReasonUnknownFields": "contains unknown fields: {fields}",
+  "@configReasonUnknownFields": {
+    "placeholders": { "fields": { "type": "String" } }
+  },
+  "configReasonUnknownGroupFields": "contains unknown group fields: {fields}",
+  "@configReasonUnknownGroupFields": {
+    "placeholders": { "fields": { "type": "String" } }
+  },
+  "configReasonConditionSelfReference": "a condition must not refer to its own parameter",
+  "configReasonConditionValueTypeMismatch": "condition value does not match the type of “{name}”",
+  "@configReasonConditionValueTypeMismatch": {
+    "placeholders": { "name": { "type": "String" } }
+  },
+  "configReasonConditionValueNotAnOption": "condition value is not an option of “{name}”",
+  "@configReasonConditionValueNotAnOption": {
+    "placeholders": { "name": { "type": "String" } }
+  },
+  "configReasonBothAllAndAny": "must not contain all and any at the same time",
+  "configReasonNeedsAtLeastOneCondition": "must contain at least one condition",
+  "configReasonOnlyEqualsInOrActive": "may only use equals, in or active",
+  "configReasonUnsupportedSchemaVersion": "only version {version} is supported",
+  "@configReasonUnsupportedSchemaVersion": {
+    "placeholders": { "version": { "type": "String" } }
+  },
+  "configReasonFileNotFound": "file was not found",
+  "configReasonFileUnreadable": "file could not be read: {detail}",
+  "@configReasonFileUnreadable": {
+    "placeholders": { "detail": { "type": "String" } }
+  },
+  "configReasonInvalidYaml": "invalid YAML: {detail}",
+  "@configReasonInvalidYaml": {
+    "placeholders": { "detail": { "type": "String" } }
+  },
+  "configItemBatchCommands": "{count, plural, =1{1 command in this file} other{{count} commands in this file}}",
+  "@configItemBatchCommands": {
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "configItemNoDescription": "No description",
+  "configItemLoadError": "Error: {file}",
+  "@configItemLoadError": {
+    "placeholders": { "file": { "type": "String" } }
+  },
+
+  "configErrorTitle": "Configuration error",
+  "outputTitle": "Command Output",
+
+  "generatorAddOptionTitle": "Add entry to {parameter}",
+  "@generatorAddOptionTitle": {
+    "placeholders": { "parameter": { "type": "String" } }
+  },
+  "generatorFieldValue": "Value",
+  "generatorOptionSaveFailed": "Could not save the entry: {error}",
+  "@generatorOptionSaveFailed": {
+    "placeholders": { "error": { "type": "String" } }
+  },
+  "generatorOptionDeleteFailed": "Could not delete the entry: {error}",
+  "@generatorOptionDeleteFailed": {
+    "placeholders": { "error": { "type": "String" } }
+  },
+  "generatorBuildFailed": "Error: {error}",
+  "@generatorBuildFailed": {
+    "placeholders": { "error": { "type": "String" } }
+  },
+  "generatorExecuteFailed": "Execution failed: {error}",
+  "@generatorExecuteFailed": {
+    "placeholders": { "error": { "type": "String" } }
+  },
+  "generatorActionFailed": "Action failed: {error}",
+  "@generatorActionFailed": {
+    "placeholders": { "error": { "type": "String" } }
+  },
+  "generatorCommandCopied": "Command copied to clipboard:\n{command}",
+  "@generatorCommandCopied": {
+    "placeholders": { "command": { "type": "String" } }
+  },
+  "generatorBuildCommand": "Build command",
+  "generatorPreparing": "Preparing…",
+  "generatorInsertIntoTerminal": "Insert into terminal",
+  "generatorRunCommand": "Run command",
+  "generatorIntegratedTerminal": "Built-in terminal",
+  "generatorIntegratedTerminalOn": "Run the command inside Terminal Master",
+  "generatorIntegratedTerminalOff": "Use the configured external terminal app",
+  "generatorNewExternalTerminal": "New external terminal",
+
+  "pickDirectory": "Select folder",
+  "pickFileOrDirectory": "Select file or folder",
+  "pickFile": "Select file",
+  "listRemoveEntry": "Remove entry",
+  "listAddEntry": "Add another entry",
+
+  "riskReasonRmDeletesPermanently": "rm can permanently delete files and directories.",
+  "riskReasonDdOverwrites": "dd can overwrite files, drives and partitions.",
+  "riskReasonForceOptionSkipsPrompts": "The force option skips the normal safety prompts.",
+  "riskReasonElevatedPrivileges": "The command runs with elevated privileges.",
+  "riskReasonBatchMayDeleteOrOverwrite": "At least one batch command can delete or overwrite data.",
+  "riskReasonBatchUsesForce": "At least one batch command uses a force option.",
+  "riskReasonBatchUsesElevatedPrivileges": "At least one batch command uses elevated privileges.",
+
+  "confirmTitleStandard": "Review command",
+  "confirmTitleElevated": "Confirm elevated privileges",
+  "confirmTitleDestructive": "Confirm destructive command",
+  "confirmRawConfigWarning": "These commands come straight from a YAML file. Only run them if you trust the file and its contents.",
+  "confirmCommandsLabel": "{count, plural, =1{Command to run} other{Commands to run}}",
+  "@confirmCommandsLabel": {
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "confirmAcknowledgement": "I have reviewed the command and understand the risk.",
+  "confirmRun": "Run",
+
+  "optionsPleaseSelect": "Please select",
+  "optionsNotUsed": "Do not use",
+  "optionsSearchHint": "Search value or description",
+  "optionsNoMatches": "No matches",
+  "optionsAddEntry": "Add entry",
+  "optionsDeleteEntry": "Delete entry",
+  "optionsDeleteTitle": "Delete entry?",
+  "optionsDeleteMessage": "Permanently delete “{value}” from the YAML file?",
+  "@optionsDeleteMessage": {
+    "placeholders": { "value": { "type": "String" } }
+  },
+
+  "mainTitle": "Command Builder",
+  "mainSearchHint": "Search templates",
+  "mainDirectoryNotFound": "Folder not found.",
+  "mainPathCopied": "Path copied to clipboard",
+  "mainRevealInFileManager": "Show in file manager",
+  "mainRefresh": "Refresh",
+  "mainNoConfigFiles": "No config files found",
+
+  "batchTitle": "Batch Commands",
+  "batchAddCommand": "Add batch command",
+  "batchFieldTitle": "Title *",
+  "batchFieldCommand": "Command *",
+  "batchUntitled": "Untitled",
+  "batchNoCommands": "No commands found.",
+  "batchDeleteTitle": "Delete batch command?",
+  "batchDeleteMessage": "Permanently delete “{title}”?",
+  "@batchDeleteMessage": {
+    "placeholders": { "title": { "type": "String" } }
+  },
+  "batchSaveFailed": "Could not save the command: {error}",
+  "@batchSaveFailed": {
+    "placeholders": { "error": { "type": "String" } }
+  },
+  "batchDeleteFailed": "Could not delete the command: {error}",
+  "@batchDeleteFailed": {
+    "placeholders": { "error": { "type": "String" } }
+  },
+  "batchInsertFailed": "Insert failed: {error}",
+  "@batchInsertFailed": {
+    "placeholders": { "error": { "type": "String" } }
+  },
+  "batchInsertIntoTerminal": "Insert into the built-in terminal",
+  "batchCopyCommand": "Copy command",
+  "batchCommandCopied": "Command copied to clipboard",
+  "batchDeleteCommand": "Delete batch command",
+
+  "commonName": "Name",
+  "commonSave": "Save",
+  "commonOpen": "Open",
+  "commonCopy": "Copy",
+  "commonPaste": "Paste",
+  "commonEdit": "Edit",
+
+  "railClose": "Close {tool}",
+  "@railClose": {
+    "placeholders": { "tool": { "type": "String" } }
+  },
+  "terminalCommandHint": "Commands for {profile} …",
+  "@terminalCommandHint": {
+    "placeholders": { "profile": { "type": "String" } }
+  },
+  "terminalSendToTerminal": "Send to terminal",
+  "terminalSearch": "Search terminal",
+  "terminalCloseSearch": "Close search",
+  "terminalMoreActions": "More terminal actions",
+  "terminalRestartSession": "Restart session",
+  "terminalCloseTabHint": "Close tab · right-click for tab actions",
+  "terminalNewTab": "New terminal tab",
+  "terminalOpenSavedTab": "Open saved terminal tab",
+  "terminalNoSavedTabs": "No saved tabs",
+  "terminalSaveTabTitle": "Save terminal tab",
+  "terminalUpdateSavedTab": "Update saved tab",
+  "terminalSaveTabNote": "Up to 20 command block commands are stored per pane. Commands may contain sensitive values; terminal output is not stored.",
+  "terminalTabSaved": "Terminal tab “{name}” was saved.",
+  "@terminalTabSaved": {
+    "placeholders": { "name": { "type": "String" } }
+  },
+  "terminalSaveFailed": "Saving failed: {error}",
+  "@terminalSaveFailed": {
+    "placeholders": { "error": { "type": "String" } }
+  },
+  "terminalOpenSnapshotTitle": "Open “{name}”",
+  "@terminalOpenSnapshotTitle": {
+    "placeholders": { "name": { "type": "String" } }
+  },
+  "terminalSnapshotSummary": "{panes} terminal panes · {commands} saved commands",
+  "@terminalSnapshotSummary": {
+    "placeholders": {
+      "panes": { "type": "int" },
+      "commands": { "type": "int" }
+    }
+  },
+  "terminalRunSavedCommands": "Run saved commands right after opening",
+  "terminalRunSavedCommandsNote": "The commands run one after another per pane.",
+  "terminalOpenFailed": "Opening failed: {error}",
+  "@terminalOpenFailed": {
+    "placeholders": { "error": { "type": "String" } }
+  },
+  "terminalAutoRunFailed": "Automatic execution failed: {error}",
+  "@terminalAutoRunFailed": {
+    "placeholders": { "error": { "type": "String" } }
+  },
+  "terminalRestartTitle": "Restart terminal session?",
+  "terminalRestartMessage": "The running process is terminated in a controlled manner and the session is restarted immediately. The previous terminal output is reset; unsent commands are preserved.",
+  "terminalRestart": "Restart",
+  "terminalRestartFailed": "Could not restart the session: {error}",
+  "@terminalRestartFailed": {
+    "placeholders": { "error": { "type": "String" } }
+  },
+  "terminalRenameTab": "Rename tab",
+  "terminalSaveTab": "Save tab",
+  "terminalRenameTabTitle": "Rename terminal tab",
+  "terminalFieldTabName": "Tab name",
+  "terminalRename": "Rename",
+  "terminalCloseTabTitle": "Close terminal tab?",
+  "terminalCloseTabMessage": "All running sessions of this tab will be terminated.",
+  "terminalCloseTab": "Close tab",
+  "terminalCloseTabFailed": "Could not close the tab: {error}",
+  "@terminalCloseTabFailed": {
+    "placeholders": { "error": { "type": "String" } }
+  },
+
+  "terminalTrueColorTooltip": "xterm-256color with 24-bit true color",
+  "terminalAlternateScreenActive": "Alternate screen active",
+  "terminalMouseControlActive": "Terminal mouse control active",
+  "terminalCommandBlocksCount": "Command blocks ({count})",
+  "@terminalCommandBlocksCount": {
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "terminalCloseVerticalSplit": "Close vertical split",
+  "terminalSplitVertically": "Split terminal vertically",
+  "terminalCloseHorizontalSplit": "Close horizontal split",
+  "terminalSplitHorizontally": "Split terminal horizontally",
+  "terminalRestoreSplitView": "Restore split view",
+  "terminalMaximizePane": "Maximize terminal pane",
+  "terminalDecreaseFontSize": "Decrease",
+  "terminalIncreaseFontSize": "Increase",
+  "terminalJumpToOutput": "Jump to latest output",
+  "terminalNoMatches": "0 matches",
+  "terminalSearchScrollback": "Search scrollback",
+  "terminalPreviousMatch": "Previous match",
+  "terminalNextMatch": "Next match",
+  "terminalCommandBlocks": "Command blocks",
+  "terminalNotWhileRunning": "Not possible while a command is running",
+  "terminalClearCommandBlocks": "Clear command blocks",
+  "terminalNoCommandsYet": "No commands sent through Terminal Master yet.",
+  "terminalSavedCommands": "Saved commands",
+  "terminalFilterAll": "All",
+  "terminalFilterCurrentSession": "Current session",
+  "terminalRunNow": "Run now",
+  "terminalMoreActionsShort": "More actions",
+  "terminalRunFailed": "Execution failed: {error}",
+  "@terminalRunFailed": {
+    "placeholders": { "error": { "type": "String" } }
+  },
+  "terminalSavedCommandSubtitle": "{timestamp} · Exit {exitCode}",
+  "@terminalSavedCommandSubtitle": {
+    "placeholders": {
+      "timestamp": { "type": "String" },
+      "exitCode": { "type": "String" }
+    }
+  },
+  "terminalOutputTruncated": "Output was truncated after {limit} characters.",
+  "@terminalOutputTruncated": {
+    "placeholders": {
+      "limit": { "type": "int", "format": "decimalPattern" }
+    }
+  },
+  "terminalLabelCommand": "Command",
+  "terminalLabelOutput": "Output",
+  "terminalExport": "Export",
+  "terminalExportCommandBlock": "Export command block",
+  "terminalExportFailed": "Export failed: {error}",
+  "@terminalExportFailed": {
+    "placeholders": { "error": { "type": "String" } }
+  },
+  "terminalStatusRunningBlock": "Running",
+  "terminalStatusSucceeded": "Succeeded (exit 0)",
+  "terminalStatusFailed": "Failed (exit {exitCode})",
+  "@terminalStatusFailed": {
+    "placeholders": { "exitCode": { "type": "String" } }
+  },
+  "terminalStatusInterrupted": "Interrupted",
+  "terminalOpenLink": "Open link",
+  "terminalSelectAll": "Select all",
+  "terminalSearchSelection": "Search selection",
+  "terminalClearOutput": "Clear output",
+  "terminalOpenLinkFailed": "Could not open the link: {error}",
+  "@terminalOpenLinkFailed": {
+    "placeholders": { "error": { "type": "String" } }
+  },
+  "terminalPasteMultilineTitle": "Paste multiline text?",
+  "terminalPasteMultilineMessage": "Line breaks can execute commands immediately. Check the content before pasting.",
+  "terminalStatusReady": "Ready",
+  "terminalStatusStarting": "Terminal is starting …",
+  "terminalStatusActive": "Terminal running",
+  "terminalStatusExited": "Process exited ({exitCode})",
+  "@terminalStatusExited": {
+    "placeholders": { "exitCode": { "type": "String" } }
+  },
+  "terminalExitCodeUnknown": "unknown",
+  "terminalStatusStartFailed": "Terminal could not be started: {error}",
+  "@terminalStatusStartFailed": {
+    "placeholders": { "error": { "type": "String" } }
+  },
+  "terminalInfoShell": "Shell: {name}",
+  "@terminalInfoShell": {
+    "placeholders": { "name": { "type": "String" } }
+  },
+  "terminalInfoDirectory": "Directory: {directory}",
+  "@terminalInfoDirectory": {
+    "placeholders": { "directory": { "type": "String" } }
+  },
+  "terminalInfoStatus": "Status: {status}",
+  "@terminalInfoStatus": {
+    "placeholders": { "status": { "type": "String" } }
+  },
+
+  "hostKeyUnknownTitle": "Unknown SSH server",
+  "hostKeyUnknownMessage": "No host key is stored for {endpoint} yet.\n\nType: {keyType}\nFingerprint: {fingerprint}\n\nCompare the fingerprint against a trusted source.",
+  "@hostKeyUnknownMessage": {
+    "placeholders": {
+      "endpoint": { "type": "String" },
+      "keyType": { "type": "String" },
+      "fingerprint": { "type": "String" }
+    }
+  },
+  "hostKeyTrustOnce": "Trust once",
+  "hostKeyTrustPermanently": "Trust permanently",
+  "hostKeyChangedTitle": "SSH host key changed",
+  "hostKeyChangedMessage": "The identity of {endpoint} does not match the stored host key. The connection was blocked.\n\nStored: {stored}\nReceived: {received}",
+  "@hostKeyChangedMessage": {
+    "placeholders": {
+      "endpoint": { "type": "String" },
+      "stored": { "type": "String" },
+      "received": { "type": "String" }
+    }
+  },
+
+  "sshPageTitle": "SSH connections",
+  "sshNoProfilesYet": "No SSH connections saved yet.",
+  "sshNoProfilesFound": "No SSH connections found.",
+  "sshSearchHint": "Search SSH connections",
+  "sshClearSearch": "Clear search",
+  "sshAddConnection": "Add connection",
+  "sshTest": "Test",
+  "sshEdit": "Edit",
+  "sshConnect": "Connect",
+  "sshSave": "Save",
+  "sshAuthenticationKeyLabel": "Authentication: SSH key",
+  "sshAuthenticationPasswordLabel": "Authentication: password",
+  "sshHostKeyConfirmed": "Host key confirmed",
+  "sshHostKeyUnconfirmed": "Host key not confirmed",
+
+  "sshProfileChangedReopen": "The SSH profile changed in the meantime. Open it again.",
+  "sshProfileChangedDeleteAgain": "The SSH profile changed in the meantime. Delete it again.",
+  "sshProfilesChangedRetry": "The SSH profiles changed in the meantime. Try again.",
+  "sshPasswordRequired": "Please enter an SSH password.",
+  "sshSavedButCredentialCleanupFailed": "The profile was saved, but the previous credentials could not be removed from the keychain: {error}",
+  "@sshSavedButCredentialCleanupFailed": {
+    "placeholders": { "error": { "type": "String" } }
+  },
+  "sshSaveFailedWithCleanup": "Could not save the SSH profile: {error}\nThe temporary credentials could not be removed either: {cleanupError}",
+  "@sshSaveFailedWithCleanup": {
+    "placeholders": {
+      "error": { "type": "String" },
+      "cleanupError": { "type": "String" }
+    }
+  },
+  "sshSaveFailed": "Could not save the SSH profile: {error}",
+  "@sshSaveFailed": {
+    "placeholders": { "error": { "type": "String" } }
+  },
+  "sshDeleteTitle": "Delete SSH connection?",
+  "sshDeleteMessage": "Delete “{name}” including its stored credentials?",
+  "@sshDeleteMessage": {
+    "placeholders": { "name": { "type": "String" } }
+  },
+  "sshDeletedButCredentialCleanupFailed": "The profile was deleted, but the credentials could not be removed from the keychain: {error}",
+  "@sshDeletedButCredentialCleanupFailed": {
+    "placeholders": { "error": { "type": "String" } }
+  },
+  "sshDeleteFailed": "Could not delete the SSH profile: {error}",
+  "@sshDeleteFailed": {
+    "placeholders": { "error": { "type": "String" } }
+  },
+  "sshConnectionSucceeded": "SSH connection succeeded.",
+  "sshConnectionFailed": "SSH connection failed: {error}",
+  "@sshConnectionFailed": {
+    "placeholders": { "error": { "type": "String" } }
+  },
+
+  "sshExportDialogTitle": "Export encrypted SSH backup",
+  "sshImportDialogTitle": "Import encrypted SSH backup",
+  "sshImportBackupTooltip": "Import encrypted backup",
+  "sshExportBackupTooltip": "Export encrypted backup",
+  "sshExportSuccess": "{count, plural, =1{1 SSH connection exported in encrypted form.} other{{count} SSH connections exported in encrypted form.}}",
+  "@sshExportSuccess": {
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "sshExportFailed": "SSH export failed: {error}",
+  "@sshExportFailed": {
+    "placeholders": { "error": { "type": "String" } }
+  },
+  "sshBackupFilePickFailed": "Could not choose the backup file: {error}",
+  "@sshBackupFilePickFailed": {
+    "placeholders": { "error": { "type": "String" } }
+  },
+  "sshImportSummary": "{imported} imported, {replaced} replaced, {skipped} skipped.",
+  "@sshImportSummary": {
+    "placeholders": {
+      "imported": { "type": "int" },
+      "replaced": { "type": "int" },
+      "skipped": { "type": "int" }
+    }
+  },
+  "sshImportFailed": "SSH import failed: {error}",
+  "@sshImportFailed": {
+    "placeholders": { "error": { "type": "String" } }
+  },
+  "sshBackupFileTooLarge": "The backup file is too large.",
+  "sshBackupDialogTitle": "Encrypted SSH backup",
+  "sshBackupExportExplanation": "The backup contains the selected connections and their passwords or key passphrases. Private key files are not embedded. The backup is protected with Argon2id and AES-256-GCM.",
+  "sshBackupPasswordLabel": "Backup password",
+  "sshBackupPasswordHelper": "At least 12 characters",
+  "sshBackupPasswordTooShort": "At least 12 characters required.",
+  "sshBackupPasswordRepeatLabel": "Repeat backup password",
+  "sshBackupPasswordMismatch": "The passwords do not match.",
+  "sshBackupPasswordNeeded": "Backup password required.",
+  "sshBackupDecryptTitle": "Decrypt SSH backup",
+  "sshExport": "Export",
+  "sshDecrypt": "Decrypt",
+  "sshImport": "Import",
+  "sshSelectAtLeastOne": "Select at least one connection.",
+  "sshImportReviewTitle": "Review SSH import",
+  "sshKeyShort": "SSH key",
+  "sshPasswordShort": "Password",
+  "sshImportDuplicateEndpoint": "Duplicate endpoint in backup",
+  "sshImportExistingFound": "Existing connection found",
+  "sshImportNewConnection": "New connection",
+  "sshImportHostKeyWarning": "Warning: host key differs",
+  "sshImportSkip": "Skip",
+  "sshImportReplace": "Replace",
+  "sshImportNew": "New",
+  "sshImportAsCopy": "As copy",
+
+  "sshEditTitle": "Edit SSH connection",
+  "sshAddTitle": "Add SSH connection",
+  "sshFieldDisplayName": "Display name",
+  "sshFieldHost": "Server address",
+  "sshFieldPort": "Port",
+  "sshFieldUsername": "Username",
+  "sshFieldAuthentication": "Authentication",
+  "sshPortRange": "Port must be between 1 and 65535.",
+  "sshAuthenticationKeyDesktop": "SSH key (desktop)",
+  "sshFieldPrivateKeyFile": "Private key file",
+  "sshPickKeyFile": "Select key file",
+  "sshPrivateKeyRequired": "Select a private key file.",
+  "sshClearStoredPassphrase": "Remove stored passphrase",
+  "sshKeyPassphraseKeep": "Key passphrase (leave empty to keep)",
+  "sshKeyPassphraseOptional": "Key passphrase (optional)",
+  "sshPasswordKeep": "New password (leave empty to keep)",
+  "sshPasswordLabel": "Password",
+  "sshShowPassword": "Show password",
+  "sshHidePassword": "Hide password",
+  "sshPasswordNotEmpty": "The password must not be empty.",
+  "sshCredentialStorageNote": "Passwords and key passphrases are stored exclusively in the operating system keychain. Private keys stay in the selected file.",
+  "sshFieldNotEmpty": "{label} must not be empty.",
+  "@sshFieldNotEmpty": {
+    "placeholders": { "label": { "type": "String" } }
+  },
+  "sshFieldInvalidControlCharacters": "{label} contains invalid control characters.",
+  "@sshFieldInvalidControlCharacters": {
+    "placeholders": { "label": { "type": "String" } }
+  },
+  "sshKeyFilesDesktopOnly": "SSH key files are currently only supported on desktop platforms, because mobile file pickers do not provide durably usable paths.",
+  "sshPickPrivateKeyDialogTitle": "Select private SSH key file",
+
+  "settingsTitle": "Settings",
+  "settingsSectionTerminal": "Terminal",
+  "settingsDefaultShellLabel": "Default shell",
+  "settingsDefaultShellHelper": "Used for new terminal tabs.",
+  "settingsDefaultShellSaved": "Default shell saved.",
+  "settingsDefaultShellSaveFailed": "Could not save the default shell: {error}",
+  "@settingsDefaultShellSaveFailed": {
+    "placeholders": { "error": { "type": "String" } }
+  },
+  "settingsSectionCommandBuilder": "Command Builder",
+  "settingsYamlDirectoryLabel": "Default YAML folder",
+  "settingsYamlDirectoryHelper": "Templates are loaded from this folder.",
+  "settingsSelectYamlDirectory": "Select YAML folder",
+  "settingsYamlDirectoryMissing": "The selected folder does not exist.",
+  "settingsYamlDirectorySaved": "Default YAML folder saved.",
+  "settingsYamlDirectorySaveFailed": "Could not save the default YAML folder: {error}",
+  "@settingsYamlDirectorySaveFailed": {
+    "placeholders": { "error": { "type": "String" } }
+  },
+  "settingsSectionLanguage": "Language",
+  "settingsLanguageLabel": "Language",
+  "settingsLanguageHelper": "Takes effect immediately.",
+  "settingsLanguageSystem": "System default",
+  "settingsLanguageSaved": "Language saved.",
+  "settingsLanguageSaveFailed": "Could not save the language: {error}",
+  "@settingsLanguageSaveFailed": {
+    "placeholders": { "error": { "type": "String" } }
+  }
+}

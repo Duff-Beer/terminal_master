@@ -29,11 +29,30 @@ class SshBackupImportItem {
       );
 }
 
+/// A non-fatal problem noticed while applying an import.
+///
+/// Carries a code plus the raw detail so the UI can phrase it in the active
+/// language; the service itself has no locale.
+enum SshBackupImportWarningKind { previousPasswordNotRemoved }
+
+class SshBackupImportWarning {
+  final SshBackupImportWarningKind kind;
+  final String detail;
+
+  const SshBackupImportWarning(this.kind, this.detail);
+
+  @override
+  String toString() => switch (kind) {
+    SshBackupImportWarningKind.previousPasswordNotRemoved =>
+      'A previous password could not be removed: $detail',
+  };
+}
+
 class SshBackupImportResult {
   final int imported;
   final int replaced;
   final int skipped;
-  final List<String> cleanupWarnings;
+  final List<SshBackupImportWarning> cleanupWarnings;
 
   const SshBackupImportResult({
     required this.imported,
@@ -128,7 +147,8 @@ class SshBackupImportService {
         if (replace) {
           if (!replacedProfileIds.add(existing.id)) {
             throw SshBackupException(
-              'Das Profil „${existing.name}“ kann nicht mehrfach ersetzt werden.',
+              SshBackupFailure.profileReplacedTwice,
+              existing.name,
             );
           }
           final profileIndex = updated.indexWhere(
@@ -136,7 +156,7 @@ class SshBackupImportService {
           );
           if (profileIndex < 0) {
             throw const SshBackupException(
-              'Ein zu ersetzendes SSH-Profil wurde nicht gefunden.',
+              SshBackupFailure.profileToReplaceNotFound,
             );
           }
           updated[profileIndex] = profile;
@@ -154,8 +174,7 @@ class SshBackupImportService {
       );
       if (!replacedAtomically) {
         throw const SshBackupException(
-          'Die SSH-Profile wurden während des Imports geändert. '
-          'Starte den Import erneut.',
+          SshBackupFailure.profilesChangedDuringImport,
         );
       }
     } on Object catch (importError) {
@@ -169,14 +188,15 @@ class SshBackupImportService {
       }
       if (cleanupErrors.isNotEmpty) {
         throw SshBackupException(
-          '$importError\nZusätzlich konnten temporäre Schlüsselbund-Einträge '
-          'nicht entfernt werden: ${cleanupErrors.join('; ')}',
+          SshBackupFailure.importFailedWithCleanup,
+          '$importError',
+          cleanupErrors.join('; '),
         );
       }
       rethrow;
     }
 
-    final warnings = <String>[];
+    final warnings = <SshBackupImportWarning>[];
     for (final credentialId in oldCredentialIds) {
       if (updated.any((profile) => profile.credentialId == credentialId)) {
         continue;
@@ -185,7 +205,10 @@ class SshBackupImportService {
         await credentialStore.deletePassword(credentialId);
       } on Object catch (error) {
         warnings.add(
-          'Ein vorheriges Passwort konnte nicht entfernt werden: $error',
+          SshBackupImportWarning(
+            SshBackupImportWarningKind.previousPasswordNotRemoved,
+            '$error',
+          ),
         );
       }
     }

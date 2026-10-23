@@ -1,3 +1,5 @@
+import 'persisted_data_exception.dart';
+
 class SavedTerminalCommand {
   final String command;
   final DateTime executedAt;
@@ -13,7 +15,9 @@ class SavedTerminalCommand {
     final command = json['command'];
     final executedAt = json['executedAt'];
     if (command is! String || command.trim().isEmpty || executedAt is! String) {
-      throw const FormatException('Ungültiger gespeicherter Befehl.');
+      throw const PersistedDataException(
+        PersistedDataProblem.invalidSavedCommand,
+      );
     }
     return SavedTerminalCommand(
       command: command,
@@ -58,7 +62,7 @@ class SavedTerminalPane {
         column > 1 ||
         profileId is! String ||
         profileId.isEmpty) {
-      throw const FormatException('Ungültige gespeicherte Terminal-Pane.');
+      throw const PersistedDataException(PersistedDataProblem.invalidSavedPane);
     }
     final commands = <SavedTerminalCommand>[];
     for (final value in (json['commands'] as List<Object?>? ?? const [])) {
@@ -123,7 +127,7 @@ class SavedTerminalTab {
         name.trim().isEmpty ||
         createdAt is! String ||
         updatedAt is! String) {
-      throw const FormatException('Ungültiger gespeicherter Terminal-Tab.');
+      throw const PersistedDataException(PersistedDataProblem.invalidSavedTab);
     }
     final panes = <SavedTerminalPane>[];
     for (final value in (json['panes'] as List<Object?>? ?? const [])) {
@@ -134,7 +138,9 @@ class SavedTerminalTab {
     final coordinates = <String>{};
     if (panes.length > 4 ||
         panes.any((pane) => !coordinates.add('${pane.row}:${pane.column}'))) {
-      throw const FormatException('Ungültige Pane-Topologie.');
+      throw const PersistedDataException(
+        PersistedDataProblem.invalidPaneTopology,
+      );
     }
     if (panes.isEmpty ||
         !panes.any((pane) => pane.row == 0 && pane.column == 0)) {
@@ -147,7 +153,9 @@ class SavedTerminalTab {
     if ((verticalSplit && !hasPane(0, 1)) ||
         (horizontalSplit && !hasPane(1, 0)) ||
         (verticalSplit && horizontalSplit && !hasPane(1, 1))) {
-      throw const FormatException('Die Split-Panes sind unvollständig.');
+      throw const PersistedDataException(
+        PersistedDataProblem.incompleteSplitPanes,
+      );
     }
     final focusedRow = json['focusedRow'] as int? ?? 0;
     final focusedColumn = json['focusedColumn'] as int? ?? 0;
@@ -156,7 +164,9 @@ class SavedTerminalTab {
         focusedColumn < 0 ||
         focusedColumn > 1 ||
         !hasPane(focusedRow, focusedColumn)) {
-      throw const FormatException('Die fokussierte Pane ist ungültig.');
+      throw const PersistedDataException(
+        PersistedDataProblem.invalidFocusedPane,
+      );
     }
     return SavedTerminalTab(
       id: id,

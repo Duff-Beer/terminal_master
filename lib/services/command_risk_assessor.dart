@@ -4,9 +4,23 @@ import '../models/command_config.dart';
 
 enum CommandRiskLevel { standard, elevated, destructive }
 
+/// Why a command was flagged as risky.
+///
+/// Codes rather than sentences: the assessor runs without a `BuildContext`,
+/// so the confirmation dialog renders these in the active language.
+enum CommandRiskReason {
+  rmDeletesPermanently,
+  ddOverwrites,
+  forceOptionSkipsPrompts,
+  elevatedPrivileges,
+  batchMayDeleteOrOverwrite,
+  batchUsesForce,
+  batchUsesElevatedPrivileges,
+}
+
 class CommandRiskAssessment {
   final CommandRiskLevel level;
-  final List<String> reasons;
+  final List<CommandRiskReason> reasons;
   final bool containsRawConfiguration;
 
   const CommandRiskAssessment({
@@ -26,18 +40,16 @@ class CommandRiskAssessor {
     Map<String, Object?> values,
   ) {
     var level = CommandRiskLevel.standard;
-    final reasons = <String>[];
+    final reasons = <CommandRiskReason>[];
     final command = config.command.replaceAll('_', ' ').trim().toLowerCase();
 
     if (_containsExecutable(command, const {'rm'})) {
       level = CommandRiskLevel.destructive;
-      reasons.add('rm kann Dateien und Verzeichnisse dauerhaft löschen.');
+      reasons.add(CommandRiskReason.rmDeletesPermanently);
     }
     if (_containsExecutable(command, const {'dd'})) {
       level = CommandRiskLevel.destructive;
-      reasons.add(
-        'dd kann Dateien, Datenträger und Partitionen überschreiben.',
-      );
+      reasons.add(CommandRiskReason.ddOverwrites);
     }
 
     for (final parameter in config.parameters) {
@@ -47,13 +59,13 @@ class CommandRiskAssessor {
           parameter.flag == '--force' ||
           parameter.flag == '-f') {
         level = CommandRiskLevel.destructive;
-        reasons.add('Die Force-Option überspringt normale Schutzabfragen.');
+        reasons.add(CommandRiskReason.forceOptionSkipsPrompts);
       }
       if (parameter.name == 'use_sudo' || parameter.flag == 'sudo') {
         if (level == CommandRiskLevel.standard) {
           level = CommandRiskLevel.elevated;
         }
-        reasons.add('Das Kommando wird mit erhöhten Rechten ausgeführt.');
+        reasons.add(CommandRiskReason.elevatedPrivileges);
       }
     }
 
@@ -68,7 +80,7 @@ class CommandRiskAssessor {
     bool containsRawConfiguration = true,
   }) {
     var level = CommandRiskLevel.standard;
-    final reasons = <String>[];
+    final reasons = <CommandRiskReason>[];
     final joined = commands.join('\n').toLowerCase();
 
     if (_containsExecutable(joined, const {
@@ -90,9 +102,7 @@ class CommandRiskAssessor {
       'remove-partition',
     })) {
       level = CommandRiskLevel.destructive;
-      reasons.add(
-        'Mindestens ein Batch-Kommando kann Daten löschen oder überschreiben.',
-      );
+      reasons.add(CommandRiskReason.batchMayDeleteOrOverwrite);
     }
     final knownShortForce = RegExp(
       r'\b(?:git\s+push|rm|pishrink)\b[^\n;&|]*(?:^|\s)-f(?:\s|$)',
@@ -101,13 +111,13 @@ class CommandRiskAssessor {
     if (RegExp(r'(^|\s)--?force(?:\s|$)').hasMatch(joined) ||
         knownShortForce.hasMatch(joined)) {
       level = CommandRiskLevel.destructive;
-      reasons.add('Mindestens ein Batch-Kommando verwendet eine Force-Option.');
+      reasons.add(CommandRiskReason.batchUsesForce);
     }
     if (RegExp(r'(^|\s)sudo(?:\s|$)').hasMatch(joined)) {
       if (level == CommandRiskLevel.standard) {
         level = CommandRiskLevel.elevated;
       }
-      reasons.add('Mindestens ein Batch-Kommando verwendet erhöhte Rechte.');
+      reasons.add(CommandRiskReason.batchUsesElevatedPrivileges);
     }
 
     return CommandRiskAssessment(

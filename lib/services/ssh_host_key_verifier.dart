@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../l10n/app_localizations.dart';
 import '../models/ssh_connection_profile.dart';
 import 'ssh_connection_profile_store.dart';
 
@@ -49,30 +50,29 @@ class DialogSshHostKeyVerifier implements SshHostKeyVerifier {
 
     final context = navigatorKey.currentContext;
     if (context == null) return false;
+    final l10n = AppLocalizations.of(context);
     final decision = await showDialog<_HostKeyDecision>(
       context: context,
       barrierDismissible: false,
       builder: (context) => AlertDialog(
-        title: const Text('Unbekannter SSH-Server'),
+        title: Text(l10n.hostKeyUnknownTitle),
         content: SelectableText(
-          'Für ${profile.endpoint} ist noch kein Host-Key gespeichert.\n\n'
-          'Typ: $keyType\nFingerprint: $fingerprint\n\n'
-          'Vergleiche den Fingerprint mit einer vertrauenswürdigen Quelle.',
+          l10n.hostKeyUnknownMessage(profile.endpoint, keyType, fingerprint),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, _HostKeyDecision.reject),
-            child: const Text('Abbrechen'),
+            child: Text(l10n.commonCancel),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, _HostKeyDecision.once),
-            child: const Text('Einmal vertrauen'),
+            child: Text(l10n.hostKeyTrustOnce),
           ),
           FilledButton(
             key: const Key('trust-ssh-host-key'),
             onPressed: () =>
                 Navigator.pop(context, _HostKeyDecision.permanently),
-            child: const Text('Dauerhaft vertrauen'),
+            child: Text(l10n.hostKeyTrustPermanently),
           ),
         ],
       ),
@@ -96,22 +96,23 @@ class DialogSshHostKeyVerifier implements SshHostKeyVerifier {
   ) async {
     final context = navigatorKey.currentContext;
     if (context == null) return;
+    final l10n = AppLocalizations.of(context);
     await showDialog<void>(
       context: context,
       barrierDismissible: false,
       builder: (context) => AlertDialog(
-        title: const Text('SSH-Host-Key geändert'),
+        title: Text(l10n.hostKeyChangedTitle),
         content: SelectableText(
-          'Die Identität von ${profile.endpoint} stimmt nicht mit dem '
-          'gespeicherten Host-Key überein. Die Verbindung wurde blockiert.\n\n'
-          'Gespeichert: ${profile.hostKeyType} '
-          '${profile.hostKeyFingerprint}\n'
-          'Empfangen: $keyType $fingerprint',
+          l10n.hostKeyChangedMessage(
+            profile.endpoint,
+            '${profile.hostKeyType} ${profile.hostKeyFingerprint}',
+            '$keyType $fingerprint',
+          ),
         ),
         actions: [
           FilledButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Schließen'),
+            child: Text(l10n.commonClose),
           ),
         ],
       ),

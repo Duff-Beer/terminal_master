@@ -8,10 +8,54 @@ import 'package:dartssh2/dartssh2.dart';
 import '../models/ssh_connection_profile.dart';
 import 'ssh_credential_store.dart';
 
-class SshAuthenticationException implements Exception {
-  final String message;
+/// Why SSH authentication could not be resolved.
+///
+/// A code, not a sentence: this runs far from any `BuildContext`, so the UI
+/// renders the reason in the active language.
+enum SshAuthenticationFailure {
+  passphraseTooLong,
+  passphraseRequired,
+  noPrivateKeyInFile,
+  invalidKeyOrPassphrase,
+  invalidOrUnsupportedKey,
+  keyFileTooLarge,
+  keyFileUnreadable,
+  keyFileNotUtf8,
+  noStoredPassword,
+  noPrivateKeyConfigured,
+}
 
-  const SshAuthenticationException(this.message);
+class SshAuthenticationException implements Exception {
+  final SshAuthenticationFailure failure;
+
+  /// The profile name the failure refers to, when it has one.
+  final String? profileName;
+
+  const SshAuthenticationException(this.failure, [this.profileName]);
+
+  /// Developer-facing English description; the UI renders the localized form.
+  String get message => switch (failure) {
+    SshAuthenticationFailure.passphraseTooLong =>
+      'The key passphrase is too long.',
+    SshAuthenticationFailure.passphraseRequired =>
+      'The private SSH key needs a passphrase.',
+    SshAuthenticationFailure.noPrivateKeyInFile =>
+      'The file does not contain a private SSH key.',
+    SshAuthenticationFailure.invalidKeyOrPassphrase =>
+      'The private SSH key or its passphrase is invalid or unsupported.',
+    SshAuthenticationFailure.invalidOrUnsupportedKey =>
+      'The private SSH key is invalid or unsupported.',
+    SshAuthenticationFailure.keyFileTooLarge =>
+      'The private key file is too large.',
+    SshAuthenticationFailure.keyFileUnreadable =>
+      'The private key file could not be read.',
+    SshAuthenticationFailure.keyFileNotUtf8 =>
+      'The private key file is not valid UTF-8 text.',
+    SshAuthenticationFailure.noStoredPassword =>
+      'No password is stored in the keychain for "$profileName".',
+    SshAuthenticationFailure.noPrivateKeyConfigured =>
+      'No private key file is configured for "$profileName".',
+  };
 
   @override
   String toString() => message;
@@ -41,14 +85,16 @@ class SshPrivateKeyLoader {
 
   Future<List<SSHKeyPair>> load(String path, [String? passphrase]) async {
     if ((passphrase?.length ?? 0) > maximumPassphraseLength) {
-      throw const SshAuthenticationException('Die Key-Passphrase ist zu lang.');
+      throw const SshAuthenticationException(
+        SshAuthenticationFailure.passphraseTooLong,
+      );
     }
     final pem = await _readPem(path);
     try {
       final encrypted = SSHKeyPair.isEncryptedPem(pem);
       if (encrypted && (passphrase == null || passphrase.isEmpty)) {
         throw const SshAuthenticationException(
-          'Der private SSH-Schlüssel benötigt eine Passphrase.',
+          SshAuthenticationFailure.passphraseRequired,
         );
       }
       final identities = await Isolate.run(
@@ -56,7 +102,7 @@ class SshPrivateKeyLoader {
       );
       if (identities.isEmpty) {
         throw const SshAuthenticationException(
-          'Die Datei enthält keinen privaten SSH-Schlüssel.',
+          SshAuthenticationFailure.noPrivateKeyInFile,
         );
       }
       return List.unmodifiable(identities);
@@ -64,8 +110,7 @@ class SshPrivateKeyLoader {
       rethrow;
     } on Object {
       throw const SshAuthenticationException(
-        'Der private SSH-Schlüssel oder seine Passphrase ist ungültig oder '
-        'wird nicht unterstützt.',
+        SshAuthenticationFailure.invalidKeyOrPassphrase,
       );
     }
   }
@@ -77,7 +122,7 @@ class SshPrivateKeyLoader {
       rethrow;
     } on Object {
       throw const SshAuthenticationException(
-        'Der private SSH-Schlüssel ist ungültig oder wird nicht unterstützt.',
+        SshAuthenticationFailure.invalidOrUnsupportedKey,
       );
     }
   }
@@ -88,7 +133,7 @@ class SshPrivateKeyLoader {
       await for (final chunk in File(path).openRead()) {
         if (bytes.length + chunk.length > maximumFileBytes) {
           throw const SshAuthenticationException(
-            'Die private Schlüsseldatei ist zu groß.',
+            SshAuthenticationFailure.keyFileTooLarge,
           );
         }
         bytes.add(chunk);
@@ -97,7 +142,7 @@ class SshPrivateKeyLoader {
       rethrow;
     } on Object {
       throw const SshAuthenticationException(
-        'Die private Schlüsseldatei konnte nicht gelesen werden.',
+        SshAuthenticationFailure.keyFileUnreadable,
       );
     }
 
@@ -105,7 +150,7 @@ class SshPrivateKeyLoader {
       return utf8.decode(bytes.takeBytes());
     } on Object {
       throw const SshAuthenticationException(
-        'Die private Schlüsseldatei ist keine gültige UTF-8-Textdatei.',
+        SshAuthenticationFailure.keyFileNotUtf8,
       );
     }
   }
@@ -128,8 +173,8 @@ class SshAuthenticationResolver {
         final secret = await credentialStore.readPassword(profile.credentialId);
         if (secret == null || secret.isEmpty) {
           throw SshAuthenticationException(
-            'Für „${profile.name}“ ist kein Passwort im Schlüsselbund '
-            'gespeichert.',
+            SshAuthenticationFailure.noStoredPassword,
+            profile.name,
           );
         }
         return ResolvedSshPasswordAuthentication(secret);
@@ -137,8 +182,8 @@ class SshAuthenticationResolver {
         final path = profile.privateKeyPath;
         if (path == null || path.isEmpty) {
           throw SshAuthenticationException(
-            'Für „${profile.name}“ ist keine private Schlüsseldatei '
-            'konfiguriert.',
+            SshAuthenticationFailure.noPrivateKeyConfigured,
+            profile.name,
           );
         }
         final encrypted = await privateKeyLoader.isEncrypted(path);

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../services/command_risk_assessor.dart';
+import '../l10n/app_localizations.dart';
+import '../l10n/error_presenter.dart';
 
 Future<bool> showCommandConfirmationDialog(
   BuildContext context, {
@@ -13,6 +15,7 @@ Future<bool> showCommandConfirmationDialog(
     barrierDismissible: false,
     builder: (context) => StatefulBuilder(
       builder: (context, setDialogState) {
+        final l10n = AppLocalizations.of(context);
         final colors = Theme.of(context).colorScheme;
         final isDestructive = assessment.level == CommandRiskLevel.destructive;
         final warningColor = isDestructive ? colors.error : colors.tertiary;
@@ -25,9 +28,9 @@ Future<bool> showCommandConfirmationDialog(
                 : warningColor,
           ),
           title: Text(switch (assessment.level) {
-            CommandRiskLevel.standard => 'Kommando prüfen',
-            CommandRiskLevel.elevated => 'Erhöhte Rechte bestätigen',
-            CommandRiskLevel.destructive => 'Destruktives Kommando bestätigen',
+            CommandRiskLevel.standard => l10n.confirmTitleStandard,
+            CommandRiskLevel.elevated => l10n.confirmTitleElevated,
+            CommandRiskLevel.destructive => l10n.confirmTitleDestructive,
           }),
           content: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 680),
@@ -44,10 +47,7 @@ Future<bool> showCommandConfirmationDialog(
                         color: colors.secondaryContainer,
                         borderRadius: BorderRadius.circular(8),
                       ),
-                      child: const Text(
-                        'Diese Befehle stammen direkt aus einer YAML-Datei. '
-                        'Führe sie nur aus, wenn du die Datei und ihren Inhalt vertraust.',
-                      ),
+                      child: Text(l10n.confirmRawConfigWarning),
                     ),
                   if (assessment.reasons.isNotEmpty) ...[
                     for (final reason in assessment.reasons)
@@ -62,16 +62,16 @@ Future<bool> showCommandConfirmationDialog(
                               color: warningColor,
                             ),
                             const SizedBox(width: 8),
-                            Expanded(child: Text(reason)),
+                            Expanded(
+                              child: Text(localizeRiskReason(l10n, reason)),
+                            ),
                           ],
                         ),
                       ),
                     const SizedBox(height: 10),
                   ],
                   Text(
-                    commands.length == 1
-                        ? 'Auszuführendes Kommando'
-                        : 'Auszuführende Kommandos',
+                    l10n.confirmCommandsLabel(commands.length),
                     style: Theme.of(context).textTheme.labelLarge,
                   ),
                   const SizedBox(height: 8),
@@ -95,9 +95,7 @@ Future<bool> showCommandConfirmationDialog(
                       key: const Key('command-risk-acknowledgement'),
                       contentPadding: EdgeInsets.zero,
                       controlAffinity: ListTileControlAffinity.leading,
-                      title: const Text(
-                        'Ich habe das Kommando geprüft und verstehe das Risiko.',
-                      ),
+                      title: Text(l10n.confirmAcknowledgement),
                       value: acknowledged,
                       onChanged: (value) =>
                           setDialogState(() => acknowledged = value ?? false),
@@ -110,7 +108,7 @@ Future<bool> showCommandConfirmationDialog(
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context, false),
-              child: const Text('Abbrechen'),
+              child: Text(l10n.commonCancel),
             ),
             FilledButton(
               key: const Key('confirm-command-execution'),
@@ -120,7 +118,7 @@ Future<bool> showCommandConfirmationDialog(
               onPressed: assessment.requiresAcknowledgement && !acknowledged
                   ? null
                   : () => Navigator.pop(context, true),
-              child: const Text('Ausführen'),
+              child: Text(l10n.confirmRun),
             ),
           ],
         );

@@ -217,6 +217,63 @@ extended or replaced without rebuilding the application. A different directory
 can be selected in the application settings; changing it does not move or copy
 existing definitions.
 
+### Multilingual Definitions
+
+`schema_version: 2` adds language-suffixed fields. Any user-facing field may be
+written as `<field>.<languageCode>` next to its base form:
+
+```yaml
+schema_version: 2
+command: git_status
+description: Shows the working tree status
+description.de: Zeigt den Arbeitsverzeichnis-Status an
+parameters:
+  - name: short
+    type: boolean
+    flag: "--short"
+    description: Compact output
+    description.de: Kompakte Ausgabe
+```
+
+The loader reads `<field>.<active language>` when the file provides it and
+otherwise falls back to the unsuffixed field, so the base form acts as the
+default for every language that has no translation. `title`, `description`,
+`display_name`, `help_text`, `label`, `note` and `example` support this,
+including the `description` of individual `options` entries. Translating a
+field is always optional — a file may translate some fields and leave the rest
+to the base language.
+
+`schema_version: 1` files keep working unchanged: without suffixed fields the
+resolution is identical to the previous behaviour.
+
+## Localization
+
+The interface ships in English and German. The language follows the operating
+system by default and can be fixed in the application settings, which persists
+it as `language:` in `settings.yaml` (`system`, `en` or `de`).
+
+Interface strings live in ARB files under `lib/l10n/`. `app_en.arb` is the
+template and the fallback for untranslated keys; `app_de.arb` holds the German
+translation. `AppLocalizations` is generated from them by `gen-l10n` (configured
+in `l10n.yaml`) and the generated sources are committed, so a fresh checkout
+analyzes and builds without a codegen step. After editing an ARB file:
+
+```sh
+flutter gen-l10n
+```
+
+`test/l10n_completeness_test.dart` fails if the translations and the template
+drift apart — a missing key, a stray key, mismatched placeholders, or an empty
+message.
+
+Code below `lib/pages/` and `lib/widgets/` has no access to the locale, so it
+never formats user-facing text. Services, stores, loaders and models raise typed
+errors carrying a reason code plus the offending value (for example
+`ConfigErrorReason.mustBeList`, `SshBackupFailure.wrongPasswordOrTampered`), and
+`lib/l10n/error_presenter.dart` turns those codes into text in the active
+language at the UI boundary. The `message` getter on each of those exceptions
+stays English on purpose: it feeds logs and `toString()`, not the interface.
+
 ## Desktop Releases
 
 The release workflow creates these unsigned artifacts:

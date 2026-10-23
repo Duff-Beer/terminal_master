@@ -11,6 +11,51 @@ import 'terminal_backend.dart';
 
 enum TerminalSessionStatus { idle, starting, running, exited, failed }
 
+/// Why a terminal session refused an operation.
+///
+/// A code, not a sentence: sessions run below the UI layer, so the dialogs and
+/// snack bars that surface these render them in the active language.
+enum TerminalSessionFailure {
+  sessionNotRunning,
+  trackedCommandAlreadyRunning,
+  nulNotAllowed,
+  processCouldNotBeTerminated,
+  processDidNotExitInTime,
+  windowsHomePathNotAscii,
+  shellExecutableEmpty,
+  windowsProfileNotAscii,
+}
+
+class TerminalSessionException implements Exception {
+  final TerminalSessionFailure failure;
+
+  const TerminalSessionException(this.failure);
+
+  /// Developer-facing English description; the UI renders the localized form.
+  String get message => switch (failure) {
+    TerminalSessionFailure.sessionNotRunning =>
+      'The terminal session is not running.',
+    TerminalSessionFailure.trackedCommandAlreadyRunning =>
+      'A tracked command is already running in this terminal.',
+    TerminalSessionFailure.nulNotAllowed => 'NUL is not allowed.',
+    TerminalSessionFailure.processCouldNotBeTerminated =>
+      'The terminal process could not be terminated.',
+    TerminalSessionFailure.processDidNotExitInTime =>
+      'The terminal process did not exit within the time limit.',
+    TerminalSessionFailure.windowsHomePathNotAscii =>
+      'flutter_pty does not currently support Windows user paths containing '
+          'non-ASCII characters. Use the external terminal for now.',
+    TerminalSessionFailure.shellExecutableEmpty =>
+      'The shell program must not be empty.',
+    TerminalSessionFailure.windowsProfileNotAscii =>
+      'flutter_pty currently supports only ASCII characters in built-in shell '
+          'profiles on Windows. Use the external terminal for now.',
+  };
+
+  @override
+  String toString() => message;
+}
+
 class TerminalSession extends ChangeNotifier {
   static const _commandMarkerVariable = 'TERMINAL_MASTER_END_MARKER';
   static const _terminalEnvironment = {
@@ -147,7 +192,9 @@ class TerminalSession extends ChangeNotifier {
   void sendCommand(String command) {
     final backend = _backend;
     if (backend == null || _status != TerminalSessionStatus.running) {
-      throw StateError('Die Terminal-Sitzung läuft nicht.');
+      throw const TerminalSessionException(
+        TerminalSessionFailure.sessionNotRunning,
+      );
     }
     backend.write(const Utf8Encoder().convert('$command$_lineEnding'));
   }
@@ -155,15 +202,19 @@ class TerminalSession extends ChangeNotifier {
   void sendTrackedCommand(String command) {
     final backend = _backend;
     if (backend == null || _status != TerminalSessionStatus.running) {
-      throw StateError('Die Terminal-Sitzung läuft nicht.');
+      throw const TerminalSessionException(
+        TerminalSessionFailure.sessionNotRunning,
+      );
     }
     if (_activeCommandBlock != null) {
-      throw StateError(
-        'In diesem Terminal läuft bereits ein getrackter Befehl.',
+      throw const TerminalSessionException(
+        TerminalSessionFailure.trackedCommandAlreadyRunning,
       );
     }
     if (command.contains('\u0000')) {
-      throw ArgumentError.value(command, 'command', 'NUL ist nicht erlaubt.');
+      throw const TerminalSessionException(
+        TerminalSessionFailure.nulNotAllowed,
+      );
     }
 
     final id = '${DateTime.now().microsecondsSinceEpoch}-${_commandSequence++}';
@@ -217,8 +268,8 @@ class TerminalSession extends ChangeNotifier {
 
     final killed = backend.kill();
     if (!killed) {
-      final error = StateError(
-        'Der Terminal-Prozess konnte nicht beendet werden.',
+      const error = TerminalSessionException(
+        TerminalSessionFailure.processCouldNotBeTerminated,
       );
       _fail(error);
       throw error;
@@ -226,8 +277,8 @@ class TerminalSession extends ChangeNotifier {
     try {
       await backend.exitCode.timeout(const Duration(seconds: 2));
     } on TimeoutException {
-      final error = TimeoutException(
-        'Der Terminal-Prozess wurde nicht innerhalb des Zeitlimits beendet.',
+      const error = TerminalSessionException(
+        TerminalSessionFailure.processDidNotExitInTime,
       );
       _fail(error);
       throw error;
@@ -591,9 +642,8 @@ class TerminalSession extends ChangeNotifier {
 
     final home = Platform.environment['USERPROFILE'];
     if (home != null && !_isAscii(home)) {
-      throw UnsupportedError(
-        'flutter_pty unterstützt unter Windows derzeit keine Benutzerpfade '
-        'mit Nicht-ASCII-Zeichen. Verwende vorerst das externe Terminal.',
+      throw const TerminalSessionException(
+        TerminalSessionFailure.windowsHomePathNotAscii,
       );
     }
 
@@ -614,10 +664,8 @@ class TerminalSession extends ChangeNotifier {
 
   void _validateProfile() {
     if (profile.executable.trim().isEmpty) {
-      throw ArgumentError.value(
-        profile.executable,
-        'profile.executable',
-        'Das Shell-Programm darf nicht leer sein.',
+      throw const TerminalSessionException(
+        TerminalSessionFailure.shellExecutableEmpty,
       );
     }
     if (!Platform.isWindows || profile.isSsh) return;
@@ -629,9 +677,8 @@ class TerminalSession extends ChangeNotifier {
       ...profile.environment.values,
     ];
     if (values.any((value) => !_isAscii(value))) {
-      throw UnsupportedError(
-        'flutter_pty unterstützt unter Windows derzeit nur ASCII-Zeichen in '
-        'integrierten Shell-Profilen. Verwende vorerst das externe Terminal.',
+      throw const TerminalSessionException(
+        TerminalSessionFailure.windowsProfileNotAscii,
       );
     }
   }

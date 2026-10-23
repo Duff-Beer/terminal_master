@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+import 'support/localized_app.dart';
 import 'package:terminal_master/models/saved_terminal_tab.dart';
 import 'package:terminal_master/models/shell_profile.dart';
 import 'package:terminal_master/services/saved_terminal_tab_store.dart';
@@ -68,7 +70,13 @@ void main() {
 
     await expectLater(
       controller.saveActiveTab('Stale Update'),
-      throwsA(isA<StateError>()),
+      throwsA(
+        isA<TerminalTabException>().having(
+          (error) => error.failure,
+          'failure',
+          TerminalTabFailure.savedTabChangedMeanwhile,
+        ),
+      ),
     );
     expect((await store.load()).single.name, 'Updated Snapshot');
   });
@@ -138,7 +146,7 @@ void main() {
     final store = _FailingSavedTerminalTabStore();
     final navigatorKey = GlobalKey<NavigatorState>();
     await tester.pumpWidget(
-      MaterialApp(
+      localizedApp(
         navigatorKey: navigatorKey,
         home: TerminalWorkspace(
           backendFactory: RecordingTerminalBackendFactory().create,
@@ -156,7 +164,13 @@ void main() {
     expect(controller.savedTabsError, isNotNull);
     await expectLater(
       controller.saveActiveTab('Must not overwrite'),
-      throwsA(isA<StateError>()),
+      throwsA(
+        isA<TerminalTabException>().having(
+          (error) => error.failure,
+          'failure',
+          TerminalTabFailure.savedTabsUnreadable,
+        ),
+      ),
     );
     expect(store.saveCalls, 0);
   });
@@ -172,7 +186,7 @@ void main() {
     final navigatorKey = GlobalKey<NavigatorState>();
 
     await tester.pumpWidget(
-      MaterialApp(
+      localizedApp(
         navigatorKey: navigatorKey,
         home: TerminalWorkspace(
           backendFactory: factory.create,
@@ -269,7 +283,7 @@ void main() {
       final navigatorKey = GlobalKey<NavigatorState>();
 
       await tester.pumpWidget(
-        MaterialApp(
+        localizedApp(
           navigatorKey: navigatorKey,
           home: TerminalWorkspace(
             backendFactory: factory.create,
@@ -396,7 +410,7 @@ void main() {
     final navigatorKey = GlobalKey<NavigatorState>();
 
     await tester.pumpWidget(
-      MaterialApp(
+      localizedApp(
         navigatorKey: navigatorKey,
         home: TerminalWorkspace(
           backendFactory: factory.create,
@@ -459,7 +473,7 @@ void main() {
     final navigatorKey = GlobalKey<NavigatorState>();
 
     await tester.pumpWidget(
-      MaterialApp(
+      localizedApp(
         navigatorKey: navigatorKey,
         home: TerminalWorkspace(
           backendFactory: factory.create,
@@ -542,7 +556,7 @@ void main() {
     final navigatorKey = GlobalKey<NavigatorState>();
 
     await tester.pumpWidget(
-      MaterialApp(
+      localizedApp(
         navigatorKey: navigatorKey,
         home: TerminalWorkspace(
           backendFactory: factory.create,
@@ -679,7 +693,7 @@ void main() {
     ];
 
     await tester.pumpWidget(
-      MaterialApp(
+      localizedApp(
         navigatorKey: navigatorKey,
         home: TerminalWorkspace(
           backendFactory: factory.create,
@@ -813,7 +827,7 @@ void main() {
     ];
 
     await tester.pumpWidget(
-      MaterialApp(
+      localizedApp(
         navigatorKey: navigatorKey,
         home: TerminalWorkspace(
           backendFactory: factory.create,

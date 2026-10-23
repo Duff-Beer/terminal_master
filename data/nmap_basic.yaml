@@ -1,44 +1,53 @@
-schema_version: 1
+schema_version: 2
 command: nmap
 display_name: Nmap Basic
-description: Einfache Nmap-Scans mit sicheren Standardoptionen und vordefinierten Zielen
+description: Simple Nmap scans with safe defaults and predefined targets
+description.de: Einfache Nmap-Scans mit sicheren Standardoptionen und vordefinierten Zielen
 parameters:
   - name: use_sudo
     type: boolean
     flag: sudo
-    description: Mit erhöhten Rechten ausführen, etwa für SYN- oder OS-Scans
+    description: Run with elevated privileges, for example for SYN or OS scans
+    description.de: Mit erhöhten Rechten ausführen, etwa für SYN- oder OS-Scans
     default: false
     order: 0
 
   - name: host_discovery_only
     type: boolean
     flag: -sn
-    description: Nur erreichbare Hosts suchen und keinen Portscan durchführen
+    description: Only look for reachable hosts and run no port scan
+    description.de: Nur erreichbare Hosts suchen und keinen Portscan durchführen
     default: false
     order: 9
 
   - name: scan_type
     type: options
     flag: ""
-    description: Scanart; ohne Auswahl verwendet Nmap den passenden Standard
+    description: Scan type; without a selection Nmap uses the fitting default
+    description.de: Scanart; ohne Auswahl verwendet Nmap den passenden Standard
     visible_when:
       parameter: host_discovery_only
       active: false
     order: 10
     options:
       - value: -sS
-        description: Schneller TCP-SYN-Scan, benötigt meist erhöhte Rechte
+        description: Fast TCP SYN scan, usually needs elevated privileges
+        description.de: Schneller TCP-SYN-Scan, benötigt meist erhöhte Rechte
       - value: -sT
-        description: TCP-Connect-Scan ohne Raw-Socket-Rechte
+        description: TCP connect scan without raw socket privileges
+        description.de: TCP-Connect-Scan ohne Raw-Socket-Rechte
       - value: -sU
-        description: UDP-Scan, benötigt meist erhöhte Rechte
+        description: UDP scan, usually needs elevated privileges
+        description.de: UDP-Scan, benötigt meist erhöhte Rechte
       - value: -A
-        description: Betriebssystem, Dienste, Standardskripte und Traceroute
+        description: Operating system, services, default scripts and traceroute
+        description.de: Betriebssystem, Dienste, Standardskripte und Traceroute
 
   - name: port_preset
     type: options
     flag: -p
-    description: Häufig verwendete Portauswahl
+    description: Commonly used port selection
+    description.de: Häufig verwendete Portauswahl
     visible_when:
       parameter: host_discovery_only
       active: false
@@ -47,17 +56,22 @@ parameters:
       - value: "22"
         description: SSH
       - value: 80,443
-        description: HTTP und HTTPS
+        description: HTTP and HTTPS
+        description.de: HTTP und HTTPS
       - value: 22,80,443
-        description: SSH und Webdienste
+        description: SSH and web services
+        description.de: SSH und Webdienste
       - value: 1-1024
-        description: Bekannte Systemports
+        description: Well-known system ports
+        description.de: Bekannte Systemports
       - value: 1-65535
-        description: Alle TCP-Ports
+        description: All TCP ports
+        description.de: Alle TCP-Ports
   - name: custom_ports
     type: text
     flag: -p
-    description: Eigene Ports oder Bereiche statt der Port-Vorauswahl
+    description: Custom ports or ranges instead of the port preset
+    description.de: Eigene Ports oder Bereiche statt der Port-Vorauswahl
     conflicts_with: [port_preset]
     visible_when:
       parameter: host_discovery_only
@@ -68,7 +82,8 @@ parameters:
   - name: version_detection
     type: boolean
     flag: -sV
-    description: Dienste und Versionen auf offenen Ports erkennen
+    description: Detect services and versions on open ports
+    description.de: Dienste und Versionen auf offenen Ports erkennen
     visible_when:
       parameter: host_discovery_only
       active: false
@@ -78,7 +93,8 @@ parameters:
   - name: os_detection
     type: boolean
     flag: -O
-    description: Betriebssystem des Ziels erkennen, benötigt meist erhöhte Rechte
+    description: Detect the target's operating system, usually needs elevated privileges
+    description.de: Betriebssystem des Ziels erkennen, benötigt meist erhöhte Rechte
     visible_when:
       parameter: host_discovery_only
       active: false
@@ -88,7 +104,8 @@ parameters:
   - name: default_scripts
     type: boolean
     flag: -sC
-    description: Nmap-Standardskripte ausführen
+    description: Run the Nmap default scripts
+    description.de: Nmap-Standardskripte ausführen
     visible_when:
       parameter: host_discovery_only
       active: false
@@ -98,35 +115,41 @@ parameters:
   - name: timing
     type: options
     flag: ""
-    description: Geschwindigkeit des Scans
+    description: Speed of the scan
+    description.de: Geschwindigkeit des Scans
     default: -T3
     order: 40
     options:
       - value: -T2
-        description: Langsam und netzwerkschonend
+        description: Slow and gentle on the network
+        description.de: Langsam und netzwerkschonend
       - value: -T3
         description: Normal
       - value: -T4
-        description: Schnell für zuverlässige lokale Netzwerke
+        description: Fast, for reliable local networks
+        description.de: Schnell für zuverlässige lokale Netzwerke
 
   - name: no_dns
     type: boolean
     flag: -n
-    description: Keine DNS-Namensauflösung durchführen
+    description: Perform no DNS name resolution
+    description.de: Keine DNS-Namensauflösung durchführen
     default: false
     order: 50
 
   - name: traceroute
     type: boolean
     flag: --traceroute
-    description: Netzwerkpfad zum Ziel anzeigen
+    description: Show the network path to the target
+    description.de: Netzwerkpfad zum Ziel anzeigen
     default: false
     order: 51
 
   - name: open_only
     type: boolean
     flag: --open
-    description: Nur offene oder möglicherweise offene Ports anzeigen
+    description: Show only open or possibly open ports
+    description.de: Nur offene oder möglicherweise offene Ports anzeigen
     visible_when:
       parameter: host_discovery_only
       active: false
@@ -136,45 +159,68 @@ parameters:
   - name: verbosity
     type: options
     flag: ""
-    description: Ausführlichkeit der Ausgabe
+    description: Verbosity of the output
+    description.de: Ausführlichkeit der Ausgabe
     order: 60
     options:
       - value: -v
-        description: Ausführlich
+        description: Verbose
+        description.de: Ausführlich
       - value: -vv
-        description: Sehr ausführlich
+        description: Very verbose
+        description.de: Sehr ausführlich
 
   - name: output_normal
     type: text
     flag: -oN
-    description: Normale Ausgabe zusätzlich in diese Datei schreiben
+    description: Additionally write the normal output to this file
+    description.de: Normale Ausgabe zusätzlich in diese Datei schreiben
     example: nmap-scan.txt
     order: 70
 
   - name: target
     type: options
     flag: ""
-    description: Vordefiniertes Ziel; nur Netzwerke scannen, für die eine Erlaubnis vorliegt
+    description: Predefined target; only scan networks you have permission for
+    description.de: Vordefiniertes Ziel; nur Netzwerke scannen, für die eine Erlaubnis vorliegt
     required: true
     default: 127.0.0.1
     order: 1000
     options:
       - value: 127.0.0.1
-        description: Dieser Computer
+        description: This computer
+        description.de: Dieser Computer
       - value: scanme.nmap.org
-        description: Öffentliches, von Nmap ausdrücklich erlaubtes Testziel
+        description: Public test target explicitly permitted by Nmap
+        description.de: Öffentliches, von Nmap ausdrücklich erlaubtes Testziel
       - value: 192.168.0.0/24
-        description: Häufiges privates Heimnetz
+        description: Common private home network
+        description.de: Häufiges privates Heimnetz
       - value: 192.168.1.0/24
-        description: Häufiges privates Heimnetz
+        description: Common private home network
+        description.de: Häufiges privates Heimnetz
       - value: 192.168.178.0/24
-        description: Häufiges FRITZ!Box-Heimnetz
+        description: Common FRITZ!Box home network
+        description.de: Häufiges FRITZ!Box-Heimnetz
       - value: 10.0.0.0/24
-        description: Privates 10er-Netz
+        description: Private 10.x network
+        description.de: Privates 10er-Netz
       - value: 172.16.0.0/24
-        description: Privates 172.16er-Netz
+        description: Private 172.16.x network
+        description.de: Privates 172.16er-Netz
 
 help_text: |
+  This simplified configuration covers only the commonly needed Nmap features.
+  For free-form targets, NSE arguments, timing details, spoofing and special
+  scan techniques, use the "Nmap Advanced" configuration.
+
+  Examples:
+  - Find hosts on the home network: `nmap -sn -T3 192.168.1.0/24`
+  - Check web services: `nmap -sT -p 80,443 -sV -T3 --open 192.168.1.0/24`
+  - Permitted test target: `nmap -sT -sV -T3 scanme.nmap.org`
+
+  Only scan your own systems and networks you have explicit permission for.
+help_text.de: |
   Diese vereinfachte Konfiguration enthält nur häufig benötigte Nmap-Funktionen.
   Für freie Ziele, NSE-Argumente, Timing-Details, Spoofing und spezielle
   Scanverfahren steht die Konfiguration "Nmap Advanced" bereit.

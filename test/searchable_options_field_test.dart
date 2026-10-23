@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+import 'support/localized_app.dart';
 import 'package:terminal_master/models/command_config.dart';
 import 'package:terminal_master/widgets/searchable_options_field.dart';
 
@@ -9,7 +11,7 @@ void main() {
     tester,
   ) async {
     await tester.pumpWidget(
-      MaterialApp(
+      localizedApp(
         home: Scaffold(
           body: SearchableOptionsField(
             label: 'username',
@@ -36,7 +38,7 @@ void main() {
   ) async {
     String? selected;
     await tester.pumpWidget(
-      MaterialApp(
+      localizedApp(
         home: Scaffold(
           body: SearchableOptionsField(
             label: 'host *',
@@ -76,7 +78,7 @@ void main() {
   ) async {
     String? selected = 'dev.local';
     await tester.pumpWidget(
-      MaterialApp(
+      localizedApp(
         home: Scaffold(
           body: SearchableOptionsField(
             label: 'host *',
@@ -113,7 +115,7 @@ void main() {
     String? selected;
     var addCalls = 0;
     await tester.pumpWidget(
-      MaterialApp(
+      localizedApp(
         home: Scaffold(
           body: SearchableOptionsField(
             label: 'host *',
@@ -151,7 +153,7 @@ void main() {
     String? selected = 'stage.local';
     CommandOption? deletedOption;
     await tester.pumpWidget(
-      MaterialApp(
+      localizedApp(
         home: Scaffold(
           body: SearchableOptionsField(
             label: 'host *',
@@ -196,7 +198,7 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
     await tester.pumpWidget(
-      MaterialApp(
+      localizedApp(
         home: Scaffold(
           body: SearchableOptionsField(
             label: 'mode',

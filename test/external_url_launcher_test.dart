@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:terminal_master/services/external_url_launcher.dart';
+import 'package:terminal_master/services/service_exception.dart';
 
 void main() {
   test('accepts browser links and rejects unsupported schemes', () async {
@@ -17,7 +18,13 @@ void main() {
     );
     await expectLater(
       ExternalUrlLauncher.open(Uri.parse('javascript:alert(1)')),
-      throwsUnsupportedError,
+      throwsA(
+        isA<ServiceException>().having(
+          (error) => error.failure,
+          'failure',
+          ServiceFailure.unsupportedLink,
+        ),
+      ),
     );
   });
 }

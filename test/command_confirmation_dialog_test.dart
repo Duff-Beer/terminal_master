@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+import 'support/localized_app.dart';
 import 'package:terminal_master/services/command_risk_assessor.dart';
 import 'package:terminal_master/widgets/command_confirmation_dialog.dart';
 
@@ -9,7 +11,7 @@ void main() {
   ) async {
     bool? result;
     await tester.pumpWidget(
-      MaterialApp(
+      localizedApp(
         home: Builder(
           builder: (context) => ElevatedButton(
             onPressed: () async {
@@ -18,7 +20,7 @@ void main() {
                 commands: const ['sudo rm -rf /tmp/example'],
                 assessment: const CommandRiskAssessment(
                   level: CommandRiskLevel.destructive,
-                  reasons: ['rm kann Dateien dauerhaft löschen.'],
+                  reasons: [CommandRiskReason.rmDeletesPermanently],
                   containsRawConfiguration: true,
                 ),
               );

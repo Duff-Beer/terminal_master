@@ -1,12 +1,14 @@
-schema_version: 1
+schema_version: 2
 command: nmap
 display_name: Nmap Advanced
 description: Network discovery, service enumeration, and security scanner
+description.de: Netzwerkerkennung, Diensteauflistung und Sicherheitsscanner
 parameters:
   - name: use_sudo
     type: boolean
     flag: sudo
     description: Run Nmap with elevated privileges for raw-packet scan types
+    description.de: Nmap mit erhöhten Rechten ausführen, nötig für Raw-Packet-Scanarten
     default: false
     order: 0
 
@@ -14,37 +16,51 @@ parameters:
     type: options
     flag: ""
     description: Primary scan technique; leave empty to use the Nmap default
+    description.de: Primäre Scanart; leer lassen, um den Nmap-Standard zu verwenden
     order: 10
     options:
       - value: -sS
         description: TCP SYN scan
+        description.de: TCP-SYN-Scan
       - value: -sT
         description: TCP connect scan
+        description.de: TCP-Connect-Scan
       - value: -sA
         description: TCP ACK scan
+        description.de: TCP-ACK-Scan
       - value: -sW
         description: TCP Window scan
+        description.de: TCP-Window-Scan
       - value: -sM
         description: TCP Maimon scan
+        description.de: TCP-Maimon-Scan
       - value: -sU
         description: UDP scan
+        description.de: UDP-Scan
       - value: -sN
         description: TCP Null scan
+        description.de: TCP-Null-Scan
       - value: -sF
         description: TCP FIN scan
+        description.de: TCP-FIN-Scan
       - value: -sX
         description: TCP Xmas scan
+        description.de: TCP-Xmas-Scan
       - value: -sY
         description: SCTP INIT scan
+        description.de: SCTP-INIT-Scan
       - value: -sZ
         description: SCTP COOKIE-ECHO scan
+        description.de: SCTP-COOKIE-ECHO-Scan
       - value: -sO
         description: IP protocol scan
+        description.de: IP-Protokoll-Scan
 
   - name: custom_scan_flags
     type: text
     flag: --scanflags
     description: Custom TCP flags such as SYNACK or URGACKPSHRSTSYNFIN
+    description.de: Eigene TCP-Flags wie SYNACK oder URGACKPSHRSTSYNFIN
     example: SYNACK
     order: 11
 
@@ -52,6 +68,7 @@ parameters:
     type: text
     flag: -sI
     description: Zombie host and optional probe port for an idle scan
+    description.de: Zombie-Host und optionaler Probe-Port für einen Idle-Scan
     example: zombie.example.com:80
     order: 12
 
@@ -59,6 +76,7 @@ parameters:
     type: text
     flag: -b
     description: FTP relay host for an FTP bounce scan
+    description.de: FTP-Relay-Host für einen FTP-Bounce-Scan
     example: user:password@ftp.example.com:21
     order: 13
 
@@ -66,6 +84,7 @@ parameters:
     type: boolean
     flag: -sL
     description: List targets without scanning them
+    description.de: Ziele auflisten, ohne sie zu scannen
     default: false
     order: 20
 
@@ -73,6 +92,7 @@ parameters:
     type: boolean
     flag: -sn
     description: Perform host discovery without a port scan
+    description.de: Nur Hosterkennung ohne Portscan durchführen
     default: false
     order: 21
 
@@ -80,6 +100,7 @@ parameters:
     type: boolean
     flag: -Pn
     description: Treat every target as online and skip host discovery
+    description.de: Alle Ziele als online behandeln und die Hosterkennung überspringen
     default: false
     order: 22
 
@@ -88,6 +109,7 @@ parameters:
     flag: -PS
     join: attached
     description: TCP SYN discovery ports
+    description.de: TCP-SYN-Ports für die Hosterkennung
     example: 22,80,443
     order: 23
 
@@ -96,6 +118,7 @@ parameters:
     flag: -PA
     join: attached
     description: TCP ACK discovery ports
+    description.de: TCP-ACK-Ports für die Hosterkennung
     example: 80,443
     order: 24
 
@@ -104,6 +127,7 @@ parameters:
     flag: -PU
     join: attached
     description: UDP discovery ports
+    description.de: UDP-Ports für die Hosterkennung
     example: 53,161
     order: 25
 
@@ -111,6 +135,7 @@ parameters:
     type: boolean
     flag: -PE
     description: Use ICMP echo requests for host discovery
+    description.de: ICMP-Echo-Anfragen für die Hosterkennung verwenden
     default: false
     order: 26
 
@@ -118,6 +143,7 @@ parameters:
     type: boolean
     flag: -n
     description: Never perform DNS resolution
+    description.de: Niemals DNS-Auflösung durchführen
     conflicts_with: [always_dns]
     default: false
     order: 27
@@ -126,6 +152,7 @@ parameters:
     type: boolean
     flag: -R
     description: Always perform DNS resolution
+    description.de: Immer DNS-Auflösung durchführen
     conflicts_with: [no_dns]
     default: false
     order: 28
@@ -134,6 +161,7 @@ parameters:
     type: text
     flag: --dns-servers
     description: Comma-separated DNS servers used for reverse resolution
+    description.de: Kommagetrennte DNS-Server für die Reverse-Auflösung
     example: 1.1.1.1,8.8.8.8
     order: 29
 
@@ -141,6 +169,7 @@ parameters:
     type: boolean
     flag: --system-dns
     description: Use the operating system DNS resolver
+    description.de: Den DNS-Resolver des Betriebssystems verwenden
     default: false
     order: 30
 
@@ -148,6 +177,7 @@ parameters:
     type: boolean
     flag: --traceroute
     description: Trace the network path to each target
+    description.de: Netzwerkpfad zu jedem Ziel verfolgen
     default: false
     order: 31
 
@@ -155,6 +185,7 @@ parameters:
     type: text
     flag: -p
     description: Ports or protocol-qualified ranges to scan
+    description.de: Zu scannende Ports oder protokollqualifizierte Bereiche
     example: 22,80,443 or U:53,T:1-1024
     order: 40
 
@@ -162,6 +193,7 @@ parameters:
     type: text
     flag: --exclude-ports
     description: Ports that must not be scanned
+    description.de: Ports, die nicht gescannt werden dürfen
     example: 25,445
     order: 41
 
@@ -169,6 +201,7 @@ parameters:
     type: boolean
     flag: -F
     description: Scan fewer ports than the default scan
+    description.de: Weniger Ports als beim Standardscan prüfen
     default: false
     order: 42
 
@@ -176,6 +209,7 @@ parameters:
     type: boolean
     flag: -r
     description: Scan ports sequentially instead of randomizing their order
+    description.de: Ports der Reihe nach statt in zufälliger Ordnung scannen
     default: false
     order: 43
 
@@ -183,6 +217,7 @@ parameters:
     type: text
     flag: --top-ports
     description: Scan the specified number of most common ports
+    description.de: Die angegebene Anzahl der häufigsten Ports scannen
     example: "100"
     order: 44
 
@@ -190,6 +225,7 @@ parameters:
     type: text
     flag: --port-ratio
     description: Scan ports more common than this ratio
+    description.de: Ports scannen, die häufiger als dieses Verhältnis sind
     example: "0.1"
     order: 45
 
@@ -197,6 +233,7 @@ parameters:
     type: boolean
     flag: -sV
     description: Probe open ports for service and version information
+    description.de: Offene Ports auf Dienst- und Versionsinformationen prüfen
     default: false
     order: 50
 
@@ -204,6 +241,7 @@ parameters:
     type: options
     flag: --version-intensity
     description: Version probe intensity from 0 to 9; requires version detection
+    description.de: Intensität der Versionsprüfung von 0 bis 9; benötigt Versionserkennung
     depends_on: [version_detection]
     visible_when:
       parameter: version_detection
@@ -212,19 +250,25 @@ parameters:
     options:
       - value: "0"
         description: Use only the lightest probes
+        description.de: Nur die leichtesten Prüfungen verwenden
       - value: "2"
         description: Light version detection
+        description.de: Leichte Versionserkennung
       - value: "5"
         description: Default probe intensity
+        description.de: Standard-Prüfintensität
       - value: "7"
         description: Thorough version detection
+        description.de: Gründliche Versionserkennung
       - value: "9"
         description: Try every version probe
+        description.de: Alle Versionsprüfungen versuchen
 
   - name: version_trace
     type: boolean
     flag: --version-trace
     description: Show detailed version detection activity
+    description.de: Detaillierten Ablauf der Versionserkennung anzeigen
     depends_on: [version_detection]
     visible_when:
       parameter: version_detection
@@ -236,6 +280,7 @@ parameters:
     type: boolean
     flag: -sC
     description: Run the default Nmap Scripting Engine scripts
+    description.de: Die Standardskripte der Nmap Scripting Engine ausführen
     default: false
     order: 60
 
@@ -243,6 +288,7 @@ parameters:
     type: text
     flag: --script
     description: Comma-separated NSE scripts, categories, or expressions
+    description.de: Kommagetrennte NSE-Skripte, Kategorien oder Ausdrücke
     example: safe,vuln or http-title
     order: 61
 
@@ -250,6 +296,7 @@ parameters:
     type: text
     flag: --script-args
     description: Comma-separated NSE script arguments
+    description.de: Kommagetrennte Argumente für NSE-Skripte
     example: user=admin,password=secret
     visible_when:
       any:
@@ -264,6 +311,7 @@ parameters:
     mode: file
     flag: --script-args-file
     description: File containing NSE script arguments
+    description.de: Datei mit Argumenten für NSE-Skripte
     visible_when:
       any:
         - parameter: default_scripts
@@ -276,6 +324,7 @@ parameters:
     type: boolean
     flag: --script-trace
     description: Show all data sent and received by NSE scripts
+    description.de: Alle von NSE-Skripten gesendeten und empfangenen Daten anzeigen
     visible_when:
       any:
         - parameter: default_scripts
@@ -289,6 +338,7 @@ parameters:
     type: boolean
     flag: -O
     description: Enable operating system detection
+    description.de: Betriebssystemerkennung aktivieren
     default: false
     order: 70
 
@@ -296,6 +346,7 @@ parameters:
     type: boolean
     flag: --osscan-limit
     description: Limit OS detection to promising targets
+    description.de: OS-Erkennung auf vielversprechende Ziele beschränken
     depends_on: [os_detection]
     visible_when:
       parameter: os_detection
@@ -307,6 +358,7 @@ parameters:
     type: boolean
     flag: --osscan-guess
     description: Guess the operating system more aggressively
+    description.de: Das Betriebssystem aggressiver erraten
     depends_on: [os_detection]
     visible_when:
       parameter: os_detection
@@ -318,25 +370,33 @@ parameters:
     type: options
     flag: ""
     description: Timing template from paranoid to insane
+    description.de: Timing-Vorlage von paranoid bis insane
     order: 80
     options:
       - value: -T0
         description: Paranoid
+        description.de: Paranoid
       - value: -T1
         description: Sneaky
+        description.de: Verstohlen
       - value: -T2
         description: Polite
+        description.de: Höflich
       - value: -T3
         description: Normal
+        description.de: Normal
       - value: -T4
         description: Aggressive
+        description.de: Aggressiv
       - value: -T5
         description: Insane
+        description.de: Extrem
 
   - name: min_hostgroup
     type: text
     flag: --min-hostgroup
     description: Minimum parallel host scan group size
+    description.de: Minimale Gruppengröße für parallel gescannte Hosts
     example: "16"
     order: 81
 
@@ -344,6 +404,7 @@ parameters:
     type: text
     flag: --max-hostgroup
     description: Maximum parallel host scan group size
+    description.de: Maximale Gruppengröße für parallel gescannte Hosts
     example: "256"
     order: 82
 
@@ -351,6 +412,7 @@ parameters:
     type: text
     flag: --max-retries
     description: Maximum number of probe retransmissions
+    description.de: Maximale Anzahl erneuter Prüfsendungen
     example: "3"
     order: 83
 
@@ -358,6 +420,7 @@ parameters:
     type: text
     flag: --host-timeout
     description: Stop scanning a host after this duration
+    description.de: Scan eines Hosts nach dieser Dauer abbrechen
     example: 5m
     order: 84
 
@@ -365,6 +428,7 @@ parameters:
     type: text
     flag: --scan-delay
     description: Minimum delay between probes
+    description.de: Minimale Verzögerung zwischen Prüfungen
     example: 100ms
     order: 85
 
@@ -372,6 +436,7 @@ parameters:
     type: text
     flag: --min-rate
     description: Send packets no slower than this rate per second
+    description.de: Pakete nicht langsamer als mit dieser Rate pro Sekunde senden
     example: "100"
     order: 86
 
@@ -379,6 +444,7 @@ parameters:
     type: text
     flag: --max-rate
     description: Send packets no faster than this rate per second
+    description.de: Pakete nicht schneller als mit dieser Rate pro Sekunde senden
     example: "1000"
     order: 87
 
@@ -386,6 +452,7 @@ parameters:
     type: boolean
     flag: -f
     description: Fragment IP packets into small pieces
+    description.de: IP-Pakete in kleine Teile fragmentieren
     default: false
     order: 90
 
@@ -393,6 +460,7 @@ parameters:
     type: text
     flag: --mtu
     description: Use the specified packet fragmentation MTU
+    description.de: Die angegebene MTU für die Paketfragmentierung verwenden
     example: "24"
     order: 91
 
@@ -400,6 +468,7 @@ parameters:
     type: text
     flag: -D
     description: Comma-separated decoy addresses, optionally including ME
+    description.de: Kommagetrennte Täuschadressen, optional einschließlich ME
     example: RND:5,ME
     order: 92
 
@@ -407,6 +476,7 @@ parameters:
     type: text
     flag: -S
     description: Spoof the source IP address
+    description.de: Die Quell-IP-Adresse fälschen
     example: 192.0.2.10
     order: 93
 
@@ -414,6 +484,7 @@ parameters:
     type: text
     flag: -e
     description: Network interface to use
+    description.de: Zu verwendende Netzwerkschnittstelle
     example: eth0
     order: 94
 
@@ -421,6 +492,7 @@ parameters:
     type: text
     flag: --source-port
     description: Source port used for probes
+    description.de: Quellport für die Prüfungen
     example: "53"
     order: 95
 
@@ -428,6 +500,7 @@ parameters:
     type: text
     flag: --proxies
     description: Comma-separated HTTP or SOCKS4 proxy URLs
+    description.de: Kommagetrennte HTTP- oder SOCKS4-Proxy-URLs
     example: http://127.0.0.1:8080
     order: 96
 
@@ -435,6 +508,7 @@ parameters:
     type: text
     flag: --data-string
     description: ASCII payload appended to sent packets
+    description.de: ASCII-Nutzlast, die gesendeten Paketen angehängt wird
     example: probe-data
     order: 97
 
@@ -442,6 +516,7 @@ parameters:
     type: text
     flag: --data-length
     description: Number of random payload bytes to append
+    description.de: Anzahl anzuhängender zufälliger Nutzlast-Bytes
     example: "32"
     order: 98
 
@@ -449,6 +524,7 @@ parameters:
     type: text
     flag: --ttl
     description: IP time-to-live value
+    description.de: IP-Time-to-Live-Wert
     example: "64"
     order: 99
 
@@ -456,6 +532,7 @@ parameters:
     type: text
     flag: --spoof-mac
     description: MAC address, prefix, or vendor name to spoof
+    description.de: Zu fälschende MAC-Adresse, Präfix oder Herstellername
     example: "0"
     order: 100
 
@@ -463,6 +540,7 @@ parameters:
     type: boolean
     flag: --badsum
     description: Send packets with invalid checksums
+    description.de: Pakete mit ungültigen Prüfsummen senden
     default: false
     order: 101
 
@@ -470,6 +548,7 @@ parameters:
     type: text
     flag: -oN
     description: Write normal output to this file
+    description.de: Normale Ausgabe in diese Datei schreiben
     example: scan.txt
     order: 110
 
@@ -477,6 +556,7 @@ parameters:
     type: text
     flag: -oX
     description: Write XML output to this file
+    description.de: XML-Ausgabe in diese Datei schreiben
     example: scan.xml
     order: 111
 
@@ -484,6 +564,7 @@ parameters:
     type: text
     flag: -oG
     description: Write grepable output to this file
+    description.de: Grepbare Ausgabe in diese Datei schreiben
     example: scan.gnmap
     order: 112
 
@@ -491,6 +572,7 @@ parameters:
     type: text
     flag: -oA
     description: Base name for normal, XML, and grepable output files
+    description.de: Basisname für normale, XML- und grepbare Ausgabedateien
     conflicts_with: [output_normal, output_xml, output_grepable]
     example: scan
     order: 113
@@ -499,32 +581,41 @@ parameters:
     type: options
     flag: ""
     description: Increase output verbosity
+    description.de: Ausführlichkeit der Ausgabe erhöhen
     order: 114
     options:
       - value: -v
         description: Verbose
+        description.de: Ausführlich
       - value: -vv
         description: More verbose
+        description.de: Ausführlicher
       - value: -vvv
         description: Very verbose
+        description.de: Sehr ausführlich
 
   - name: debugging
     type: options
     flag: ""
     description: Increase debugging output
+    description.de: Debug-Ausgabe erhöhen
     order: 115
     options:
       - value: -d
         description: Debug output
+        description.de: Debug-Ausgabe
       - value: -dd
         description: More debugging output
+        description.de: Mehr Debug-Ausgabe
       - value: -ddd
         description: Very detailed debugging output
+        description.de: Sehr detaillierte Debug-Ausgabe
 
   - name: show_reason
     type: boolean
     flag: --reason
     description: Show why each port is in its reported state
+    description.de: Anzeigen, warum jeder Port im gemeldeten Zustand ist
     default: false
     order: 116
 
@@ -532,6 +623,7 @@ parameters:
     type: boolean
     flag: --open
     description: Show only open or possibly open ports
+    description.de: Nur offene oder möglicherweise offene Ports anzeigen
     default: false
     order: 117
 
@@ -539,6 +631,7 @@ parameters:
     type: boolean
     flag: --packet-trace
     description: Show every packet sent and received
+    description.de: Jedes gesendete und empfangene Paket anzeigen
     default: false
     order: 118
 
@@ -546,6 +639,7 @@ parameters:
     type: boolean
     flag: --append-output
     description: Append instead of overwriting output files
+    description.de: Ausgabedateien ergänzen statt überschreiben
     default: false
     order: 119
 
@@ -553,6 +647,7 @@ parameters:
     type: boolean
     flag: "-6"
     description: Enable IPv6 scanning
+    description.de: IPv6-Scans aktivieren
     default: false
     order: 120
 
@@ -560,6 +655,7 @@ parameters:
     type: boolean
     flag: -A
     description: Enable OS detection, version detection, scripts, and traceroute
+    description.de: OS-Erkennung, Versionserkennung, Skripte und Traceroute aktivieren
     default: false
     order: 121
 
@@ -567,28 +663,35 @@ parameters:
     type: options
     flag: ""
     description: Override Nmap privilege detection
+    description.de: Die Rechteerkennung von Nmap übersteuern
     order: 122
     options:
       - value: --privileged
         description: Assume full privileges
+        description.de: Volle Rechte annehmen
       - value: --unprivileged
         description: Assume no raw-socket privileges
+        description.de: Keine Raw-Socket-Rechte annehmen
 
   - name: send_mode
     type: options
     flag: ""
     description: Select raw Ethernet frames or IP packets
+    description.de: Rohe Ethernet-Frames oder IP-Pakete wählen
     order: 123
     options:
       - value: --send-eth
         description: Send raw Ethernet frames
+        description.de: Rohe Ethernet-Frames senden
       - value: --send-ip
         description: Send raw IP packets
+        description.de: Rohe IP-Pakete senden
 
   - name: exclude_hosts
     type: text
     flag: --exclude
     description: Comma-separated hosts or networks to exclude
+    description.de: Kommagetrennte auszuschließende Hosts oder Netzwerke
     example: 192.168.1.1,192.168.2.0/24
     order: 124
 
@@ -597,6 +700,7 @@ parameters:
     mode: file
     flag: --excludefile
     description: File containing hosts or networks to exclude
+    description.de: Datei mit auszuschließenden Hosts oder Netzwerken
     order: 125
 
   - name: target
@@ -604,6 +708,7 @@ parameters:
     flag: ""
     required: true
     description: Hostnames, IP addresses, ranges, or CIDR networks to scan
+    description.de: Zu scannende Hostnamen, IP-Adressen, Bereiche oder CIDR-Netzwerke
     example: scanme.nmap.org or 192.168.1.0/24
     order: 1000
 
@@ -618,3 +723,15 @@ help_text: |
   - XML report: `nmap -sT -oX scan.xml target`
 
   Only scan systems and networks for which you have explicit authorization.
+help_text.de: |
+  Diese Konfiguration deckt die wichtigsten Nmap-Optionsgruppen aus dem
+  offiziellen Referenzhandbuch ab. Optionen lassen sich kombinieren, sofern
+  Nmap selbst die Kombination nicht ausschließt. Einige Raw-Packet-Scanarten
+  benötigen erhöhte Rechte.
+
+  Beispiele:
+  - SYN- und Versionsscan: `sudo nmap -sS -sV -p 22,80,443 -T4 ziel`
+  - Standard-NSE-Skripte und OS-Erkennung: `sudo nmap -sC -O ziel`
+  - XML-Bericht: `nmap -sT -oX scan.xml ziel`
+
+  Scanne nur Systeme und Netzwerke, für die du eine ausdrückliche Erlaubnis hast.

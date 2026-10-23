@@ -3,6 +3,8 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../l10n/app_localizations.dart';
+import '../l10n/error_presenter.dart';
 import '../models/batch_command.dart';
 import '../services/batch_command_store.dart';
 import '../utils/config_loader.dart';
@@ -22,33 +24,39 @@ class _BatchCommandPageState extends State<BatchCommandPage> {
   List<BatchCommand> _commands = [];
   bool _isStaging = false;
   bool _isMutating = false;
-  String? _loadError;
+  Object? _loadError;
   late String _configSource;
 
   @override
-  void initState() {
-    super.initState();
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Titles and descriptions come from the YAML file and are resolved per
+    // language, so this reads with the active locale and re-reads on change.
     _loadBatchFile();
   }
 
   void _loadBatchFile() {
     try {
-      _commands = ConfigLoader.loadBatchConfig(widget.filePath).commands;
+      _commands = ConfigLoader.loadBatchConfig(
+        widget.filePath,
+        languageCode: Localizations.localeOf(context).languageCode,
+      ).commands;
       _configSource = File(widget.filePath).readAsStringSync();
       _loadError = null;
     } on Object catch (error) {
-      _loadError = error.toString();
+      _loadError = error;
     }
   }
 
   Future<void> _addCommand() async {
+    final l10n = AppLocalizations.of(context);
     var title = '';
     var description = '';
     var commandText = '';
     final command = await showDialog<BatchCommand>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Batch Command hinzufügen'),
+        title: Text(l10n.batchAddCommand),
         content: SizedBox(
           width: 520,
           child: Column(
@@ -57,13 +65,13 @@ class _BatchCommandPageState extends State<BatchCommandPage> {
               TextField(
                 key: const Key('new-batch-command-title'),
                 autofocus: true,
-                decoration: const InputDecoration(labelText: 'Titel *'),
+                decoration: InputDecoration(labelText: l10n.batchFieldTitle),
                 onChanged: (value) => title = value,
               ),
               const SizedBox(height: 12),
               TextField(
                 key: const Key('new-batch-command-description'),
-                decoration: const InputDecoration(labelText: 'Beschreibung'),
+                decoration: InputDecoration(labelText: l10n.commonDescription),
                 onChanged: (value) => description = value,
               ),
               const SizedBox(height: 12),
@@ -71,7 +79,7 @@ class _BatchCommandPageState extends State<BatchCommandPage> {
                 key: const Key('new-batch-command-command'),
                 minLines: 1,
                 maxLines: 4,
-                decoration: const InputDecoration(labelText: 'Befehl *'),
+                decoration: InputDecoration(labelText: l10n.batchFieldCommand),
                 onChanged: (value) => commandText = value,
               ),
             ],
@@ -80,7 +88,7 @@ class _BatchCommandPageState extends State<BatchCommandPage> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Abbrechen'),
+            child: Text(l10n.commonCancel),
           ),
           FilledButton(
             key: const Key('confirm-add-batch-command'),
@@ -95,7 +103,7 @@ class _BatchCommandPageState extends State<BatchCommandPage> {
                 ),
               );
             },
-            child: const Text('Hinzufügen'),
+            child: Text(l10n.commonAdd),
           ),
         ],
       ),
@@ -117,7 +125,7 @@ class _BatchCommandPageState extends State<BatchCommandPage> {
       if (!mounted) return;
       showOutputDialog(
         context,
-        'Befehl konnte nicht gespeichert werden: $error',
+        l10n.batchSaveFailed(localizeError(l10n, error)),
       );
     } finally {
       if (mounted) setState(() => _isMutating = false);
@@ -125,21 +133,22 @@ class _BatchCommandPageState extends State<BatchCommandPage> {
   }
 
   Future<void> _deleteCommand(int index) async {
+    final l10n = AppLocalizations.of(context);
     final command = _commands[index];
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Batch Command löschen?'),
-        content: Text('Soll „${command.title}“ dauerhaft gelöscht werden?'),
+        title: Text(l10n.batchDeleteTitle),
+        content: Text(l10n.batchDeleteMessage(command.title)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Abbrechen'),
+            child: Text(l10n.commonCancel),
           ),
           FilledButton(
             key: const Key('confirm-delete-batch-command'),
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Löschen'),
+            child: Text(l10n.commonDelete),
           ),
         ],
       ),
@@ -159,7 +168,10 @@ class _BatchCommandPageState extends State<BatchCommandPage> {
       });
     } on Object catch (error) {
       if (!mounted) return;
-      showOutputDialog(context, 'Befehl konnte nicht gelöscht werden: $error');
+      showOutputDialog(
+        context,
+        l10n.batchDeleteFailed(localizeError(l10n, error)),
+      );
     } finally {
       if (mounted) setState(() => _isMutating = false);
     }
@@ -167,13 +179,17 @@ class _BatchCommandPageState extends State<BatchCommandPage> {
 
   Future<void> _stageCommand(BatchCommand command) async {
     if (_isStaging || command.command.isEmpty) return;
+    final l10n = AppLocalizations.of(context);
     setState(() => _isStaging = true);
     try {
       await TerminalPanelScope.of(context).insertCommand(command.command);
       if (mounted) ConfigurationPanelScope.maybeOf(context)?.close();
     } on Object catch (error) {
       if (!mounted) return;
-      showOutputDialog(context, 'Fehler beim Einfügen: $error');
+      showOutputDialog(
+        context,
+        l10n.batchInsertFailed(localizeError(l10n, error)),
+      );
     } finally {
       if (mounted) setState(() => _isStaging = false);
     }
@@ -181,13 +197,17 @@ class _BatchCommandPageState extends State<BatchCommandPage> {
 
   @override
   Widget build(BuildContext context) {
-    if (_loadError != null) {
+    final l10n = AppLocalizations.of(context);
+    if (_loadError case final error?) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Konfigurationsfehler')),
+        appBar: AppBar(title: Text(l10n.configErrorTitle)),
         body: Center(
           child: Padding(
             padding: const EdgeInsets.all(24),
-            child: SelectableText(_loadError!, textAlign: TextAlign.center),
+            child: SelectableText(
+              localizeError(l10n, error),
+              textAlign: TextAlign.center,
+            ),
           ),
         ),
       );
@@ -195,18 +215,18 @@ class _BatchCommandPageState extends State<BatchCommandPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Batch Commands'),
+        title: Text(l10n.batchTitle),
         actions: [
           IconButton(
             key: const Key('add-batch-command'),
-            tooltip: 'Batch Command hinzufügen',
+            tooltip: l10n.batchAddCommand,
             onPressed: _isStaging || _isMutating ? null : _addCommand,
             icon: const Icon(Icons.add),
           ),
         ],
       ),
       body: _commands.isEmpty
-          ? const Center(child: Text('Keine Befehle gefunden.'))
+          ? Center(child: Text(l10n.batchNoCommands))
           : ListView.builder(
               padding: const EdgeInsets.all(16),
               itemCount: _commands.length,
@@ -218,7 +238,9 @@ class _BatchCommandPageState extends State<BatchCommandPage> {
                     children: [
                       Expanded(
                         child: Text(
-                          command.title,
+                          command.title.isEmpty
+                              ? l10n.batchUntitled
+                              : command.title,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -226,7 +248,7 @@ class _BatchCommandPageState extends State<BatchCommandPage> {
                       IconButton(
                         key: Key('stage-batch-command-$index'),
                         icon: const Icon(Icons.play_arrow),
-                        tooltip: 'Ins interne Terminal einfügen',
+                        tooltip: l10n.batchInsertIntoTerminal,
                         onPressed: _isStaging || _isMutating
                             ? null
                             : () => _stageCommand(command),
@@ -250,16 +272,14 @@ class _BatchCommandPageState extends State<BatchCommandPage> {
                               IconButton(
                                 key: Key('copy-batch-command-$index'),
                                 icon: const Icon(Icons.copy),
-                                tooltip: 'Befehl kopieren',
+                                tooltip: l10n.batchCopyCommand,
                                 onPressed: () {
                                   Clipboard.setData(
                                     ClipboardData(text: command.command),
                                   );
                                   ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text(
-                                        'Befehl in die Zwischenablage kopiert',
-                                      ),
+                                    SnackBar(
+                                      content: Text(l10n.batchCommandCopied),
                                     ),
                                   );
                                 },
@@ -267,7 +287,7 @@ class _BatchCommandPageState extends State<BatchCommandPage> {
                               IconButton(
                                 key: Key('delete-batch-command-$index'),
                                 icon: const Icon(Icons.delete_outline),
-                                tooltip: 'Batch Command löschen',
+                                tooltip: l10n.batchDeleteCommand,
                                 onPressed: _isStaging || _isMutating
                                     ? null
                                     : () => _deleteCommand(index),

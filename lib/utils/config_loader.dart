@@ -6,19 +6,124 @@ import '../models/batch_command.dart';
 import '../models/command_config.dart';
 import '../models/config_item.dart';
 
+/// Why a configuration file was rejected.
+///
+/// The loader reports a code rather than a sentence so the UI can render the
+/// reason in the active language. [ConfigFormatException.message] stays
+/// English on purpose: it feeds logs and `toString()`, not the UI.
+enum ConfigErrorReason {
+  mustBeList,
+  mustBeNonEmptyList,
+  mustBeObject,
+  mustBeText,
+  mustBeBoolean,
+  mustBeInteger,
+  mustBeTextList,
+  mustBeTextOrBoolean,
+  mustBeFilePickerMode,
+  mustBeExecutionMode,
+  mustBeAttachmentMode,
+  optionsParameterNeedsEntry,
+  buttonNeedsExecutable,
+  typeMismatch,
+  notInOptions,
+  duplicateParameterName,
+  duplicateOptionValue,
+  unknownParameterType,
+  unknownParameterReference,
+  unknownFields,
+  unknownGroupFields,
+  conditionSelfReference,
+  conditionValueTypeMismatch,
+  conditionValueNotAnOption,
+  bothAllAndAny,
+  needsAtLeastOneCondition,
+  onlyEqualsInOrActive,
+  unsupportedSchemaVersion,
+  fileNotFound,
+  fileUnreadable,
+  invalidYaml,
+}
+
 class ConfigFormatException implements Exception {
   final String filePath;
   final String fieldPath;
-  final String message;
+  final ConfigErrorReason reason;
 
-  const ConfigFormatException(this.filePath, this.fieldPath, this.message);
+  /// The offending value, name, or nested error the reason refers to, when it
+  /// has one. Never translated — it echoes content from the file.
+  final String? detail;
+
+  const ConfigFormatException(
+    this.filePath,
+    this.fieldPath,
+    this.reason, [
+    this.detail,
+  ]);
+
+  /// Developer-facing English description. User-facing text is produced by the
+  /// localized presenter in the UI layer, never here.
+  String get message => switch (reason) {
+    ConfigErrorReason.mustBeList => 'must be a list',
+    ConfigErrorReason.mustBeNonEmptyList => 'must be a non-empty list',
+    ConfigErrorReason.mustBeObject => 'must be an object',
+    ConfigErrorReason.mustBeText => 'must contain text',
+    ConfigErrorReason.mustBeBoolean => 'must be true or false',
+    ConfigErrorReason.mustBeInteger => 'must be an integer',
+    ConfigErrorReason.mustBeTextList => 'must be a list of text',
+    ConfigErrorReason.mustBeTextOrBoolean => 'must be text, true or false',
+    ConfigErrorReason.mustBeFilePickerMode => 'must be file, directory or any',
+    ConfigErrorReason.mustBeExecutionMode =>
+      'must be automatic, before_command, argument or pipeline',
+    ConfigErrorReason.mustBeAttachmentMode =>
+      'must be automatic, separated or attached',
+    ConfigErrorReason.optionsParameterNeedsEntry =>
+      'an options parameter needs at least one entry',
+    ConfigErrorReason.buttonNeedsExecutable =>
+      'a button needs an executable program',
+    ConfigErrorReason.typeMismatch =>
+      'does not match the data type of the parameter type',
+    ConfigErrorReason.notInOptions => 'is not contained in options',
+    ConfigErrorReason.duplicateParameterName =>
+      'parameter name "$detail" is duplicated',
+    ConfigErrorReason.duplicateOptionValue =>
+      'option value "$detail" is duplicated',
+    ConfigErrorReason.unknownParameterType =>
+      'unknown parameter type "$detail"',
+    ConfigErrorReason.unknownParameterReference =>
+      'refers to unknown parameter "$detail"',
+    ConfigErrorReason.unknownFields => 'contains unknown fields: $detail',
+    ConfigErrorReason.unknownGroupFields =>
+      'contains unknown group fields: $detail',
+    ConfigErrorReason.conditionSelfReference =>
+      'a condition must not refer to its own parameter',
+    ConfigErrorReason.conditionValueTypeMismatch =>
+      'condition value does not match the type of "$detail"',
+    ConfigErrorReason.conditionValueNotAnOption =>
+      'condition value is not an option of "$detail"',
+    ConfigErrorReason.bothAllAndAny =>
+      'must not contain all and any at the same time',
+    ConfigErrorReason.needsAtLeastOneCondition =>
+      'must contain at least one condition',
+    ConfigErrorReason.onlyEqualsInOrActive =>
+      'may only use equals, in or active',
+    ConfigErrorReason.unsupportedSchemaVersion =>
+      'only version $detail is supported',
+    ConfigErrorReason.fileNotFound => 'file was not found',
+    ConfigErrorReason.fileUnreadable => 'file could not be read: $detail',
+    ConfigErrorReason.invalidYaml => 'invalid YAML: $detail',
+  };
 
   @override
   String toString() => '$filePath: $fieldPath: $message';
 }
 
 class ConfigLoader {
-  static List<ConfigItem> loadConfigs(String dirPath) {
+  /// Schema versions the loader accepts. Version 2 adds language-suffixed
+  /// fields (`description.en`); version 1 files stay valid unchanged.
+  static const supportedSchemaVersions = [1, 2];
+
+  static List<ConfigItem> loadConfigs(String dirPath, {String? languageCode}) {
     final directory = Directory(dirPath);
     if (!directory.existsSync()) return [];
 
@@ -35,15 +140,13 @@ class ConfigLoader {
         final doc = _readDocument(file.path);
 
         if (isBatch) {
-          final batch = _parseBatchDocument(doc, file.path);
+          final batch = _parseBatchDocument(doc, file.path, languageCode);
           items.add(
             ConfigItem(
               command: _batchDisplayName(name),
-              description: batch.commands.length == 1
-                  ? '1 Befehl in dieser Datei'
-                  : '${batch.commands.length} Befehle in dieser Datei',
               filePath: file.path,
               isBatch: true,
+              batchCommandCount: batch.commands.length,
             ),
           );
           continue;
@@ -51,28 +154,28 @@ class ConfigLoader {
 
         final command = doc['command'];
         if (command is! String || command.trim().isEmpty) continue;
-        final displayName = _optionalString(
+        final displayName = _localizedString(
           doc,
           'display_name',
           file.path,
           'display_name',
+          languageCode,
         );
         items.add(
           ConfigItem(
             command: displayName ?? command,
-            description: doc['description']?.toString() ?? 'No description',
+            description: _localizedString(
+              doc,
+              'description',
+              file.path,
+              'description',
+              languageCode,
+            ),
             filePath: file.path,
           ),
         );
       } on Object catch (error) {
-        items.add(
-          ConfigItem(
-            command: 'Fehler: $name',
-            description: error.toString(),
-            filePath: file.path,
-            error: error.toString(),
-          ),
-        );
+        items.add(ConfigItem(command: name, filePath: file.path, error: error));
       }
     }
 
@@ -91,26 +194,40 @@ class ConfigLoader {
         .join(' ');
   }
 
-  static CommandConfig loadConfig(String filePath) {
+  static CommandConfig loadConfig(String filePath, {String? languageCode}) {
     final doc = _readDocument(filePath);
     final schemaVersion = _schemaVersion(doc, filePath);
     final command = _requiredString(doc, 'command', filePath, 'command');
-    final displayName = _optionalString(
+    final displayName = _localizedString(
       doc,
       'display_name',
       filePath,
       'display_name',
+      languageCode,
     );
     final description =
-        _optionalString(doc, 'description', filePath, 'description') ?? '';
-    final helpText = _optionalString(doc, 'help_text', filePath, 'help_text');
+        _localizedString(
+          doc,
+          'description',
+          filePath,
+          'description',
+          languageCode,
+        ) ??
+        '';
+    final helpText = _localizedString(
+      doc,
+      'help_text',
+      filePath,
+      'help_text',
+      languageCode,
+    );
 
     final rawParameters = doc['parameters'];
     if (rawParameters != null && rawParameters is! List) {
       throw ConfigFormatException(
         filePath,
         'parameters',
-        'muss eine Liste sein',
+        ConfigErrorReason.mustBeList,
       );
     }
 
@@ -127,7 +244,7 @@ class ConfigLoader {
         throw ConfigFormatException(
           filePath,
           fieldPath,
-          'muss ein Objekt sein',
+          ConfigErrorReason.mustBeObject,
         );
       }
 
@@ -142,7 +259,8 @@ class ConfigLoader {
         throw ConfigFormatException(
           filePath,
           '$fieldPath.name',
-          'Parametername "$name" ist doppelt vorhanden',
+          ConfigErrorReason.duplicateParameterName,
+          name,
         );
       }
 
@@ -157,12 +275,13 @@ class ConfigLoader {
         rawParameter['options'],
         filePath,
         '$fieldPath.options',
+        languageCode,
       );
       if (type == CommandParameterType.options && options.isEmpty) {
         throw ConfigFormatException(
           filePath,
           '$fieldPath.options',
-          'Optionsparameter benötigt mindestens einen Eintrag',
+          ConfigErrorReason.optionsParameterNeedsEntry,
         );
       }
 
@@ -180,7 +299,7 @@ class ConfigLoader {
           throw ConfigFormatException(
             filePath,
             '$fieldPath.default',
-            'hat nicht den zum Parametertyp passenden Datentyp',
+            ConfigErrorReason.typeMismatch,
           );
         }
         if (type == CommandParameterType.options &&
@@ -188,7 +307,7 @@ class ConfigLoader {
           throw ConfigFormatException(
             filePath,
             '$fieldPath.default',
-            'ist nicht in options enthalten',
+            ConfigErrorReason.notInOptions,
           );
         }
         if (type == CommandParameterType.textList) {
@@ -208,7 +327,7 @@ class ConfigLoader {
         throw ConfigFormatException(
           filePath,
           '$fieldPath.executable',
-          'Button benötigt ein ausführbares Programm',
+          ConfigErrorReason.buttonNeedsExecutable,
         );
       }
 
@@ -230,11 +349,12 @@ class ConfigLoader {
         CommandParameter(
           name: name,
           description:
-              _optionalString(
+              _localizedString(
                 rawParameter,
                 'description',
                 filePath,
                 '$fieldPath.description',
+                languageCode,
               ) ??
               '',
           type: type,
@@ -286,23 +406,26 @@ class ConfigLoader {
             '$fieldPath.placement',
           ),
           join: _parseJoin(rawParameter['join'], filePath, '$fieldPath.join'),
-          example: _optionalString(
+          example: _localizedString(
             rawParameter,
             'example',
             filePath,
             '$fieldPath.example',
+            languageCode,
           ),
-          note: _optionalString(
+          note: _localizedString(
             rawParameter,
             'note',
             filePath,
             '$fieldPath.note',
+            languageCode,
           ),
-          label: _optionalString(
+          label: _localizedString(
             rawParameter,
             'label',
             filePath,
             '$fieldPath.label',
+            languageCode,
           ),
           executable: executable,
           args: _arguments(rawParameter['args'], filePath, '$fieldPath.args'),
@@ -335,7 +458,8 @@ class ConfigLoader {
           throw ConfigFormatException(
             filePath,
             'parameters[${parameter.sourceIndex}]',
-            'verweist auf unbekannten Parameter "$reference"',
+            ConfigErrorReason.unknownParameterReference,
+            reference,
           );
         }
       }
@@ -347,7 +471,7 @@ class ConfigLoader {
           throw ConfigFormatException(
             filePath,
             'parameters[${parameter.sourceIndex}]',
-            'Bedingung darf nicht auf den eigenen Parameter verweisen',
+            ConfigErrorReason.conditionSelfReference,
           );
         }
         if (condition.expectedValues.isEmpty) continue;
@@ -362,7 +486,8 @@ class ConfigLoader {
           throw ConfigFormatException(
             filePath,
             'parameters[${parameter.sourceIndex}]',
-            'Bedingungswert passt nicht zum Typ von "${condition.parameter}"',
+            ConfigErrorReason.conditionValueTypeMismatch,
+            condition.parameter,
           );
         }
         if (referenced.type == CommandParameterType.options &&
@@ -373,7 +498,8 @@ class ConfigLoader {
           throw ConfigFormatException(
             filePath,
             'parameters[${parameter.sourceIndex}]',
-            'Bedingungswert ist keine Option von "${condition.parameter}"',
+            ConfigErrorReason.conditionValueNotAnOption,
+            condition.parameter,
           );
         }
       }
@@ -388,15 +514,26 @@ class ConfigLoader {
     );
   }
 
-  static BatchCommandConfig loadBatchConfig(String filePath) {
-    return _parseBatchDocument(_readDocument(filePath), filePath);
+  static BatchCommandConfig loadBatchConfig(
+    String filePath, {
+    String? languageCode,
+  }) {
+    return _parseBatchDocument(_readDocument(filePath), filePath, languageCode);
   }
 
-  static BatchCommandConfig _parseBatchDocument(Map doc, String filePath) {
+  static BatchCommandConfig _parseBatchDocument(
+    Map doc,
+    String filePath,
+    String? languageCode,
+  ) {
     _schemaVersion(doc, filePath);
     final rawCommands = doc['commands'];
     if (rawCommands is! List) {
-      throw ConfigFormatException(filePath, 'commands', 'muss eine Liste sein');
+      throw ConfigFormatException(
+        filePath,
+        'commands',
+        ConfigErrorReason.mustBeList,
+      );
     }
 
     final commands = <BatchCommand>[];
@@ -407,25 +544,27 @@ class ConfigLoader {
         throw ConfigFormatException(
           filePath,
           fieldPath,
-          'muss ein Objekt sein',
+          ConfigErrorReason.mustBeObject,
         );
       }
       commands.add(
         BatchCommand(
           title:
-              _optionalString(
+              _localizedString(
                 rawCommand,
                 'title',
                 filePath,
                 '$fieldPath.title',
+                languageCode,
               ) ??
-              'Ohne Titel',
+              '',
           description:
-              _optionalString(
+              _localizedString(
                 rawCommand,
                 'description',
                 filePath,
                 '$fieldPath.description',
+                languageCode,
               ) ??
               '',
           command: _requiredString(
@@ -443,12 +582,20 @@ class ConfigLoader {
   static Map _readDocument(String filePath) {
     final file = File(filePath);
     if (!file.existsSync()) {
-      throw ConfigFormatException(filePath, r'$', 'Datei wurde nicht gefunden');
+      throw ConfigFormatException(
+        filePath,
+        r'$',
+        ConfigErrorReason.fileNotFound,
+      );
     }
     try {
       final document = loadYaml(file.readAsStringSync());
       if (document is! Map) {
-        throw ConfigFormatException(filePath, r'$', 'muss ein Objekt sein');
+        throw ConfigFormatException(
+          filePath,
+          r'$',
+          ConfigErrorReason.mustBeObject,
+        );
       }
       return document;
     } on ConfigFormatException {
@@ -457,21 +604,28 @@ class ConfigLoader {
       throw ConfigFormatException(
         filePath,
         r'$',
-        'Datei konnte nicht gelesen werden: ${error.message}',
+        ConfigErrorReason.fileUnreadable,
+        error.message,
       );
     } on Object catch (error) {
-      throw ConfigFormatException(filePath, r'$', 'ungültiges YAML: $error');
+      throw ConfigFormatException(
+        filePath,
+        r'$',
+        ConfigErrorReason.invalidYaml,
+        '$error',
+      );
     }
   }
 
   static int _schemaVersion(Map doc, String filePath) {
     final value = doc['schema_version'];
     if (value == null) return 0;
-    if (value is! int || value != 1) {
+    if (value is! int || !supportedSchemaVersions.contains(value)) {
       throw ConfigFormatException(
         filePath,
         'schema_version',
-        'unterstützt wird nur Version 1',
+        ConfigErrorReason.unsupportedSchemaVersion,
+        supportedSchemaVersions.join(', '),
       );
     }
     return value;
@@ -485,9 +639,39 @@ class ConfigLoader {
   ) {
     final value = map[key];
     if (value is! String || value.trim().isEmpty) {
-      throw ConfigFormatException(filePath, fieldPath, 'muss Text enthalten');
+      throw ConfigFormatException(
+        filePath,
+        fieldPath,
+        ConfigErrorReason.mustBeText,
+      );
     }
     return value;
+  }
+
+  /// Reads `<key>.<languageCode>` when the file provides it, otherwise `<key>`.
+  ///
+  /// This is what makes template files multilingual without a breaking change:
+  /// a file that only has plain fields resolves exactly as it did before, and a
+  /// file may translate some fields and leave others to the base language.
+  static String? _localizedString(
+    Map map,
+    String key,
+    String filePath,
+    String fieldPath,
+    String? languageCode,
+  ) {
+    if (languageCode != null) {
+      final suffixed = '$key.$languageCode';
+      if (map[suffixed] != null) {
+        return _optionalString(
+          map,
+          suffixed,
+          filePath,
+          '$fieldPath.$languageCode',
+        );
+      }
+    }
+    return _optionalString(map, key, filePath, fieldPath);
   }
 
   static String? _optionalString(
@@ -500,7 +684,11 @@ class ConfigLoader {
     final value = map[key];
     if (value == null) return null;
     if (value is! String || (!allowEmpty && value.trim().isEmpty)) {
-      throw ConfigFormatException(filePath, fieldPath, 'muss Text enthalten');
+      throw ConfigFormatException(
+        filePath,
+        fieldPath,
+        ConfigErrorReason.mustBeText,
+      );
     }
     return value;
   }
@@ -512,7 +700,7 @@ class ConfigLoader {
       throw ConfigFormatException(
         filePath,
         fieldPath,
-        'muss true oder false sein',
+        ConfigErrorReason.mustBeBoolean,
       );
     }
     return value;
@@ -525,7 +713,7 @@ class ConfigLoader {
       throw ConfigFormatException(
         filePath,
         fieldPath,
-        'muss eine Ganzzahl sein',
+        ConfigErrorReason.mustBeInteger,
       );
     }
     return value;
@@ -541,7 +729,7 @@ class ConfigLoader {
       throw ConfigFormatException(
         filePath,
         fieldPath,
-        'muss eine Textliste sein',
+        ConfigErrorReason.mustBeTextList,
       );
     }
     return List<String>.unmodifiable(value.cast<String>());
@@ -565,10 +753,15 @@ class ConfigLoader {
     Object? value,
     String filePath,
     String fieldPath,
+    String? languageCode,
   ) {
     if (value == null) return const [];
     if (value is! List) {
-      throw ConfigFormatException(filePath, fieldPath, 'muss eine Liste sein');
+      throw ConfigFormatException(
+        filePath,
+        fieldPath,
+        ConfigErrorReason.mustBeList,
+      );
     }
     final options = <CommandOption>[];
     final values = <String>{};
@@ -578,7 +771,7 @@ class ConfigLoader {
         throw ConfigFormatException(
           filePath,
           '$fieldPath[$index]',
-          'muss ein Objekt sein',
+          ConfigErrorReason.mustBeObject,
         );
       }
       final optionValue = _requiredString(
@@ -591,18 +784,20 @@ class ConfigLoader {
         throw ConfigFormatException(
           filePath,
           '$fieldPath[$index].value',
-          'Optionswert "$optionValue" ist doppelt vorhanden',
+          ConfigErrorReason.duplicateOptionValue,
+          optionValue,
         );
       }
       options.add(
         CommandOption(
           value: optionValue,
           description:
-              _optionalString(
+              _localizedString(
                 rawOption,
                 'description',
                 filePath,
                 '$fieldPath[$index].description',
+                languageCode,
               ) ??
               '',
         ),
@@ -626,7 +821,8 @@ class ConfigLoader {
       _ => throw ConfigFormatException(
         filePath,
         fieldPath,
-        'unbekannter Parametertyp "$value"',
+        ConfigErrorReason.unknownParameterType,
+        value,
       ),
     };
   }
@@ -650,14 +846,15 @@ class ConfigLoader {
         throw ConfigFormatException(
           filePath,
           fieldPath,
-          'enthält unbekannte Gruppenfelder: ${unknownGroupKeys.join(', ')}',
+          ConfigErrorReason.unknownGroupFields,
+          unknownGroupKeys.join(', '),
         );
       }
       if (value.containsKey('all') && value.containsKey('any')) {
         throw ConfigFormatException(
           filePath,
           fieldPath,
-          'darf nicht gleichzeitig all und any enthalten',
+          ConfigErrorReason.bothAllAndAny,
         );
       }
       matchAny = value.containsKey('any');
@@ -671,7 +868,7 @@ class ConfigLoader {
       throw ConfigFormatException(
         filePath,
         fieldPath,
-        'muss mindestens eine Bedingung enthalten',
+        ConfigErrorReason.needsAtLeastOneCondition,
       );
     }
 
@@ -683,7 +880,7 @@ class ConfigLoader {
         throw ConfigFormatException(
           filePath,
           conditionPath,
-          'muss ein Objekt sein',
+          ConfigErrorReason.mustBeObject,
         );
       }
       const allowedKeys = {'parameter', 'equals', 'in', 'active'};
@@ -695,7 +892,8 @@ class ConfigLoader {
         throw ConfigFormatException(
           filePath,
           conditionPath,
-          'enthält unbekannte Felder: ${unknownKeys.join(', ')}',
+          ConfigErrorReason.unknownFields,
+          unknownKeys.join(', '),
         );
       }
       final parameter = _requiredString(
@@ -712,7 +910,7 @@ class ConfigLoader {
         throw ConfigFormatException(
           filePath,
           conditionPath,
-          'darf nur equals, in oder active verwenden',
+          ConfigErrorReason.onlyEqualsInOrActive,
         );
       }
 
@@ -732,7 +930,7 @@ class ConfigLoader {
           throw ConfigFormatException(
             filePath,
             '$conditionPath.in',
-            'muss eine nicht leere Liste sein',
+            ConfigErrorReason.mustBeNonEmptyList,
           );
         }
         expectedValues = List<Object>.unmodifiable(
@@ -750,7 +948,7 @@ class ConfigLoader {
           throw ConfigFormatException(
             filePath,
             '$conditionPath.active',
-            'muss true oder false sein',
+            ConfigErrorReason.mustBeBoolean,
           );
         }
         active = rawActive as bool? ?? true;
@@ -779,7 +977,7 @@ class ConfigLoader {
     throw ConfigFormatException(
       filePath,
       fieldPath,
-      'muss Text, true oder false sein',
+      ConfigErrorReason.mustBeTextOrBoolean,
     );
   }
 
@@ -795,7 +993,7 @@ class ConfigLoader {
       _ => throw ConfigFormatException(
         filePath,
         fieldPath,
-        'muss file, directory oder any sein',
+        ConfigErrorReason.mustBeFilePickerMode,
       ),
     };
   }
@@ -813,7 +1011,7 @@ class ConfigLoader {
       _ => throw ConfigFormatException(
         filePath,
         fieldPath,
-        'muss automatic, before_command, argument oder pipeline sein',
+        ConfigErrorReason.mustBeExecutionMode,
       ),
     };
   }
@@ -830,7 +1028,7 @@ class ConfigLoader {
       _ => throw ConfigFormatException(
         filePath,
         fieldPath,
-        'muss automatic, separated oder attached sein',
+        ConfigErrorReason.mustBeAttachmentMode,
       ),
     };
   }

@@ -2,6 +2,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
 import '../models/command_config.dart';
+import '../l10n/app_localizations.dart';
 import 'searchable_options_field.dart';
 
 class ParameterInput extends StatefulWidget {
@@ -57,6 +58,7 @@ class _ParameterInputState extends State<ParameterInput> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final param = widget.param;
     return switch (param.type) {
       CommandParameterType.filepath => Row(
@@ -65,10 +67,10 @@ class _ParameterInputState extends State<ParameterInput> {
           IconButton(
             icon: const Icon(Icons.folder_open),
             tooltip: param.mode == FilePickerMode.directory
-                ? 'Verzeichnis auswählen'
+                ? l10n.pickDirectory
                 : param.mode == FilePickerMode.any
-                ? 'Datei oder Verzeichnis auswählen'
-                : 'Datei auswählen',
+                ? l10n.pickFileOrDirectory
+                : l10n.pickFile,
             onPressed: _pickPath,
           ),
         ],
@@ -125,6 +127,7 @@ class _ParameterInputState extends State<ParameterInput> {
   }
 
   Future<void> _pickPath() async {
+    final l10n = AppLocalizations.of(context);
     String? path;
     if (widget.param.mode == FilePickerMode.directory) {
       path = await FilePicker.platform.getDirectoryPath();
@@ -136,12 +139,12 @@ class _ParameterInputState extends State<ParameterInput> {
             children: [
               ListTile(
                 leading: const Icon(Icons.insert_drive_file_outlined),
-                title: const Text('Datei auswählen'),
+                title: Text(l10n.pickFile),
                 onTap: () => Navigator.pop(context, FilePickerMode.file),
               ),
               ListTile(
                 leading: const Icon(Icons.folder_outlined),
-                title: const Text('Verzeichnis auswählen'),
+                title: Text(l10n.pickDirectory),
                 onTap: () => Navigator.pop(context, FilePickerMode.directory),
               ),
             ],
@@ -210,6 +213,7 @@ class _TextListInputState extends State<_TextListInput> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -232,7 +236,7 @@ class _TextListInputState extends State<_TextListInput> {
                   ),
                 ),
                 IconButton(
-                  tooltip: 'Eintrag entfernen',
+                  tooltip: l10n.listRemoveEntry,
                   onPressed: _controllers.length == 1
                       ? null
                       : () => _remove(index),
@@ -246,7 +250,7 @@ class _TextListInputState extends State<_TextListInput> {
           child: OutlinedButton.icon(
             onPressed: _add,
             icon: const Icon(Icons.add),
-            label: const Text('Weiteren Eintrag hinzufügen'),
+            label: Text(l10n.listAddEntry),
           ),
         ),
       ],

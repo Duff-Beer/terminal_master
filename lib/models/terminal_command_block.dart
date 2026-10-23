@@ -1,7 +1,9 @@
 enum TerminalCommandBlockStatus { running, succeeded, failed, interrupted }
 
 class TerminalCommandBlock {
-  static const _maxOutputLength = 500000;
+  /// Hard cap on retained output per block. Public so the UI can name the
+  /// limit in its localized truncation notice.
+  static const maxOutputLength = 500000;
 
   final String id;
   final String command;
@@ -38,7 +40,7 @@ class TerminalCommandBlock {
 
   void appendOutput(String value) {
     if (value.isEmpty || outputTruncated) return;
-    final remaining = _maxOutputLength - _outputLength;
+    final remaining = maxOutputLength - _outputLength;
     if (value.length <= remaining) {
       _output.write(value);
       _outputLength += value.length;

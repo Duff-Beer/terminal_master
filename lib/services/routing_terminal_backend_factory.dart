@@ -1,3 +1,4 @@
+import 'service_exception.dart';
 import 'ssh_authentication.dart';
 import 'ssh_connection_profile_store.dart';
 import 'ssh_credential_store.dart';
@@ -25,7 +26,7 @@ class RoutingTerminalBackendFactory {
     }
     final profile = await profileStore.find(profileId);
     if (profile == null) {
-      throw StateError('Das SSH-Verbindungsprofil wurde nicht gefunden.');
+      throw const ServiceException(ServiceFailure.sshProfileNotFound);
     }
     final authentication = await SshAuthenticationResolver(
       credentialStore: credentialStore,

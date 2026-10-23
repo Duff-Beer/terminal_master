@@ -5,10 +5,20 @@ import 'package:yaml/yaml.dart';
 import '../models/shell_profile.dart';
 
 class SettingsLoader {
+  /// Value stored in `settings.yaml` for "follow the operating system".
+  static const String systemLanguage = 'system';
+
+  /// Language codes the app ships translations for. Keep in sync with
+  /// `AppLocalizations.supportedLocales` (lib/l10n/*.arb).
+  static const List<String> supportedLanguageCodes = ['en', 'de'];
+
   static late String terminalCommand;
   static late String fileManagerCommand;
   static late String yamlDirectoryPath;
   static late List<ShellProfile> integratedTerminalProfiles;
+
+  /// `null` means "follow the operating system locale".
+  static late String? languageCode;
 
   static Future<void> saveDefaultIntegratedTerminalProfile(
     String dirPath,
@@ -46,6 +56,20 @@ class SettingsLoader {
       lines[defaultIndex] = '${indent}default_profile: $encodedId';
     }
   });
+
+  /// Persists the UI language. Pass `null` to follow the operating system.
+  static Future<void> saveLanguage(String dirPath, String? code) =>
+      _updateSettings(dirPath, (lines) {
+        final settingIndex = lines.indexWhere(
+          (line) => RegExp(r'^language\s*:').hasMatch(line),
+        );
+        final setting = 'language: ${jsonEncode(code ?? systemLanguage)}';
+        if (settingIndex < 0) {
+          lines.insert(0, setting);
+        } else {
+          lines[settingIndex] = setting;
+        }
+      });
 
   static Future<void> saveYamlDirectoryPath(String dirPath, String yamlPath) =>
       _updateSettings(dirPath, (lines) {
@@ -102,10 +126,12 @@ class SettingsLoader {
       fileManagerCommand = defaults['file_manager']!;
       yamlDirectoryPath = dirPath;
       integratedTerminalProfiles = defaultProfiles;
+      languageCode = null;
       return;
     }
 
     final doc = loadYaml(file.readAsStringSync());
+    languageCode = _loadLanguage(doc['language']);
     terminalCommand = doc['terminal']?.toString() ?? defaults['terminal']!;
     fileManagerCommand =
         doc['file_manager']?.toString() ?? defaults['file_manager']!;
@@ -116,6 +142,14 @@ class SettingsLoader {
       doc['integrated_terminal'],
       defaultProfiles,
     );
+  }
+
+  /// An unknown or absent value falls back to the operating system locale
+  /// rather than failing startup — a stale language code must not brick the app.
+  static String? _loadLanguage(Object? configuration) {
+    final code = configuration?.toString().trim();
+    if (code == null || code.isEmpty || code == systemLanguage) return null;
+    return supportedLanguageCodes.contains(code) ? code : null;
   }
 
   static List<ShellProfile> _loadProfiles(

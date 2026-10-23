@@ -9,10 +9,84 @@ import '../models/ssh_connection_profile.dart';
 import 'ssh_authentication.dart';
 import 'ssh_credential_store.dart';
 
-class SshBackupException implements Exception {
-  final String message;
+/// Why an encrypted SSH backup could not be written or read.
+///
+/// A code, not a sentence: parts of this run inside an isolate and none of it
+/// has a `BuildContext`, so the UI renders the reason in the active language.
+enum SshBackupFailure {
+  invalidAuthenticationInBackup,
+  invalidDataInBackup,
+  selectAtLeastOneConnection,
+  tooManyConnectionsSelected,
+  backupPasswordTooShort,
+  credentialsNotStored,
+  fileTooLarge,
+  backupPasswordMissing,
+  invalidBackupParameters,
+  invalidBackupCryptoData,
+  invalidBackupContent,
+  invalidConnectionCount,
+  invalidConnections,
+  wrongPasswordOrTampered,
+  connectionNotExportable,
+  profileReplacedTwice,
+  profileToReplaceNotFound,
+  profilesChangedDuringImport,
+  importFailedWithCleanup,
+  unknownBackupFormat,
+}
 
-  const SshBackupException(this.message);
+class SshBackupException implements Exception {
+  final SshBackupFailure failure;
+
+  /// The profile name the failure refers to, when it has one.
+  final String? profileName;
+
+  /// Secondary context — the nested error for [SshBackupFailure
+  /// .importFailedWithCleanup].
+  final String? detail;
+
+  const SshBackupException(this.failure, [this.profileName, this.detail]);
+
+  /// Developer-facing English description; the UI renders the localized form.
+  String get message => switch (failure) {
+    SshBackupFailure.invalidAuthenticationInBackup =>
+      'The SSH backup contains an invalid authentication type.',
+    SshBackupFailure.invalidDataInBackup =>
+      'The SSH backup contains invalid data.',
+    SshBackupFailure.selectAtLeastOneConnection =>
+      'Select at least one SSH connection.',
+    SshBackupFailure.tooManyConnectionsSelected =>
+      'Too many SSH connections selected.',
+    SshBackupFailure.backupPasswordTooShort =>
+      'The backup password must be at least 12 characters long.',
+    SshBackupFailure.credentialsNotStored =>
+      'The required credentials for "$profileName" are not stored.',
+    SshBackupFailure.fileTooLarge => 'The backup file is too large.',
+    SshBackupFailure.backupPasswordMissing => 'The backup password is missing.',
+    SshBackupFailure.invalidBackupParameters => 'Invalid backup parameters.',
+    SshBackupFailure.invalidBackupCryptoData =>
+      'Invalid backup cryptographic data.',
+    SshBackupFailure.invalidBackupContent => 'Invalid backup content.',
+    SshBackupFailure.invalidConnectionCount =>
+      'The backup contains an invalid number of connections.',
+    SshBackupFailure.invalidConnections =>
+      'The backup contains invalid connections.',
+    SshBackupFailure.wrongPasswordOrTampered =>
+      'The backup password is wrong or the file was modified.',
+    SshBackupFailure.connectionNotExportable =>
+      'An SSH connection contains data that cannot be exported.',
+    SshBackupFailure.profileReplacedTwice =>
+      'The profile "$profileName" cannot be replaced more than once.',
+    SshBackupFailure.profileToReplaceNotFound =>
+      'An SSH profile to be replaced was not found.',
+    SshBackupFailure.profilesChangedDuringImport =>
+      'The SSH profiles changed during the import. Start the import again.',
+    SshBackupFailure.unknownBackupFormat => 'Unknown SSH backup format.',
+    SshBackupFailure.importFailedWithCleanup =>
+      '$profileName\nTemporary keychain entries could not be removed '
+          'either: $detail',
+  };
 
   @override
   String toString() => message;
@@ -67,7 +141,7 @@ class SshBackupEntry {
       null || 'password' => SshAuthenticationType.password,
       'privateKey' => SshAuthenticationType.privateKey,
       _ => throw const SshBackupException(
-        'Das SSH-Backup enthält eine ungültige Authentifizierung.',
+        SshBackupFailure.invalidAuthenticationInBackup,
       ),
     };
     final hostKeyType = json['hostKeyType'];
@@ -91,7 +165,7 @@ class SshBackupEntry {
             privateKeyPath != null) ||
         (hostKeyType != null && hostKeyType is! String) ||
         (hostKeyFingerprint != null && hostKeyFingerprint is! String)) {
-      throw const SshBackupException('Das SSH-Backup enthält ungültige Daten.');
+      throw const SshBackupException(SshBackupFailure.invalidDataInBackup);
     }
     return SshBackupService._validatedEntry(
       SshBackupEntry(
@@ -131,16 +205,16 @@ class SshBackupService {
   ) async {
     if (profiles.isEmpty) {
       throw const SshBackupException(
-        'Wähle mindestens eine SSH-Verbindung aus.',
+        SshBackupFailure.selectAtLeastOneConnection,
       );
     }
     if (profiles.length > _maximumEntries) {
-      throw const SshBackupException('Zu viele SSH-Verbindungen ausgewählt.');
+      throw const SshBackupException(
+        SshBackupFailure.tooManyConnectionsSelected,
+      );
     }
     if (backupPassword.length < 12) {
-      throw const SshBackupException(
-        'Das Backup-Passwort muss mindestens 12 Zeichen lang sein.',
-      );
+      throw const SshBackupException(SshBackupFailure.backupPasswordTooShort);
     }
     final entries = <SshBackupEntry>[];
     for (final profile in profiles) {
@@ -156,8 +230,8 @@ class SshBackupService {
       }
       if (needsSecret && (password == null || password.isEmpty)) {
         throw SshBackupException(
-          'Für „${profile.name}“ sind die benötigten Anmeldedaten nicht '
-          'gespeichert.',
+          SshBackupFailure.credentialsNotStored,
+          profile.name,
         );
       }
       entries.add(
@@ -181,10 +255,10 @@ class SshBackupService {
 
   Future<List<SshBackupEntry>> decrypt(String backup, String backupPassword) {
     if (backup.length > maximumFileBytes) {
-      throw const SshBackupException('Die Backup-Datei ist zu groß.');
+      throw const SshBackupException(SshBackupFailure.fileTooLarge);
     }
     if (backupPassword.isEmpty) {
-      throw const SshBackupException('Das Backup-Passwort fehlt.');
+      throw const SshBackupException(SshBackupFailure.backupPasswordMissing);
     }
     return Isolate.run(() => _decrypt(backup, backupPassword));
   }
@@ -249,7 +323,7 @@ class SshBackupService {
       if (envelope is! Map<String, Object?> ||
           envelope['format'] != _format ||
           (envelopeVersion != _legacyVersion && envelopeVersion != _version)) {
-        throw const SshBackupException('Unbekanntes SSH-Backupformat.');
+        throw const SshBackupException(SshBackupFailure.unknownBackupFormat);
       }
       final kdf = envelope['kdf'];
       final cipherData = envelope['cipher'];
@@ -263,7 +337,9 @@ class SshBackupService {
           cipherData['name'] != 'aes-256-gcm' ||
           cipherData['nonce'] is! String ||
           cipherData['ciphertext'] is! String) {
-        throw const SshBackupException('Ungültige Backup-Parameter.');
+        throw const SshBackupException(
+          SshBackupFailure.invalidBackupParameters,
+        );
       }
       final saltText = kdf['salt'] as String;
       final nonceText = cipherData['nonce'] as String;
@@ -273,7 +349,9 @@ class SshBackupService {
         base64Decode(cipherData['ciphertext'] as String),
       );
       if (salt.length != 16 || nonce.length != 12 || ciphertext.length < 16) {
-        throw const SshBackupException('Ungültige Backup-Kryptodaten.');
+        throw const SshBackupException(
+          SshBackupFailure.invalidBackupCryptoData,
+        );
       }
       final key = _deriveKey(backupPassword, salt);
       Uint8List plaintext;
@@ -302,19 +380,19 @@ class SshBackupService {
             payload['format'] != _payloadFormat ||
             payload['version'] != envelopeVersion ||
             payload['connections'] is! List) {
-          throw const SshBackupException('Ungültiger Backup-Inhalt.');
+          throw const SshBackupException(SshBackupFailure.invalidBackupContent);
         }
         final rawConnections = payload['connections'] as List;
         if (rawConnections.isEmpty || rawConnections.length > _maximumEntries) {
           throw const SshBackupException(
-            'Das Backup enthält eine ungültige Anzahl Verbindungen.',
+            SshBackupFailure.invalidConnectionCount,
           );
         }
         return List.unmodifiable(
           rawConnections.map((value) {
             if (value is! Map) {
               throw const SshBackupException(
-                'Das Backup enthält ungültige Verbindungen.',
+                SshBackupFailure.invalidConnections,
               );
             }
             return SshBackupEntry.fromJson(
@@ -328,9 +406,7 @@ class SshBackupService {
     } on SshBackupException {
       rethrow;
     } on Object {
-      throw const SshBackupException(
-        'Das Backup-Passwort ist falsch oder die Datei wurde verändert.',
-      );
+      throw const SshBackupException(SshBackupFailure.wrongPasswordOrTampered);
     }
   }
 
@@ -386,9 +462,7 @@ class SshBackupService {
         (entry.hostKeyFingerprint != null &&
             (_invalidText(entry.hostKeyFingerprint!, 2048) ||
                 !_sha256Fingerprint.hasMatch(entry.hostKeyFingerprint!)))) {
-      throw const SshBackupException(
-        'Eine SSH-Verbindung enthält nicht exportierbare Daten.',
-      );
+      throw const SshBackupException(SshBackupFailure.connectionNotExportable);
     }
     return entry;
   }

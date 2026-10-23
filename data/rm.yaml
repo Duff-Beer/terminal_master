@@ -1,30 +1,35 @@
-schema_version: 1
+schema_version: 2
 command: rm
 description: Remove files or directories
+description.de: Dateien oder Verzeichnisse löschen
 parameters:
-  
+
   - name: use_sudo
     type: boolean
     flag: "sudo"
     description: Run the command with elevated privileges (sudo)
+    description.de: Den Befehl mit erhöhten Rechten ausführen (sudo)
     default: false
-  
+
   - name: recursive
     type: boolean
     flag: "-r"
     description: Remove directories and their contents recursively
+    description.de: Verzeichnisse und deren Inhalt rekursiv löschen
     default: false
 
   - name: force
     type: boolean
     flag: "-f"
     description: Ignore nonexistent files and never prompt for confirmation
+    description.de: Nicht vorhandene Dateien ignorieren und nie nachfragen
     default: false
 
   - name: verbose
     type: boolean
     flag: "-v"
     description: Print details about each removal
+    description.de: Details zu jedem Löschvorgang ausgeben
     default: false
 
   - name: path
@@ -32,6 +37,7 @@ parameters:
     mode: any
     required: true
     description: Path of the file or directory to be removed
+    description.de: Pfad der zu löschenden Datei oder des Verzeichnisses
     example: "/home/user/oldfile"
 
 help_text: |
@@ -39,3 +45,8 @@ help_text: |
   Use the -r flag to delete directories and their contents recursively.
   Use the -f flag to suppress warnings and confirmations.
   Be cautious when using rm, especially with the recursive and force options.
+help_text.de: |
+  rm löscht Dateien oder Verzeichnisse.
+  Mit -r werden Verzeichnisse samt Inhalt rekursiv gelöscht.
+  Mit -f werden Warnungen und Rückfragen unterdrückt.
+  Sei bei rm vorsichtig, besonders mit den Optionen recursive und force.

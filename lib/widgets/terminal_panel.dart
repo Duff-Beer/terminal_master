@@ -4,8 +4,11 @@ import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:intl/intl.dart';
 import 'package:xterm/xterm.dart';
 
+import '../l10n/app_localizations.dart';
+import '../l10n/error_presenter.dart';
 import '../models/shell_profile.dart';
 import '../models/saved_terminal_tab.dart';
 import '../models/ssh_connection_profile.dart';
@@ -108,6 +111,51 @@ class TerminalTab {
   }
 }
 
+/// Why a terminal tab operation was rejected.
+///
+/// The controller is a `ChangeNotifier` with no `BuildContext`, so it reports a
+/// code and the UI renders it in the active language.
+enum TerminalTabFailure {
+  unknownProfile,
+  savedTabsUnreadable,
+  sshTabsCannotBeSnapshotted,
+  nameMustNotBeEmpty,
+  savedTabChangedMeanwhile,
+  invalidTabName,
+  integratedTerminalUnavailable,
+  shellProfileUnavailable,
+}
+
+class TerminalTabException implements Exception {
+  final TerminalTabFailure failure;
+
+  /// The profile id or nested error the failure refers to, when it has one.
+  final String? detail;
+
+  const TerminalTabException(this.failure, [this.detail]);
+
+  /// Developer-facing English description; the UI renders the localized form.
+  String get message => switch (failure) {
+    TerminalTabFailure.unknownProfile => 'unknown profile',
+    TerminalTabFailure.savedTabsUnreadable =>
+      'Saved tabs could not be loaded: $detail',
+    TerminalTabFailure.sshTabsCannotBeSnapshotted =>
+      'SSH terminal tabs cannot be stored as a terminal snapshot for security '
+          'reasons.',
+    TerminalTabFailure.nameMustNotBeEmpty => 'The name must not be empty.',
+    TerminalTabFailure.savedTabChangedMeanwhile =>
+      'This saved tab changed in the meantime. Open the current version again.',
+    TerminalTabFailure.invalidTabName => 'Invalid terminal tab name.',
+    TerminalTabFailure.integratedTerminalUnavailable =>
+      'The built-in terminal is not available.',
+    TerminalTabFailure.shellProfileUnavailable =>
+      'The shell profile "$detail" is not available.',
+  };
+
+  @override
+  String toString() => message;
+}
+
 class TerminalPanelController extends ChangeNotifier {
   static const minFontSize = 9.0;
   static const maxFontSize = 24.0;
@@ -146,7 +194,7 @@ class TerminalPanelController extends ChangeNotifier {
   late String _defaultProfileId;
   bool _isAttached = false;
   bool _isLoadingSavedTabs = true;
-  String? _savedTabsError;
+  TerminalTabException? _savedTabsError;
   double _fontSize = defaultFontSize;
   bool _disposed = false;
 
@@ -163,7 +211,7 @@ class TerminalPanelController extends ChangeNotifier {
       profiles.firstWhere((profile) => profile.id == _defaultProfileId);
 
   bool get isLoadingSavedTabs => _isLoadingSavedTabs;
-  String? get savedTabsError => _savedTabsError;
+  TerminalTabException? get savedTabsError => _savedTabsError;
   bool get isSearchOpen => activePane.isSearchOpen;
   bool get isSplit =>
       activeTab.isVerticallySplit || activeTab.isHorizontallySplit;
@@ -214,7 +262,7 @@ class TerminalPanelController extends ChangeNotifier {
   void setDefaultProfile(String profileId) {
     if (_defaultProfileId == profileId) return;
     if (!profiles.any((profile) => profile.id == profileId)) {
-      throw ArgumentError.value(profileId, 'profileId', 'Unbekanntes Profil');
+      throw const TerminalTabException(TerminalTabFailure.unknownProfile);
     }
     _defaultProfileId = profileId;
     notifyListeners();
@@ -239,8 +287,10 @@ class TerminalPanelController extends ChangeNotifier {
         ..addAll(await savedTabStore.load());
       _savedTabsError = null;
     } on Object catch (error) {
-      _savedTabsError =
-          'Gespeicherte Tabs konnten nicht geladen werden: $error';
+      _savedTabsError = TerminalTabException(
+        TerminalTabFailure.savedTabsUnreadable,
+        '$error',
+      );
     } finally {
       _isLoadingSavedTabs = false;
       notifyListeners();
@@ -260,16 +310,15 @@ class TerminalPanelController extends ChangeNotifier {
 
   Future<SavedTerminalTab> _saveTab(TerminalTab tab, String name) async {
     await _savedTabsLoad;
-    if (_savedTabsError case final error?) throw StateError(error);
+    if (_savedTabsError case final error?) throw error;
     if (tab.panes.any((pane) => pane.profile.isSsh)) {
-      throw StateError(
-        'SSH-Terminal-Tabs können aus Sicherheitsgründen nicht als '
-        'Terminal-Snapshot gespeichert werden.',
+      throw const TerminalTabException(
+        TerminalTabFailure.sshTabsCannotBeSnapshotted,
       );
     }
     final normalizedName = name.trim();
     if (normalizedName.isEmpty) {
-      throw ArgumentError.value(name, 'name', 'Der Name darf nicht leer sein.');
+      throw const TerminalTabException(TerminalTabFailure.nameMustNotBeEmpty);
     }
     final now = DateTime.now().toUtc();
     final existingIndex = tab.snapshotId == null
@@ -280,9 +329,8 @@ class TerminalPanelController extends ChangeNotifier {
     if (existing != null &&
         openedVersion != null &&
         !openedVersion.isAtSameMomentAs(existing.updatedAt)) {
-      throw StateError(
-        'Dieser gespeicherte Tab wurde zwischenzeitlich geändert. '
-        'Öffne die aktuelle Version erneut.',
+      throw const TerminalTabException(
+        TerminalTabFailure.savedTabChangedMeanwhile,
       );
     }
     final snapshot = SavedTerminalTab(
@@ -328,7 +376,7 @@ class TerminalPanelController extends ChangeNotifier {
 
   Future<TerminalTab> openSavedTab(String snapshotId) async {
     await _savedTabsLoad;
-    if (_savedTabsError case final error?) throw StateError(error);
+    if (_savedTabsError case final error?) throw error;
     final snapshot = _savedTabs.firstWhere((tab) => tab.id == snapshotId);
     final sortedPanes = List<SavedTerminalPane>.of(snapshot.panes)
       ..sort((left, right) {
@@ -370,7 +418,7 @@ class TerminalPanelController extends ChangeNotifier {
 
   Future<void> _deleteSavedTab(String snapshotId) async {
     await _savedTabsLoad;
-    if (_savedTabsError case final error?) throw StateError(error);
+    if (_savedTabsError case final error?) throw error;
     final updated = _savedTabs
         .where((snapshot) => snapshot.id != snapshotId)
         .toList();
@@ -415,7 +463,7 @@ class TerminalPanelController extends ChangeNotifier {
     if (normalizedName.isEmpty ||
         normalizedName.length > maxTabNameLength ||
         normalizedName.codeUnits.any((unit) => unit < 0x20 || unit == 0x7f)) {
-      throw ArgumentError.value(name, 'name', 'Ungültiger Terminal-Tabname.');
+      throw const TerminalTabException(TerminalTabFailure.invalidTabName);
     }
     final tab = _tab(tabId);
     if (tab.customName == normalizedName) return;
@@ -588,9 +636,12 @@ class TerminalPanelController extends ChangeNotifier {
       await activeSession.start();
     }
     if (activeSession.status != TerminalSessionStatus.running) {
-      throw StateError(
-        activeSession.error ?? 'Das integrierte Terminal ist nicht verfügbar.',
-      );
+      final sessionError = activeSession.error;
+      throw sessionError == null
+          ? const TerminalTabException(
+              TerminalTabFailure.integratedTerminalUnavailable,
+            )
+          : StateError(sessionError);
     }
     return activeSession;
   }
@@ -634,8 +685,9 @@ class TerminalPanelController extends ChangeNotifier {
       (profile) => profile.id == snapshot.profileId,
     );
     if (matchingProfiles.isEmpty) {
-      throw StateError(
-        'Das Shell-Profil "${snapshot.profileId}" ist nicht verfügbar.',
+      throw TerminalTabException(
+        TerminalTabFailure.shellProfileUnavailable,
+        snapshot.profileId,
       );
     }
     final baseProfile = matchingProfiles.first;
@@ -1030,6 +1082,7 @@ class _ConfigurationToolRail extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return SizedBox(
       key: const Key('workspace-tool-rail'),
       width: 48,
@@ -1041,14 +1094,16 @@ class _ConfigurationToolRail extends StatelessWidget {
               key: const Key('configuration-panel-toggle'),
               tool: WorkspaceTool.configurations,
               icon: Icons.tune,
-              tooltip: 'Command Builder',
+              tooltip: l10n.mainTitle,
+              l10n: l10n,
             ),
             if (hasSshPanel)
               _buildButton(
                 key: const Key('ssh-panel-toggle'),
                 tool: WorkspaceTool.sshConnections,
                 icon: Icons.dns_outlined,
-                tooltip: 'SSH-Verbindungen',
+                tooltip: l10n.sshPageTitle,
+                l10n: l10n,
               ),
             if (hasSettingsPanel) const Spacer(),
             if (hasSettingsPanel)
@@ -1056,7 +1111,8 @@ class _ConfigurationToolRail extends StatelessWidget {
                 key: const Key('settings-panel-toggle'),
                 tool: WorkspaceTool.settings,
                 icon: Icons.settings_outlined,
-                tooltip: 'Einstellungen',
+                tooltip: l10n.settingsTitle,
+                l10n: l10n,
               ),
           ],
         ),
@@ -1069,6 +1125,7 @@ class _ConfigurationToolRail extends StatelessWidget {
     required WorkspaceTool tool,
     required IconData icon,
     required String tooltip,
+    required AppLocalizations l10n,
   }) {
     final isActive = controller.isOpen && controller.activeTool == tool;
     return SizedBox(
@@ -1090,7 +1147,7 @@ class _ConfigurationToolRail extends StatelessWidget {
           Positioned.fill(
             child: IconButton(
               key: key,
-              tooltip: isActive ? '$tooltip schließen' : tooltip,
+              tooltip: isActive ? l10n.railClose(tooltip) : tooltip,
               onPressed: () => controller.toggle(tool),
               icon: Icon(
                 icon,
@@ -1111,6 +1168,7 @@ class TerminalPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final pane = controller.activePane;
     return Column(
       children: [
@@ -1128,7 +1186,7 @@ class TerminalPanel extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 if (constraints.maxWidth >= 560) ...[
-                  _buildSearchButton(),
+                  _buildSearchButton(l10n),
                   const SizedBox(width: 6),
                 ],
                 Expanded(
@@ -1138,8 +1196,9 @@ class TerminalPanel extends StatelessWidget {
                     minLines: 1,
                     maxLines: 4,
                     decoration: InputDecoration(
-                      hintText:
-                          'Befehle für ${controller.activeProfile.name} ...',
+                      hintText: l10n.terminalCommandHint(
+                        controller.activeProfile.name,
+                      ),
                       isDense: true,
                     ),
                   ),
@@ -1147,7 +1206,7 @@ class TerminalPanel extends StatelessWidget {
                 const SizedBox(width: 6),
                 IconButton.filled(
                   key: const Key('send-terminal-input'),
-                  tooltip: 'An Terminal senden',
+                  tooltip: l10n.terminalSendToTerminal,
                   style: IconButton.styleFrom(
                     backgroundColor: TerminalMasterColors.green,
                     foregroundColor: TerminalMasterColors.background,
@@ -1167,21 +1226,22 @@ class TerminalPanel extends StatelessWidget {
     );
   }
 
-  Widget _buildSearchButton() {
+  Widget _buildSearchButton(AppLocalizations l10n) {
     return IconButton(
       key: const Key('terminal-search-toggle'),
       tooltip: controller.isSearchOpen
-          ? 'Suche schließen'
-          : 'Terminal durchsuchen',
+          ? l10n.terminalCloseSearch
+          : l10n.terminalSearch,
       onPressed: controller.toggleSearch,
       icon: Icon(controller.isSearchOpen ? Icons.search_off : Icons.search),
     );
   }
 
   Widget _buildCompactActions(BuildContext context, TerminalPaneData pane) {
+    final l10n = AppLocalizations.of(context);
     return PopupMenuButton<String>(
       key: const Key('terminal-more-actions'),
-      tooltip: 'Weitere Terminal-Aktionen',
+      tooltip: l10n.terminalMoreActions,
       onSelected: (action) {
         switch (action) {
           case 'search':
@@ -1199,16 +1259,16 @@ class TerminalPanel extends StatelessWidget {
             ),
             title: Text(
               controller.isSearchOpen
-                  ? 'Suche schließen'
-                  : 'Terminal durchsuchen',
+                  ? l10n.terminalCloseSearch
+                  : l10n.terminalSearch,
             ),
           ),
         ),
-        const PopupMenuItem(
+        PopupMenuItem(
           value: 'restart',
           child: ListTile(
-            leading: Icon(Icons.restart_alt),
-            title: Text('Sitzung neu starten'),
+            leading: const Icon(Icons.restart_alt),
+            title: Text(l10n.terminalRestartSession),
           ),
         ),
       ],
@@ -1217,6 +1277,7 @@ class TerminalPanel extends StatelessWidget {
   }
 
   Widget _buildTabBar(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Container(
       key: const Key('terminal-tab-bar'),
       height: 40,
@@ -1280,8 +1341,7 @@ class TerminalPanel extends StatelessWidget {
                                 ),
                               ),
                               IconButton(
-                                tooltip:
-                                    'Tab schließen · Rechtsklick für Tab-Aktionen',
+                                tooltip: l10n.terminalCloseTabHint,
                                 visualDensity: VisualDensity.compact,
                                 constraints: const BoxConstraints.tightFor(
                                   width: 28,
@@ -1302,7 +1362,7 @@ class TerminalPanel extends StatelessWidget {
                 }),
                 IconButton(
                   key: const Key('new-terminal-tab'),
-                  tooltip: 'Neuer Terminal-Tab',
+                  tooltip: l10n.terminalNewTab,
                   icon: const Icon(Icons.add, size: 19),
                   onPressed: controller.createDefaultTab,
                 ),
@@ -1311,7 +1371,7 @@ class TerminalPanel extends StatelessWidget {
           ),
           PopupMenuButton<String>(
             key: const Key('open-saved-terminal-tab'),
-            tooltip: 'Gespeicherten Terminal-Tab öffnen',
+            tooltip: l10n.terminalOpenSavedTab,
             enabled: !controller.isLoadingSavedTabs,
             icon: Icon(
               Icons.folder_open_outlined,
@@ -1324,14 +1384,17 @@ class TerminalPanel extends StatelessWidget {
             itemBuilder: (context) {
               if (controller.savedTabsError case final error?) {
                 return [
-                  PopupMenuItem<String>(enabled: false, child: Text(error)),
+                  PopupMenuItem<String>(
+                    enabled: false,
+                    child: Text(localizeError(l10n, error)),
+                  ),
                 ];
               }
               if (controller.savedTabs.isEmpty) {
-                return const [
+                return [
                   PopupMenuItem<String>(
                     enabled: false,
-                    child: Text('Keine gespeicherten Tabs'),
+                    child: Text(l10n.terminalNoSavedTabs),
                   ),
                 ];
               }
@@ -1437,6 +1500,7 @@ class TerminalPanel extends StatelessWidget {
   }
 
   Future<void> _saveTab(BuildContext context) async {
+    final l10n = AppLocalizations.of(context);
     var enteredName =
         controller.activeTab.customName ??
         controller.activeTab.snapshotName ??
@@ -1447,8 +1511,8 @@ class TerminalPanel extends StatelessWidget {
       builder: (context) => AlertDialog(
         title: Text(
           controller.activeTab.snapshotId == null
-              ? 'Terminal-Tab speichern'
-              : 'Gespeicherten Tab aktualisieren',
+              ? l10n.terminalSaveTabTitle
+              : l10n.terminalUpdateSavedTab,
         ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
@@ -1458,25 +1522,23 @@ class TerminalPanel extends StatelessWidget {
               key: const Key('saved-terminal-tab-name'),
               initialValue: enteredName,
               autofocus: true,
-              decoration: const InputDecoration(labelText: 'Name'),
+              decoration: InputDecoration(labelText: l10n.commonName),
               onChanged: (value) => enteredName = value,
               onFieldSubmitted: (value) {
                 if (value.trim().isNotEmpty) Navigator.pop(context, value);
               },
             ),
             const SizedBox(height: 12),
-            const Text(
-              'Pro Pane werden bis zu 20 Command-Block-Befehle gespeichert. '
-              'Befehle können sensible Werte enthalten; Terminalausgaben '
-              'werden nicht gespeichert.',
-              style: TextStyle(fontSize: 11),
+            Text(
+              l10n.terminalSaveTabNote,
+              style: const TextStyle(fontSize: 11),
             ),
           ],
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Abbrechen'),
+            child: Text(l10n.commonCancel),
           ),
           FilledButton(
             key: const Key('confirm-save-terminal-tab'),
@@ -1484,7 +1546,7 @@ class TerminalPanel extends StatelessWidget {
               final value = enteredName.trim();
               if (value.isNotEmpty) Navigator.pop(context, value);
             },
-            child: const Text('Speichern'),
+            child: Text(l10n.commonSave),
           ),
         ],
       ),
@@ -1493,18 +1555,21 @@ class TerminalPanel extends StatelessWidget {
     try {
       await controller.saveActiveTab(name);
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Terminal-Tab „$name“ wurde gespeichert.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(l10n.terminalTabSaved(name))));
     } on Object catch (error) {
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Speichern fehlgeschlagen: $error')),
+        SnackBar(
+          content: Text(l10n.terminalSaveFailed(localizeError(l10n, error))),
+        ),
       );
     }
   }
 
   Future<void> _openSavedTab(BuildContext context, String snapshotId) async {
+    final l10n = AppLocalizations.of(context);
     final snapshot = controller.savedTabs.firstWhere(
       (snapshot) => snapshot.id == snapshotId,
     );
@@ -1518,26 +1583,24 @@ class TerminalPanel extends StatelessWidget {
       context: dialogContext,
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
-          title: Text('„${snapshot.name}“ öffnen'),
+          title: Text(l10n.terminalOpenSnapshotTitle(snapshot.name)),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                '${snapshot.panes.length} Terminal-Panes · '
-                '${commands.length} gespeicherte Befehle',
+                l10n.terminalSnapshotSummary(
+                  snapshot.panes.length,
+                  commands.length,
+                ),
               ),
               const SizedBox(height: 12),
               CheckboxListTile(
                 key: const Key('execute-saved-commands-on-open'),
                 contentPadding: EdgeInsets.zero,
                 controlAffinity: ListTileControlAffinity.leading,
-                title: const Text(
-                  'Gespeicherte Befehle nach dem Öffnen direkt ausführen',
-                ),
-                subtitle: const Text(
-                  'Die Befehle laufen je Pane nacheinander.',
-                ),
+                title: Text(l10n.terminalRunSavedCommands),
+                subtitle: Text(l10n.terminalRunSavedCommandsNote),
                 value: executeCommands,
                 onChanged: commands.isEmpty
                     ? null
@@ -1550,12 +1613,12 @@ class TerminalPanel extends StatelessWidget {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text('Abbrechen'),
+              child: Text(l10n.commonCancel),
             ),
             FilledButton(
               key: const Key('confirm-open-saved-terminal-tab'),
               onPressed: () => Navigator.pop(context, executeCommands),
-              child: const Text('Öffnen'),
+              child: Text(l10n.commonOpen),
             ),
           ],
         ),
@@ -1581,9 +1644,11 @@ class TerminalPanel extends StatelessWidget {
       }
     } on Object catch (error) {
       if (!context.mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Öffnen fehlgeschlagen: $error')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(l10n.terminalOpenFailed(localizeError(l10n, error))),
+        ),
+      );
     }
   }
 
@@ -1595,9 +1660,10 @@ class TerminalPanel extends StatelessWidget {
       await controller.executeSavedTabCommands(tabId);
     } on Object catch (error) {
       if (!context.mounted) return;
+      final l10n = AppLocalizations.of(context);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Automatische Ausführung fehlgeschlagen: $error'),
+          content: Text(l10n.terminalAutoRunFailed(localizeError(l10n, error))),
         ),
       );
     }
@@ -1608,6 +1674,7 @@ class TerminalPanel extends StatelessWidget {
     TerminalPaneData pane, {
     TerminalTab? tab,
   }) async {
+    final l10n = AppLocalizations.of(context);
     var approved = true;
     if (pane.session.isRunning) {
       final dialogContext = controller.navigatorKey.currentContext;
@@ -1616,20 +1683,16 @@ class TerminalPanel extends StatelessWidget {
           await showDialog<bool>(
             context: dialogContext,
             builder: (context) => AlertDialog(
-              title: const Text('Terminal-Sitzung neu starten?'),
-              content: const Text(
-                'Der laufende Prozess wird kontrolliert beendet und die '
-                'Sitzung direkt neu gestartet. Die bisherige Terminalausgabe '
-                'wird zurückgesetzt; nicht gesendete Befehle bleiben erhalten.',
-              ),
+              title: Text(l10n.terminalRestartTitle),
+              content: Text(l10n.terminalRestartMessage),
               actions: [
                 TextButton(
                   onPressed: () => Navigator.pop(context, false),
-                  child: const Text('Abbrechen'),
+                  child: Text(l10n.commonCancel),
                 ),
                 FilledButton(
                   onPressed: () => Navigator.pop(context, true),
-                  child: const Text('Neu starten'),
+                  child: Text(l10n.terminalRestart),
                 ),
               ],
             ),
@@ -1644,7 +1707,7 @@ class TerminalPanel extends StatelessWidget {
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Sitzung konnte nicht neu gestartet werden: $error'),
+          content: Text(l10n.terminalRestartFailed(localizeError(l10n, error))),
         ),
       );
     }
@@ -1655,6 +1718,7 @@ class TerminalPanel extends StatelessWidget {
     TerminalTab tab,
     Offset position,
   ) async {
+    final l10n = AppLocalizations.of(context);
     final overlay = Overlay.of(context).context.findRenderObject();
     if (overlay is! RenderBox) return;
     final pane = tab.activePane;
@@ -1665,11 +1729,11 @@ class TerminalPanel extends StatelessWidget {
         Offset.zero & overlay.size,
       ),
       items: [
-        const PopupMenuItem(
+        PopupMenuItem(
           value: 'rename',
           child: ListTile(
-            leading: Icon(Icons.edit_outlined),
-            title: Text('Tab umbenennen'),
+            leading: const Icon(Icons.edit_outlined),
+            title: Text(l10n.terminalRenameTab),
           ),
         ),
         PopupMenuItem(
@@ -1679,16 +1743,16 @@ class TerminalPanel extends StatelessWidget {
             leading: const Icon(Icons.bookmark_add_outlined),
             title: Text(
               tab.snapshotId == null
-                  ? 'Tab speichern'
-                  : 'Gespeicherten Tab aktualisieren',
+                  ? l10n.terminalSaveTab
+                  : l10n.terminalUpdateSavedTab,
             ),
           ),
         ),
-        const PopupMenuItem(
+        PopupMenuItem(
           value: 'restart',
           child: ListTile(
-            leading: Icon(Icons.restart_alt),
-            title: Text('Sitzung neu starten'),
+            leading: const Icon(Icons.restart_alt),
+            title: Text(l10n.terminalRestartSession),
           ),
         ),
       ],
@@ -1706,19 +1770,20 @@ class TerminalPanel extends StatelessWidget {
   }
 
   Future<void> _renameTab(BuildContext context, TerminalTab tab) async {
+    final l10n = AppLocalizations.of(context);
     final dialogContext = controller.navigatorKey.currentContext;
     if (dialogContext == null) return;
     var enteredName = tab.displayName;
     final name = await showDialog<String>(
       context: dialogContext,
       builder: (context) => AlertDialog(
-        title: const Text('Terminal-Tab umbenennen'),
+        title: Text(l10n.terminalRenameTabTitle),
         content: TextFormField(
           key: const Key('terminal-tab-name'),
           initialValue: enteredName,
           autofocus: true,
           maxLength: TerminalPanelController.maxTabNameLength,
-          decoration: const InputDecoration(labelText: 'Tabname'),
+          decoration: InputDecoration(labelText: l10n.terminalFieldTabName),
           onChanged: (value) => enteredName = value,
           onFieldSubmitted: (value) {
             if (value.trim().isNotEmpty) Navigator.pop(context, value);
@@ -1727,7 +1792,7 @@ class TerminalPanel extends StatelessWidget {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Abbrechen'),
+            child: Text(l10n.commonCancel),
           ),
           FilledButton(
             key: const Key('confirm-rename-terminal-tab'),
@@ -1735,7 +1800,7 @@ class TerminalPanel extends StatelessWidget {
               final value = enteredName.trim();
               if (value.isNotEmpty) Navigator.pop(context, value);
             },
-            child: const Text('Umbenennen'),
+            child: Text(l10n.terminalRename),
           ),
         ],
       ),
@@ -1745,6 +1810,7 @@ class TerminalPanel extends StatelessWidget {
   }
 
   Future<void> _confirmClose(BuildContext context, TerminalTab tab) async {
+    final l10n = AppLocalizations.of(context);
     if (!tab.panes.any((pane) => pane.session.isRunning)) {
       await _closeTab(context, tab.id);
       return;
@@ -1755,18 +1821,16 @@ class TerminalPanel extends StatelessWidget {
         await showDialog<bool>(
           context: dialogContext,
           builder: (context) => AlertDialog(
-            title: const Text('Terminal-Tab schließen?'),
-            content: const Text(
-              'Alle laufenden Sitzungen dieses Tabs werden beendet.',
-            ),
+            title: Text(l10n.terminalCloseTabTitle),
+            content: Text(l10n.terminalCloseTabMessage),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(context, false),
-                child: const Text('Abbrechen'),
+                child: Text(l10n.commonCancel),
               ),
               FilledButton(
                 onPressed: () => Navigator.pop(context, true),
-                child: const Text('Tab schließen'),
+                child: Text(l10n.terminalCloseTab),
               ),
             ],
           ),
@@ -1780,8 +1844,13 @@ class TerminalPanel extends StatelessWidget {
       await controller.closeTab(tabId);
     } on Object catch (error) {
       if (!context.mounted) return;
+      final l10n = AppLocalizations.of(context);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Tab konnte nicht geschlossen werden: $error')),
+        SnackBar(
+          content: Text(
+            l10n.terminalCloseTabFailed(localizeError(l10n, error)),
+          ),
+        ),
       );
     }
   }
@@ -1891,6 +1960,7 @@ class _TerminalPaneState extends State<TerminalPane> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final isSearchOpen = widget.pane.isSearchOpen;
     if (isSearchOpen && !_wasSearchOpen) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -1960,7 +2030,7 @@ class _TerminalPaneState extends State<TerminalPane> {
                       const Spacer(),
                     if (showIndicators)
                       Tooltip(
-                        message: 'xterm-256color mit 24-Bit-True-Color',
+                        message: l10n.terminalTrueColorTooltip,
                         child: Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 4),
                           child: Icon(
@@ -1973,7 +2043,7 @@ class _TerminalPaneState extends State<TerminalPane> {
                       ),
                     if (showIndicators && session.terminal.isUsingAltBuffer)
                       Tooltip(
-                        message: 'Alternate Screen aktiv',
+                        message: l10n.terminalAlternateScreenActive,
                         child: Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 4),
                           child: Icon(
@@ -1987,7 +2057,7 @@ class _TerminalPaneState extends State<TerminalPane> {
                     if (showIndicators &&
                         session.terminal.mouseMode != MouseMode.none)
                       Tooltip(
-                        message: 'Terminal-Maussteuerung aktiv',
+                        message: l10n.terminalMouseControlActive,
                         child: Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 4),
                           child: Icon(
@@ -2000,8 +2070,9 @@ class _TerminalPaneState extends State<TerminalPane> {
                       ),
                     _compactIconButton(
                       key: _paneKey('terminal-command-history-toggle'),
-                      tooltip:
-                          'Command Blocks (${session.commandBlocks.length})',
+                      tooltip: l10n.terminalCommandBlocksCount(
+                        session.commandBlocks.length,
+                      ),
                       icon: _showCommandHistory
                           ? Icons.view_agenda
                           : Icons.view_agenda_outlined,
@@ -2018,8 +2089,8 @@ class _TerminalPaneState extends State<TerminalPane> {
                           widget.panelController.hasSplit(
                             TerminalSplitOrientation.vertical,
                           )
-                          ? 'Vertikale Teilung schließen'
-                          : 'Terminal vertikal teilen',
+                          ? l10n.terminalCloseVerticalSplit
+                          : l10n.terminalSplitVertically,
                       icon: Icons.vertical_split_outlined,
                       size: compactActionSize,
                       color:
@@ -2038,8 +2109,8 @@ class _TerminalPaneState extends State<TerminalPane> {
                           widget.panelController.hasSplit(
                             TerminalSplitOrientation.horizontal,
                           )
-                          ? 'Horizontale Teilung schließen'
-                          : 'Terminal horizontal teilen',
+                          ? l10n.terminalCloseHorizontalSplit
+                          : l10n.terminalSplitHorizontally,
                       icon: Icons.horizontal_split_outlined,
                       size: compactActionSize,
                       color:
@@ -2059,8 +2130,8 @@ class _TerminalPaneState extends State<TerminalPane> {
                             widget.panelController.isPaneMaximized(
                               widget.pane.id,
                             )
-                            ? 'Geteilte Ansicht wiederherstellen'
-                            : 'Terminal-Pane maximieren',
+                            ? l10n.terminalRestoreSplitView
+                            : l10n.terminalMaximizePane,
                         icon:
                             widget.panelController.isPaneMaximized(
                               widget.pane.id,
@@ -2080,7 +2151,7 @@ class _TerminalPaneState extends State<TerminalPane> {
                     if (showZoomControls) ...[
                       _compactIconButton(
                         key: _paneKey('terminal-zoom-out'),
-                        tooltip: 'Verkleinern',
+                        tooltip: l10n.terminalDecreaseFontSize,
                         icon: Icons.remove,
                         onPressed: widget.panelController.zoomOut,
                       ),
@@ -2097,7 +2168,7 @@ class _TerminalPaneState extends State<TerminalPane> {
                       ),
                       _compactIconButton(
                         key: _paneKey('terminal-zoom-in'),
-                        tooltip: 'Vergrößern',
+                        tooltip: l10n.terminalIncreaseFontSize,
                         icon: Icons.add,
                         onPressed: widget.panelController.zoomIn,
                       ),
@@ -2151,7 +2222,7 @@ class _TerminalPaneState extends State<TerminalPane> {
                   bottom: 12,
                   child: FloatingActionButton.small(
                     key: _paneKey('terminal-scroll-to-bottom'),
-                    tooltip: 'Zum aktuellen Output',
+                    tooltip: l10n.terminalJumpToOutput,
                     onPressed: _scrollToBottom,
                     child: const Icon(Icons.keyboard_arrow_down),
                   ),
@@ -2183,8 +2254,9 @@ class _TerminalPaneState extends State<TerminalPane> {
   }
 
   Widget _buildSearchBar() {
+    final l10n = AppLocalizations.of(context);
     final resultText = _searchMatches.isEmpty
-        ? '0 Treffer'
+        ? l10n.terminalNoMatches
         : '${_activeSearchMatch + 1}/${_searchMatches.length}';
     return Container(
       key: _paneKey('terminal-search-bar'),
@@ -2197,8 +2269,8 @@ class _TerminalPaneState extends State<TerminalPane> {
               key: _paneKey('terminal-search-input'),
               controller: _searchController,
               focusNode: _searchFocusNode,
-              decoration: const InputDecoration(
-                hintText: 'Scrollback durchsuchen',
+              decoration: InputDecoration(
+                hintText: l10n.terminalSearchScrollback,
                 isDense: true,
               ),
               onChanged: (_) => _runSearch(),
@@ -2209,19 +2281,19 @@ class _TerminalPaneState extends State<TerminalPane> {
           Text(resultText, style: const TextStyle(fontSize: 11)),
           _compactIconButton(
             key: _paneKey('terminal-search-previous'),
-            tooltip: 'Vorheriger Treffer',
+            tooltip: l10n.terminalPreviousMatch,
             icon: Icons.keyboard_arrow_up,
             onPressed: _previousSearchMatch,
           ),
           _compactIconButton(
             key: _paneKey('terminal-search-next'),
-            tooltip: 'Nächster Treffer',
+            tooltip: l10n.terminalNextMatch,
             icon: Icons.keyboard_arrow_down,
             onPressed: _nextSearchMatch,
           ),
           _compactIconButton(
             key: _paneKey('terminal-search-close'),
-            tooltip: 'Suche schließen',
+            tooltip: l10n.terminalCloseSearch,
             icon: Icons.close,
             onPressed: () => widget.panelController.closeSearch(widget.pane.id),
           ),
@@ -2231,6 +2303,7 @@ class _TerminalPaneState extends State<TerminalPane> {
   }
 
   Widget _buildCommandHistory() {
+    final l10n = AppLocalizations.of(context);
     final blocks = session.commandBlocks.reversed.toList();
     final savedCommands = widget.pane.savedCommands.reversed.toList();
     return Container(
@@ -2247,10 +2320,10 @@ class _TerminalPaneState extends State<TerminalPane> {
             child: Row(
               children: [
                 const SizedBox(width: 10),
-                const Expanded(
+                Expanded(
                   child: Text(
-                    'Command Blocks',
-                    style: TextStyle(
+                    l10n.terminalCommandBlocks,
+                    style: const TextStyle(
                       color: TerminalMasterColors.yellow,
                       fontSize: 11,
                       fontWeight: FontWeight.bold,
@@ -2264,8 +2337,8 @@ class _TerminalPaneState extends State<TerminalPane> {
                 _compactIconButton(
                   key: _paneKey('clear-command-history'),
                   tooltip: session.hasActiveCommand
-                      ? 'Während eines Befehls nicht möglich'
-                      : 'Command Blocks leeren',
+                      ? l10n.terminalNotWhileRunning
+                      : l10n.terminalClearCommandBlocks,
                   icon: Icons.delete_sweep_outlined,
                   onPressed: session.hasActiveCommand
                       ? null
@@ -2276,24 +2349,24 @@ class _TerminalPaneState extends State<TerminalPane> {
           ),
           Expanded(
             child: blocks.isEmpty && savedCommands.isEmpty
-                ? const Center(
+                ? Center(
                     child: Text(
-                      'Noch keine Befehle über Terminal Master gesendet.',
-                      style: TextStyle(fontSize: 10),
+                      l10n.terminalNoCommandsYet,
+                      style: const TextStyle(fontSize: 10),
                     ),
                   )
                 : ListView(
                     children: [
                       if (savedCommands.isNotEmpty) ...[
                         _commandHistorySection(
-                          title: 'Gespeicherte Befehle',
+                          title: l10n.terminalSavedCommands,
                           trailing: TextButton.icon(
                             key: _paneKey('run-all-saved-commands'),
                             onPressed: session.hasActiveCommand
                                 ? null
                                 : () => _executeAllSavedCommands(savedCommands),
                             icon: const Icon(Icons.playlist_play, size: 15),
-                            label: const Text('Alle'),
+                            label: Text(l10n.terminalFilterAll),
                           ),
                         ),
                         for (final command in savedCommands)
@@ -2301,7 +2374,9 @@ class _TerminalPaneState extends State<TerminalPane> {
                       ],
                       if (blocks.isNotEmpty) ...[
                         if (savedCommands.isNotEmpty)
-                          _commandHistorySection(title: 'Aktuelle Sitzung'),
+                          _commandHistorySection(
+                            title: l10n.terminalFilterCurrentSession,
+                          ),
                         for (final block in blocks) _buildCommandBlock(block),
                       ],
                     ],
@@ -2335,6 +2410,7 @@ class _TerminalPaneState extends State<TerminalPane> {
   }
 
   Widget _buildSavedCommand(SavedTerminalCommand command) {
+    final l10n = AppLocalizations.of(context);
     final keySuffix =
         '${command.executedAt.microsecondsSinceEpoch}-'
         '${command.command.hashCode}';
@@ -2351,7 +2427,10 @@ class _TerminalPaneState extends State<TerminalPane> {
         style: const TextStyle(fontSize: 10),
       ),
       subtitle: Text(
-        '${_formatTimestamp(command.executedAt)} · Exit ${command.exitCode ?? '?'}',
+        l10n.terminalSavedCommandSubtitle(
+          _formatTimestamp(command.executedAt),
+          '${command.exitCode ?? '?'}',
+        ),
         style: const TextStyle(fontSize: 9),
       ),
       trailing: Row(
@@ -2359,7 +2438,7 @@ class _TerminalPaneState extends State<TerminalPane> {
         children: [
           IconButton(
             key: Key('run-saved-terminal-command-$keySuffix'),
-            tooltip: 'Direkt ausführen',
+            tooltip: l10n.terminalRunNow,
             visualDensity: VisualDensity.compact,
             constraints: const BoxConstraints.tightFor(width: 30, height: 30),
             padding: EdgeInsets.zero,
@@ -2370,7 +2449,7 @@ class _TerminalPaneState extends State<TerminalPane> {
           ),
           PopupMenuButton<String>(
             key: Key('saved-terminal-command-menu-$keySuffix'),
-            tooltip: 'Weitere Aktionen',
+            tooltip: l10n.terminalMoreActionsShort,
             padding: EdgeInsets.zero,
             iconSize: 17,
             onSelected: (action) {
@@ -2384,9 +2463,9 @@ class _TerminalPaneState extends State<TerminalPane> {
                   Clipboard.setData(ClipboardData(text: command.command));
               }
             },
-            itemBuilder: (context) => const [
-              PopupMenuItem(value: 'edit', child: Text('Bearbeiten')),
-              PopupMenuItem(value: 'copy', child: Text('Kopieren')),
+            itemBuilder: (context) => [
+              PopupMenuItem(value: 'edit', child: Text(l10n.commonEdit)),
+              PopupMenuItem(value: 'copy', child: Text(l10n.commonCopy)),
             ],
           ),
         ],
@@ -2442,19 +2521,23 @@ class _TerminalPaneState extends State<TerminalPane> {
 
   void _showCommandError(Object error) {
     if (!mounted) return;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text('Ausführen fehlgeschlagen: $error')));
+    final l10n = AppLocalizations.of(context);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(l10n.terminalRunFailed(localizeError(l10n, error))),
+      ),
+    );
   }
 
   String _formatTimestamp(DateTime value) {
-    final local = value.toLocal();
-    String twoDigits(int number) => number.toString().padLeft(2, '0');
-    return '${twoDigits(local.day)}.${twoDigits(local.month)}. '
-        '${twoDigits(local.hour)}:${twoDigits(local.minute)}';
+    // Date order and the 12/24-hour choice are locale-dependent, so let intl
+    // pick the pattern instead of hardcoding the German one.
+    final locale = Localizations.localeOf(context).toLanguageTag();
+    return DateFormat.Md(locale).add_jm().format(value.toLocal());
   }
 
   Widget _buildCommandBlock(TerminalCommandBlock block) {
+    final l10n = AppLocalizations.of(context);
     final output = block.output;
     final displayedOutput = output.length > 10000
         ? '…\n${output.substring(output.length - 10000)}'
@@ -2493,11 +2576,16 @@ class _TerminalPaneState extends State<TerminalPane> {
             ),
           ),
         if (block.outputTruncated)
-          const Align(
+          Align(
             alignment: Alignment.centerLeft,
             child: Text(
-              'Ausgabe wurde nach 500.000 Zeichen gekürzt.',
-              style: TextStyle(color: TerminalMasterColors.yellow, fontSize: 9),
+              l10n.terminalOutputTruncated(
+                TerminalCommandBlock.maxOutputLength,
+              ),
+              style: const TextStyle(
+                color: TerminalMasterColors.yellow,
+                fontSize: 9,
+              ),
             ),
           ),
         Row(
@@ -2507,19 +2595,19 @@ class _TerminalPaneState extends State<TerminalPane> {
               onPressed: () =>
                   Clipboard.setData(ClipboardData(text: block.command)),
               icon: const Icon(Icons.copy, size: 13),
-              label: const Text('Befehl'),
+              label: Text(l10n.terminalLabelCommand),
             ),
             TextButton.icon(
               onPressed: output.isEmpty
                   ? null
                   : () => Clipboard.setData(ClipboardData(text: output)),
               icon: const Icon(Icons.content_copy, size: 13),
-              label: const Text('Ausgabe'),
+              label: Text(l10n.terminalLabelOutput),
             ),
             TextButton.icon(
               onPressed: () => _exportCommandBlock(block),
               icon: const Icon(Icons.save_alt, size: 13),
-              label: const Text('Export'),
+              label: Text(l10n.terminalExport),
             ),
           ],
         ),
@@ -2528,8 +2616,9 @@ class _TerminalPaneState extends State<TerminalPane> {
   }
 
   Future<void> _exportCommandBlock(TerminalCommandBlock block) async {
+    final l10n = AppLocalizations.of(context);
     final path = await FilePicker.platform.saveFile(
-      dialogTitle: 'Command Block exportieren',
+      dialogTitle: l10n.terminalExportCommandBlock,
       fileName: 'terminal-command-${block.id}.md',
     );
     if (path == null) return;
@@ -2537,19 +2626,23 @@ class _TerminalPaneState extends State<TerminalPane> {
       await File(path).writeAsString(block.toMarkdown());
     } on Object catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Export fehlgeschlagen: $error')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(l10n.terminalExportFailed(localizeError(l10n, error))),
+        ),
+      );
     }
   }
 
   String _commandStatusText(TerminalCommandBlock block) {
+    final l10n = AppLocalizations.of(context);
     return switch (block.status) {
-      TerminalCommandBlockStatus.running => 'Läuft',
-      TerminalCommandBlockStatus.succeeded => 'Erfolgreich (Exit 0)',
-      TerminalCommandBlockStatus.failed =>
-        'Fehlgeschlagen (Exit ${block.exitCode ?? '?'})',
-      TerminalCommandBlockStatus.interrupted => 'Unterbrochen',
+      TerminalCommandBlockStatus.running => l10n.terminalStatusRunningBlock,
+      TerminalCommandBlockStatus.succeeded => l10n.terminalStatusSucceeded,
+      TerminalCommandBlockStatus.failed => l10n.terminalStatusFailed(
+        '${block.exitCode ?? '?'}',
+      ),
+      TerminalCommandBlockStatus.interrupted => l10n.terminalStatusInterrupted,
     };
   }
 
@@ -2589,6 +2682,7 @@ class _TerminalPaneState extends State<TerminalPane> {
   ) async {
     final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
     final localPosition = overlay.globalToLocal(details.globalPosition);
+    final l10n = AppLocalizations.of(context);
     final selectionText = _selectedText();
     final link = _linkAt(offset);
     final action = await showMenu<_TerminalMenuAction>(
@@ -2599,49 +2693,49 @@ class _TerminalPaneState extends State<TerminalPane> {
       ),
       items: [
         if (link != null)
-          const PopupMenuItem(
+          PopupMenuItem(
             value: _TerminalMenuAction.openLink,
             child: ListTile(
-              leading: Icon(Icons.open_in_new),
-              title: Text('Link öffnen'),
+              leading: const Icon(Icons.open_in_new),
+              title: Text(l10n.terminalOpenLink),
             ),
           ),
         PopupMenuItem(
           value: _TerminalMenuAction.copy,
           enabled: selectionText != null,
-          child: const ListTile(
-            leading: Icon(Icons.copy_outlined),
-            title: Text('Kopieren'),
+          child: ListTile(
+            leading: const Icon(Icons.copy_outlined),
+            title: Text(l10n.commonCopy),
           ),
         ),
-        const PopupMenuItem(
+        PopupMenuItem(
           value: _TerminalMenuAction.paste,
           child: ListTile(
-            leading: Icon(Icons.paste_outlined),
-            title: Text('Einfügen'),
+            leading: const Icon(Icons.paste_outlined),
+            title: Text(l10n.commonPaste),
           ),
         ),
-        const PopupMenuItem(
+        PopupMenuItem(
           value: _TerminalMenuAction.selectAll,
           child: ListTile(
-            leading: Icon(Icons.select_all),
-            title: Text('Alles auswählen'),
+            leading: const Icon(Icons.select_all),
+            title: Text(l10n.terminalSelectAll),
           ),
         ),
         PopupMenuItem(
           value: _TerminalMenuAction.searchSelection,
           enabled: selectionText != null,
-          child: const ListTile(
-            leading: Icon(Icons.search),
-            title: Text('Auswahl suchen'),
+          child: ListTile(
+            leading: const Icon(Icons.search),
+            title: Text(l10n.terminalSearchSelection),
           ),
         ),
         const PopupMenuDivider(),
-        const PopupMenuItem(
+        PopupMenuItem(
           value: _TerminalMenuAction.clearOutput,
           child: ListTile(
-            leading: Icon(Icons.cleaning_services_outlined),
-            title: Text('Ausgabe leeren'),
+            leading: const Icon(Icons.cleaning_services_outlined),
+            title: Text(l10n.terminalClearOutput),
           ),
         ),
       ],
@@ -2718,8 +2812,13 @@ class _TerminalPaneState extends State<TerminalPane> {
       await ExternalUrlLauncher.open(uri);
     } on Object catch (error) {
       if (!mounted) return;
+      final l10n = AppLocalizations.of(context);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Link konnte nicht geöffnet werden: $error')),
+        SnackBar(
+          content: Text(
+            l10n.terminalOpenLinkFailed(localizeError(l10n, error)),
+          ),
+        ),
       );
     }
   }
@@ -2920,6 +3019,7 @@ class _TerminalPaneState extends State<TerminalPane> {
 
   Future<void> _paste(String text) async {
     if (!mounted) return;
+    final l10n = AppLocalizations.of(context);
     if (text.contains('\n') || text.contains('\r')) {
       final dialogContext = widget.navigatorKey.currentContext;
       if (dialogContext == null) return;
@@ -2928,7 +3028,7 @@ class _TerminalPaneState extends State<TerminalPane> {
             context: dialogContext,
             builder: (context) => AlertDialog(
               icon: const Icon(Icons.warning_amber_rounded),
-              title: const Text('Mehrzeiligen Text einfügen?'),
+              title: Text(l10n.terminalPasteMultilineTitle),
               content: ConstrainedBox(
                 constraints: const BoxConstraints(
                   maxWidth: 640,
@@ -2938,10 +3038,7 @@ class _TerminalPaneState extends State<TerminalPane> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    const Text(
-                      'Zeilenumbrüche können Befehle unmittelbar ausführen. '
-                      'Prüfe den Inhalt vor dem Einfügen.',
-                    ),
+                    Text(l10n.terminalPasteMultilineMessage),
                     const SizedBox(height: 12),
                     Flexible(
                       child: SingleChildScrollView(child: SelectableText(text)),
@@ -2952,11 +3049,11 @@ class _TerminalPaneState extends State<TerminalPane> {
               actions: [
                 TextButton(
                   onPressed: () => Navigator.pop(context, false),
-                  child: const Text('Abbrechen'),
+                  child: Text(l10n.commonCancel),
                 ),
                 FilledButton(
                   onPressed: () => Navigator.pop(context, true),
-                  child: const Text('Einfügen'),
+                  child: Text(l10n.commonPaste),
                 ),
               ],
             ),
@@ -2968,14 +3065,17 @@ class _TerminalPaneState extends State<TerminalPane> {
   }
 
   String _statusText(TerminalSession session) {
+    final l10n = AppLocalizations.of(context);
     return switch (session.status) {
-      TerminalSessionStatus.idle => 'Bereit',
-      TerminalSessionStatus.starting => 'Terminal wird gestartet ...',
-      TerminalSessionStatus.running => 'Terminal läuft',
-      TerminalSessionStatus.exited =>
-        'Prozess beendet (${session.exitCode ?? 'unbekannt'})',
-      TerminalSessionStatus.failed =>
-        'Terminal konnte nicht gestartet werden: ${session.error}',
+      TerminalSessionStatus.idle => l10n.terminalStatusReady,
+      TerminalSessionStatus.starting => l10n.terminalStatusStarting,
+      TerminalSessionStatus.running => l10n.terminalStatusActive,
+      TerminalSessionStatus.exited => l10n.terminalStatusExited(
+        '${session.exitCode ?? l10n.terminalExitCodeUnknown}',
+      ),
+      TerminalSessionStatus.failed => l10n.terminalStatusStartFailed(
+        '${session.error}',
+      ),
     };
   }
 
@@ -2995,12 +3095,13 @@ class _TerminalPaneState extends State<TerminalPane> {
   }
 
   String _statusTooltip() {
+    final l10n = AppLocalizations.of(context);
     final details = <String>[
       _statusTitle(),
-      'Shell: ${session.shellName}',
+      l10n.terminalInfoShell(session.shellName),
       if (session.workingDirectory case final directory?)
-        'Verzeichnis: $directory',
-      'Status: ${_statusText(session)}',
+        l10n.terminalInfoDirectory(directory),
+      l10n.terminalInfoStatus(_statusText(session)),
     ];
     return details.join('\n');
   }

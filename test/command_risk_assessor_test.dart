@@ -25,7 +25,10 @@ void main() {
       });
 
       expect(assessment.level, CommandRiskLevel.elevated);
-      expect(assessment.reasons, contains(contains('erhöhten Rechten')));
+      expect(
+        assessment.reasons,
+        contains(CommandRiskReason.elevatedPrivileges),
+      );
     });
 
     test('classifies dd and force options as destructive', () {
