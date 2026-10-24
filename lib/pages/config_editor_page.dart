@@ -255,9 +255,8 @@ class _ConfigEditorPageState extends State<ConfigEditorPage> {
             physics: const NeverScrollableScrollPhysics(),
             buildDefaultDragHandles: false,
             itemCount: document.parameters.length,
-            onReorder: (oldIndex, newIndex) {
+            onReorderItem: (oldIndex, newIndex) {
               setState(() {
-                if (newIndex > oldIndex) newIndex--;
                 final item = document.parameters.removeAt(oldIndex);
                 document.parameters.insert(newIndex, item);
                 for (

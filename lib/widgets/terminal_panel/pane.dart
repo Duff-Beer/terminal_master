@@ -682,76 +682,79 @@ class _TerminalPaneState extends State<TerminalPane> {
     final displayedOutput = output.length > 10000
         ? '…\n${output.substring(output.length - 10000)}'
         : output;
-    return ExpansionTile(
-      key: Key('terminal-command-block-${block.id}'),
-      dense: true,
-      leading: Icon(
-        _commandStatusIcon(block.status),
-        size: 15,
-        color: _commandStatusColor(block.status),
-      ),
-      title: Text(
-        block.command,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: const TextStyle(fontSize: 10),
-      ),
-      subtitle: Text(
-        '${_commandStatusText(block)} · ${_formatDuration(block.duration)}',
-        style: const TextStyle(fontSize: 9),
-      ),
-      childrenPadding: const EdgeInsets.fromLTRB(12, 0, 8, 8),
-      children: [
-        if (displayedOutput.isNotEmpty)
-          Container(
-            width: double.infinity,
-            constraints: const BoxConstraints(maxHeight: 110),
-            padding: const EdgeInsets.all(8),
-            color: TerminalMasterColors.background,
-            child: SingleChildScrollView(
-              child: SelectableText(
-                displayedOutput,
-                style: const TextStyle(fontSize: 10),
-              ),
-            ),
-          ),
-        if (block.outputTruncated)
-          Align(
-            alignment: Alignment.centerLeft,
-            child: Text(
-              l10n.terminalOutputTruncated(
-                TerminalCommandBlock.maxOutputLength,
-              ),
-              style: const TextStyle(
-                color: TerminalMasterColors.yellow,
-                fontSize: 9,
-              ),
-            ),
-          ),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.end,
-          children: [
-            TextButton.icon(
-              onPressed: () =>
-                  Clipboard.setData(ClipboardData(text: block.command)),
-              icon: const Icon(Icons.copy, size: 13),
-              label: Text(l10n.terminalLabelCommand),
-            ),
-            TextButton.icon(
-              onPressed: output.isEmpty
-                  ? null
-                  : () => Clipboard.setData(ClipboardData(text: output)),
-              icon: const Icon(Icons.content_copy, size: 13),
-              label: Text(l10n.terminalLabelOutput),
-            ),
-            TextButton.icon(
-              onPressed: () => _exportCommandBlock(block),
-              icon: const Icon(Icons.save_alt, size: 13),
-              label: Text(l10n.terminalExport),
-            ),
-          ],
+    return Material(
+      color: TerminalMasterColors.surface,
+      child: ExpansionTile(
+        key: Key('terminal-command-block-${block.id}'),
+        dense: true,
+        leading: Icon(
+          _commandStatusIcon(block.status),
+          size: 15,
+          color: _commandStatusColor(block.status),
         ),
-      ],
+        title: Text(
+          block.command,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(fontSize: 10),
+        ),
+        subtitle: Text(
+          '${_commandStatusText(block)} · ${_formatDuration(block.duration)}',
+          style: const TextStyle(fontSize: 9),
+        ),
+        childrenPadding: const EdgeInsets.fromLTRB(12, 0, 8, 8),
+        children: [
+          if (displayedOutput.isNotEmpty)
+            Container(
+              width: double.infinity,
+              constraints: const BoxConstraints(maxHeight: 110),
+              padding: const EdgeInsets.all(8),
+              color: TerminalMasterColors.background,
+              child: SingleChildScrollView(
+                child: SelectableText(
+                  displayedOutput,
+                  style: const TextStyle(fontSize: 10),
+                ),
+              ),
+            ),
+          if (block.outputTruncated)
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                l10n.terminalOutputTruncated(
+                  TerminalCommandBlock.maxOutputLength,
+                ),
+                style: const TextStyle(
+                  color: TerminalMasterColors.yellow,
+                  fontSize: 9,
+                ),
+              ),
+            ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              TextButton.icon(
+                onPressed: () =>
+                    Clipboard.setData(ClipboardData(text: block.command)),
+                icon: const Icon(Icons.copy, size: 13),
+                label: Text(l10n.terminalLabelCommand),
+              ),
+              TextButton.icon(
+                onPressed: output.isEmpty
+                    ? null
+                    : () => Clipboard.setData(ClipboardData(text: output)),
+                icon: const Icon(Icons.content_copy, size: 13),
+                label: Text(l10n.terminalLabelOutput),
+              ),
+              TextButton.icon(
+                onPressed: () => _exportCommandBlock(block),
+                icon: const Icon(Icons.save_alt, size: 13),
+                label: Text(l10n.terminalExport),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 
