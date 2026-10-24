@@ -2603,6 +2603,456 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Could not save the language: {error}'**
   String settingsLanguageSaveFailed(String error);
+
+  /// No description provided for @configEditorNew.
+  ///
+  /// In en, this message translates to:
+  /// **'New configuration'**
+  String get configEditorNew;
+
+  /// No description provided for @configEditorEdit.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit configuration'**
+  String get configEditorEdit;
+
+  /// No description provided for @configEditorCreate.
+  ///
+  /// In en, this message translates to:
+  /// **'Create configuration'**
+  String get configEditorCreate;
+
+  /// No description provided for @configEditorCommand.
+  ///
+  /// In en, this message translates to:
+  /// **'Command'**
+  String get configEditorCommand;
+
+  /// No description provided for @configEditorDisplayName.
+  ///
+  /// In en, this message translates to:
+  /// **'Display name'**
+  String get configEditorDisplayName;
+
+  /// No description provided for @configEditorDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Description'**
+  String get configEditorDescription;
+
+  /// No description provided for @configEditorHelpText.
+  ///
+  /// In en, this message translates to:
+  /// **'Help text'**
+  String get configEditorHelpText;
+
+  /// No description provided for @configEditorParameters.
+  ///
+  /// In en, this message translates to:
+  /// **'Input elements'**
+  String get configEditorParameters;
+
+  /// No description provided for @configEditorAddParameter.
+  ///
+  /// In en, this message translates to:
+  /// **'Add element'**
+  String get configEditorAddParameter;
+
+  /// No description provided for @configEditorNoParameters.
+  ///
+  /// In en, this message translates to:
+  /// **'No input elements yet.'**
+  String get configEditorNoParameters;
+
+  /// No description provided for @configEditorElementName.
+  ///
+  /// In en, this message translates to:
+  /// **'Element name'**
+  String get configEditorElementName;
+
+  /// No description provided for @configEditorElementType.
+  ///
+  /// In en, this message translates to:
+  /// **'Element type'**
+  String get configEditorElementType;
+
+  /// No description provided for @configEditorTypeText.
+  ///
+  /// In en, this message translates to:
+  /// **'Text field'**
+  String get configEditorTypeText;
+
+  /// No description provided for @configEditorTypeOptions.
+  ///
+  /// In en, this message translates to:
+  /// **'Dropdown'**
+  String get configEditorTypeOptions;
+
+  /// No description provided for @configEditorTypeBoolean.
+  ///
+  /// In en, this message translates to:
+  /// **'Checkbox'**
+  String get configEditorTypeBoolean;
+
+  /// No description provided for @configEditorTypeFilepath.
+  ///
+  /// In en, this message translates to:
+  /// **'File picker'**
+  String get configEditorTypeFilepath;
+
+  /// No description provided for @configEditorTypeTextList.
+  ///
+  /// In en, this message translates to:
+  /// **'Text list'**
+  String get configEditorTypeTextList;
+
+  /// No description provided for @configEditorTypeButton.
+  ///
+  /// In en, this message translates to:
+  /// **'Button'**
+  String get configEditorTypeButton;
+
+  /// No description provided for @configEditorFlag.
+  ///
+  /// In en, this message translates to:
+  /// **'Command-line flag'**
+  String get configEditorFlag;
+
+  /// No description provided for @configEditorRequired.
+  ///
+  /// In en, this message translates to:
+  /// **'Required'**
+  String get configEditorRequired;
+
+  /// No description provided for @configEditorDefault.
+  ///
+  /// In en, this message translates to:
+  /// **'Default value'**
+  String get configEditorDefault;
+
+  /// No description provided for @configEditorOptions.
+  ///
+  /// In en, this message translates to:
+  /// **'Dropdown options'**
+  String get configEditorOptions;
+
+  /// No description provided for @configEditorAddOption.
+  ///
+  /// In en, this message translates to:
+  /// **'Add option'**
+  String get configEditorAddOption;
+
+  /// No description provided for @configEditorOptionValue.
+  ///
+  /// In en, this message translates to:
+  /// **'Value'**
+  String get configEditorOptionValue;
+
+  /// No description provided for @configEditorOptionDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Description'**
+  String get configEditorOptionDescription;
+
+  /// No description provided for @configEditorRemove.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove'**
+  String get configEditorRemove;
+
+  /// No description provided for @configEditorMode.
+  ///
+  /// In en, this message translates to:
+  /// **'Select files or folders'**
+  String get configEditorMode;
+
+  /// No description provided for @configEditorDependencies.
+  ///
+  /// In en, this message translates to:
+  /// **'Depends on'**
+  String get configEditorDependencies;
+
+  /// No description provided for @configEditorConflicts.
+  ///
+  /// In en, this message translates to:
+  /// **'Conflicts with'**
+  String get configEditorConflicts;
+
+  /// No description provided for @configEditorVisibleWhen.
+  ///
+  /// In en, this message translates to:
+  /// **'Visible when'**
+  String get configEditorVisibleWhen;
+
+  /// No description provided for @configEditorRequiredWhen.
+  ///
+  /// In en, this message translates to:
+  /// **'Required when'**
+  String get configEditorRequiredWhen;
+
+  /// No description provided for @configEditorAddCondition.
+  ///
+  /// In en, this message translates to:
+  /// **'Add condition'**
+  String get configEditorAddCondition;
+
+  /// No description provided for @configEditorConditionParameter.
+  ///
+  /// In en, this message translates to:
+  /// **'Other element'**
+  String get configEditorConditionParameter;
+
+  /// No description provided for @configEditorConditionOperator.
+  ///
+  /// In en, this message translates to:
+  /// **'Condition'**
+  String get configEditorConditionOperator;
+
+  /// No description provided for @configEditorConditionEquals.
+  ///
+  /// In en, this message translates to:
+  /// **'Equals'**
+  String get configEditorConditionEquals;
+
+  /// No description provided for @configEditorConditionIn.
+  ///
+  /// In en, this message translates to:
+  /// **'One of these values'**
+  String get configEditorConditionIn;
+
+  /// No description provided for @configEditorConditionActive.
+  ///
+  /// In en, this message translates to:
+  /// **'Is active'**
+  String get configEditorConditionActive;
+
+  /// No description provided for @configEditorConditionValue.
+  ///
+  /// In en, this message translates to:
+  /// **'Value(s), comma separated for “one of”'**
+  String get configEditorConditionValue;
+
+  /// No description provided for @configEditorMatchAny.
+  ///
+  /// In en, this message translates to:
+  /// **'Match any condition'**
+  String get configEditorMatchAny;
+
+  /// No description provided for @configEditorSave.
+  ///
+  /// In en, this message translates to:
+  /// **'Save YAML'**
+  String get configEditorSave;
+
+  /// No description provided for @configEditorSaveFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not save configuration: {error}'**
+  String configEditorSaveFailed(String error);
+
+  /// No description provided for @configEditorSaved.
+  ///
+  /// In en, this message translates to:
+  /// **'Configuration saved.'**
+  String get configEditorSaved;
+
+  /// No description provided for @configEditorInvalid.
+  ///
+  /// In en, this message translates to:
+  /// **'Fix the configuration errors before saving.'**
+  String get configEditorInvalid;
+
+  /// No description provided for @configEditorDeleteElement.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete element'**
+  String get configEditorDeleteElement;
+
+  /// No description provided for @configEditorNewFileExists.
+  ///
+  /// In en, this message translates to:
+  /// **'A configuration with this command already exists.'**
+  String get configEditorNewFileExists;
+
+  /// No description provided for @configEditorDiscardTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Discard unsaved changes?'**
+  String get configEditorDiscardTitle;
+
+  /// No description provided for @configEditorDiscard.
+  ///
+  /// In en, this message translates to:
+  /// **'Discard'**
+  String get configEditorDiscard;
+
+  /// No description provided for @configEditorDiscardMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'Your changes will be lost if you leave this editor.'**
+  String get configEditorDiscardMessage;
+
+  /// No description provided for @configEditorExecutable.
+  ///
+  /// In en, this message translates to:
+  /// **'Executable'**
+  String get configEditorExecutable;
+
+  /// No description provided for @configEditorArguments.
+  ///
+  /// In en, this message translates to:
+  /// **'Arguments'**
+  String get configEditorArguments;
+
+  /// No description provided for @configEditorPrefix.
+  ///
+  /// In en, this message translates to:
+  /// **'Prefix'**
+  String get configEditorPrefix;
+
+  /// No description provided for @configEditorSuffix.
+  ///
+  /// In en, this message translates to:
+  /// **'Suffix'**
+  String get configEditorSuffix;
+
+  /// No description provided for @configEditorExample.
+  ///
+  /// In en, this message translates to:
+  /// **'Example'**
+  String get configEditorExample;
+
+  /// No description provided for @configEditorNote.
+  ///
+  /// In en, this message translates to:
+  /// **'Note'**
+  String get configEditorNote;
+
+  /// No description provided for @configEditorLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Label'**
+  String get configEditorLabel;
+
+  /// No description provided for @configEditorMustDiffer.
+  ///
+  /// In en, this message translates to:
+  /// **'Must be different from dependent values'**
+  String get configEditorMustDiffer;
+
+  /// No description provided for @configEditorPlacement.
+  ///
+  /// In en, this message translates to:
+  /// **'Value placement'**
+  String get configEditorPlacement;
+
+  /// No description provided for @configEditorJoin.
+  ///
+  /// In en, this message translates to:
+  /// **'Flag and value formatting'**
+  String get configEditorJoin;
+
+  /// No description provided for @configEditorAutomatic.
+  ///
+  /// In en, this message translates to:
+  /// **'Automatic'**
+  String get configEditorAutomatic;
+
+  /// No description provided for @configEditorBeforeCommand.
+  ///
+  /// In en, this message translates to:
+  /// **'Before command'**
+  String get configEditorBeforeCommand;
+
+  /// No description provided for @configEditorArgument.
+  ///
+  /// In en, this message translates to:
+  /// **'Command argument'**
+  String get configEditorArgument;
+
+  /// No description provided for @configEditorPipeline.
+  ///
+  /// In en, this message translates to:
+  /// **'Pipeline'**
+  String get configEditorPipeline;
+
+  /// No description provided for @configEditorSeparated.
+  ///
+  /// In en, this message translates to:
+  /// **'Separated'**
+  String get configEditorSeparated;
+
+  /// No description provided for @configEditorAttached.
+  ///
+  /// In en, this message translates to:
+  /// **'Attached'**
+  String get configEditorAttached;
+
+  /// No description provided for @configEditorModeFile.
+  ///
+  /// In en, this message translates to:
+  /// **'File'**
+  String get configEditorModeFile;
+
+  /// No description provided for @configEditorModeDirectory.
+  ///
+  /// In en, this message translates to:
+  /// **'Directory'**
+  String get configEditorModeDirectory;
+
+  /// No description provided for @configEditorModeAny.
+  ///
+  /// In en, this message translates to:
+  /// **'File or directory'**
+  String get configEditorModeAny;
+
+  /// No description provided for @mainCreateFileType.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose what to create'**
+  String get mainCreateFileType;
+
+  /// No description provided for @mainCommandConfigDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Define input fields and conditions for one command.'**
+  String get mainCommandConfigDescription;
+
+  /// No description provided for @mainBatchConfigDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Create an empty command list and add commands later.'**
+  String get mainBatchConfigDescription;
+
+  /// No description provided for @batchCreateFile.
+  ///
+  /// In en, this message translates to:
+  /// **'New batch YAML'**
+  String get batchCreateFile;
+
+  /// No description provided for @batchCreateFileTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Create batch file'**
+  String get batchCreateFileTitle;
+
+  /// No description provided for @batchCreateFileName.
+  ///
+  /// In en, this message translates to:
+  /// **'File name'**
+  String get batchCreateFileName;
+
+  /// No description provided for @batchFileCreated.
+  ///
+  /// In en, this message translates to:
+  /// **'Empty batch file created.'**
+  String get batchFileCreated;
+
+  /// No description provided for @batchCreateFileFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not create batch file: {error}'**
+  String batchCreateFileFailed(String error);
 }
 
 class _AppLocalizationsDelegate

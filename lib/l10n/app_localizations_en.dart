@@ -1565,4 +1565,240 @@ class AppLocalizationsEn extends AppLocalizations {
   String settingsLanguageSaveFailed(String error) {
     return 'Could not save the language: $error';
   }
+
+  @override
+  String get configEditorNew => 'New configuration';
+
+  @override
+  String get configEditorEdit => 'Edit configuration';
+
+  @override
+  String get configEditorCreate => 'Create configuration';
+
+  @override
+  String get configEditorCommand => 'Command';
+
+  @override
+  String get configEditorDisplayName => 'Display name';
+
+  @override
+  String get configEditorDescription => 'Description';
+
+  @override
+  String get configEditorHelpText => 'Help text';
+
+  @override
+  String get configEditorParameters => 'Input elements';
+
+  @override
+  String get configEditorAddParameter => 'Add element';
+
+  @override
+  String get configEditorNoParameters => 'No input elements yet.';
+
+  @override
+  String get configEditorElementName => 'Element name';
+
+  @override
+  String get configEditorElementType => 'Element type';
+
+  @override
+  String get configEditorTypeText => 'Text field';
+
+  @override
+  String get configEditorTypeOptions => 'Dropdown';
+
+  @override
+  String get configEditorTypeBoolean => 'Checkbox';
+
+  @override
+  String get configEditorTypeFilepath => 'File picker';
+
+  @override
+  String get configEditorTypeTextList => 'Text list';
+
+  @override
+  String get configEditorTypeButton => 'Button';
+
+  @override
+  String get configEditorFlag => 'Command-line flag';
+
+  @override
+  String get configEditorRequired => 'Required';
+
+  @override
+  String get configEditorDefault => 'Default value';
+
+  @override
+  String get configEditorOptions => 'Dropdown options';
+
+  @override
+  String get configEditorAddOption => 'Add option';
+
+  @override
+  String get configEditorOptionValue => 'Value';
+
+  @override
+  String get configEditorOptionDescription => 'Description';
+
+  @override
+  String get configEditorRemove => 'Remove';
+
+  @override
+  String get configEditorMode => 'Select files or folders';
+
+  @override
+  String get configEditorDependencies => 'Depends on';
+
+  @override
+  String get configEditorConflicts => 'Conflicts with';
+
+  @override
+  String get configEditorVisibleWhen => 'Visible when';
+
+  @override
+  String get configEditorRequiredWhen => 'Required when';
+
+  @override
+  String get configEditorAddCondition => 'Add condition';
+
+  @override
+  String get configEditorConditionParameter => 'Other element';
+
+  @override
+  String get configEditorConditionOperator => 'Condition';
+
+  @override
+  String get configEditorConditionEquals => 'Equals';
+
+  @override
+  String get configEditorConditionIn => 'One of these values';
+
+  @override
+  String get configEditorConditionActive => 'Is active';
+
+  @override
+  String get configEditorConditionValue =>
+      'Value(s), comma separated for “one of”';
+
+  @override
+  String get configEditorMatchAny => 'Match any condition';
+
+  @override
+  String get configEditorSave => 'Save YAML';
+
+  @override
+  String configEditorSaveFailed(String error) {
+    return 'Could not save configuration: $error';
+  }
+
+  @override
+  String get configEditorSaved => 'Configuration saved.';
+
+  @override
+  String get configEditorInvalid =>
+      'Fix the configuration errors before saving.';
+
+  @override
+  String get configEditorDeleteElement => 'Delete element';
+
+  @override
+  String get configEditorNewFileExists =>
+      'A configuration with this command already exists.';
+
+  @override
+  String get configEditorDiscardTitle => 'Discard unsaved changes?';
+
+  @override
+  String get configEditorDiscard => 'Discard';
+
+  @override
+  String get configEditorDiscardMessage =>
+      'Your changes will be lost if you leave this editor.';
+
+  @override
+  String get configEditorExecutable => 'Executable';
+
+  @override
+  String get configEditorArguments => 'Arguments';
+
+  @override
+  String get configEditorPrefix => 'Prefix';
+
+  @override
+  String get configEditorSuffix => 'Suffix';
+
+  @override
+  String get configEditorExample => 'Example';
+
+  @override
+  String get configEditorNote => 'Note';
+
+  @override
+  String get configEditorLabel => 'Label';
+
+  @override
+  String get configEditorMustDiffer =>
+      'Must be different from dependent values';
+
+  @override
+  String get configEditorPlacement => 'Value placement';
+
+  @override
+  String get configEditorJoin => 'Flag and value formatting';
+
+  @override
+  String get configEditorAutomatic => 'Automatic';
+
+  @override
+  String get configEditorBeforeCommand => 'Before command';
+
+  @override
+  String get configEditorArgument => 'Command argument';
+
+  @override
+  String get configEditorPipeline => 'Pipeline';
+
+  @override
+  String get configEditorSeparated => 'Separated';
+
+  @override
+  String get configEditorAttached => 'Attached';
+
+  @override
+  String get configEditorModeFile => 'File';
+
+  @override
+  String get configEditorModeDirectory => 'Directory';
+
+  @override
+  String get configEditorModeAny => 'File or directory';
+
+  @override
+  String get mainCreateFileType => 'Choose what to create';
+
+  @override
+  String get mainCommandConfigDescription =>
+      'Define input fields and conditions for one command.';
+
+  @override
+  String get mainBatchConfigDescription =>
+      'Create an empty command list and add commands later.';
+
+  @override
+  String get batchCreateFile => 'New batch YAML';
+
+  @override
+  String get batchCreateFileTitle => 'Create batch file';
+
+  @override
+  String get batchCreateFileName => 'File name';
+
+  @override
+  String get batchFileCreated => 'Empty batch file created.';
+
+  @override
+  String batchCreateFileFailed(String error) {
+    return 'Could not create batch file: $error';
+  }
 }

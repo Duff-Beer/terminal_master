@@ -42,6 +42,7 @@ dependencies:
   file_picker: ^8.1.4
   flutter_secure_storage: ^9.2.4
   yaml: ^3.1.2
+  yaml_edit: ^2.2.2
   shared_preferences: ^2.3.3
   path: ^1.9.1
   path_provider: ^2.1.5

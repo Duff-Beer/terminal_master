@@ -6,8 +6,14 @@ import '../models/config_item.dart';
 class ConfigTile extends StatelessWidget {
   final ConfigItem item;
   final VoidCallback onTap;
+  final VoidCallback? onEdit;
 
-  const ConfigTile({super.key, required this.item, required this.onTap});
+  const ConfigTile({
+    super.key,
+    required this.item,
+    required this.onTap,
+    this.onEdit,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -23,6 +29,13 @@ class ConfigTile extends StatelessWidget {
         style: error == null ? null : TextStyle(color: errorColor),
       ),
       subtitle: Text(_subtitle(l10n)),
+      trailing: onEdit == null
+          ? null
+          : IconButton(
+              tooltip: l10n.configEditorEdit,
+              onPressed: onEdit,
+              icon: const Icon(Icons.edit_outlined),
+            ),
       onTap: onTap,
     );
   }

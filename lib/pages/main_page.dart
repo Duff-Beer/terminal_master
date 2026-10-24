@@ -9,19 +9,23 @@ import '../utils/config_loader.dart';
 import '../widgets/config_tile.dart';
 import '../widgets/output_dialog.dart';
 import 'command_generator_page.dart';
+import '../services/batch_config_file_service.dart';
 import 'batch_command_page.dart';
+import 'config_editor_page.dart';
 import 'package:flutter/services.dart';
 
 class MainPage extends StatefulWidget {
   final String configDirectoryPath;
   final String displayPath;
   final ValueListenable<String>? yamlDirectoryPath;
+  final BatchConfigFileService batchFileService;
 
   const MainPage({
     super.key,
     required this.configDirectoryPath,
     required this.displayPath,
     this.yamlDirectoryPath,
+    this.batchFileService = const BatchConfigFileService(),
   });
 
   @override
@@ -129,6 +133,119 @@ class _MainPageState extends State<MainPage> {
     }
   }
 
+  Future<void> _showCreateMenu() async {
+    final l10n = AppLocalizations.of(context);
+    final selection = await showModalBottomSheet<String>(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  l10n.mainCreateFileType,
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+              ),
+            ),
+            ListTile(
+              key: const Key('choose-command-config'),
+              leading: const Icon(Icons.tune),
+              title: Text(l10n.configEditorCreate),
+              subtitle: Text(l10n.mainCommandConfigDescription),
+              onTap: () => Navigator.pop(context, 'command'),
+            ),
+            ListTile(
+              key: const Key('choose-batch-config'),
+              leading: const Icon(Icons.playlist_add),
+              title: Text(l10n.batchCreateFile),
+              subtitle: Text(l10n.mainBatchConfigDescription),
+              onTap: () => Navigator.pop(context, 'batch'),
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+    if (!mounted) return;
+    if (selection == 'command') {
+      await _openEditor();
+    } else if (selection == 'batch') {
+      await _createBatchFile();
+    }
+  }
+
+  Future<void> _createBatchFile() async {
+    final l10n = AppLocalizations.of(context);
+    var name = '';
+    final enteredName = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(l10n.batchCreateFileTitle),
+        content: TextField(
+          key: const Key('new-batch-file-name'),
+          autofocus: true,
+          decoration: InputDecoration(labelText: l10n.batchCreateFileName),
+          onChanged: (value) => name = value,
+          onSubmitted: (value) {
+            if (value.trim().isNotEmpty) {
+              Navigator.pop(context, value.trim());
+            }
+          },
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(l10n.commonCancel),
+          ),
+          FilledButton(
+            key: const Key('confirm-create-batch-file'),
+            onPressed: () {
+              if (name.trim().isNotEmpty) {
+                Navigator.pop(context, name.trim());
+              }
+            },
+            child: Text(l10n.commonAdd),
+          ),
+        ],
+      ),
+    );
+    if (enteredName == null || !mounted) return;
+    try {
+      await widget.batchFileService.createEmptyBatchFile(
+        directoryPath: _directoryPath,
+        name: enteredName,
+      );
+      if (!mounted) return;
+      await _loadConfigs(force: true);
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(l10n.batchFileCreated)));
+    } on Object catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(l10n.batchCreateFileFailed('$error'))),
+      );
+    }
+  }
+
+  Future<void> _openEditor([ConfigItem? item]) async {
+    final saved = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ConfigEditorPage(
+          directoryPath: _directoryPath,
+          filePath: item?.filePath,
+        ),
+      ),
+    );
+    if (saved == true && mounted) await _loadConfigs(force: true);
+  }
+
   void _openItem(ConfigItem item) {
     if (item.error case final error?) {
       showOutputDialog(
@@ -160,6 +277,12 @@ class _MainPageState extends State<MainPage> {
     final l10n = AppLocalizations.of(context);
     return Scaffold(
       appBar: AppBar(title: Text(l10n.mainTitle)),
+      floatingActionButton: FloatingActionButton(
+        key: const Key('create-yaml-menu'),
+        tooltip: l10n.mainCreateFileType,
+        onPressed: _showCreateMenu,
+        child: const Icon(Icons.add),
+      ),
       body: Column(
         children: [
           Padding(
@@ -249,7 +372,15 @@ class _MainPageState extends State<MainPage> {
 
     final List<Widget> widgets = [];
     for (var item in ungrouped) {
-      widgets.add(ConfigTile(item: item, onTap: () => _openItem(item)));
+      widgets.add(
+        ConfigTile(
+          item: item,
+          onTap: () => _openItem(item),
+          onEdit: item.error == null && !item.isBatch
+              ? () => _openEditor(item)
+              : null,
+        ),
+      );
     }
     for (var prefix in groups.keys.toList()..sort()) {
       final items = groups[prefix]!;
@@ -257,7 +388,13 @@ class _MainPageState extends State<MainPage> {
         ExpansionTile(
           title: Text(prefix.toUpperCase()),
           children: items.map((item) {
-            return ConfigTile(item: item, onTap: () => _openItem(item));
+            return ConfigTile(
+              item: item,
+              onTap: () => _openItem(item),
+              onEdit: item.error == null && !item.isBatch
+                  ? () => _openEditor(item)
+                  : null,
+            );
           }).toList(),
         ),
       );

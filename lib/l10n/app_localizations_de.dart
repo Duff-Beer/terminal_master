@@ -1575,4 +1575,240 @@ class AppLocalizationsDe extends AppLocalizations {
   String settingsLanguageSaveFailed(String error) {
     return 'Sprache konnte nicht gespeichert werden: $error';
   }
+
+  @override
+  String get configEditorNew => 'Neue Konfiguration';
+
+  @override
+  String get configEditorEdit => 'Konfiguration bearbeiten';
+
+  @override
+  String get configEditorCreate => 'Konfiguration erstellen';
+
+  @override
+  String get configEditorCommand => 'Befehl';
+
+  @override
+  String get configEditorDisplayName => 'Anzeigename';
+
+  @override
+  String get configEditorDescription => 'Beschreibung';
+
+  @override
+  String get configEditorHelpText => 'Hilfetext';
+
+  @override
+  String get configEditorParameters => 'Eingabeelemente';
+
+  @override
+  String get configEditorAddParameter => 'Element hinzufügen';
+
+  @override
+  String get configEditorNoParameters => 'Noch keine Eingabeelemente.';
+
+  @override
+  String get configEditorElementName => 'Elementname';
+
+  @override
+  String get configEditorElementType => 'Elementtyp';
+
+  @override
+  String get configEditorTypeText => 'Textfeld';
+
+  @override
+  String get configEditorTypeOptions => 'Dropdown-Menü';
+
+  @override
+  String get configEditorTypeBoolean => 'Kontrollkästchen';
+
+  @override
+  String get configEditorTypeFilepath => 'Dateiauswahl';
+
+  @override
+  String get configEditorTypeTextList => 'Textliste';
+
+  @override
+  String get configEditorTypeButton => 'Schaltfläche';
+
+  @override
+  String get configEditorFlag => 'Befehlszeilen-Flag';
+
+  @override
+  String get configEditorRequired => 'Erforderlich';
+
+  @override
+  String get configEditorDefault => 'Standardwert';
+
+  @override
+  String get configEditorOptions => 'Dropdown-Optionen';
+
+  @override
+  String get configEditorAddOption => 'Option hinzufügen';
+
+  @override
+  String get configEditorOptionValue => 'Wert';
+
+  @override
+  String get configEditorOptionDescription => 'Beschreibung';
+
+  @override
+  String get configEditorRemove => 'Entfernen';
+
+  @override
+  String get configEditorMode => 'Dateien oder Ordner auswählen';
+
+  @override
+  String get configEditorDependencies => 'Abhängig von';
+
+  @override
+  String get configEditorConflicts => 'Im Konflikt mit';
+
+  @override
+  String get configEditorVisibleWhen => 'Sichtbar wenn';
+
+  @override
+  String get configEditorRequiredWhen => 'Erforderlich wenn';
+
+  @override
+  String get configEditorAddCondition => 'Bedingung hinzufügen';
+
+  @override
+  String get configEditorConditionParameter => 'Anderes Element';
+
+  @override
+  String get configEditorConditionOperator => 'Bedingung';
+
+  @override
+  String get configEditorConditionEquals => 'Ist gleich';
+
+  @override
+  String get configEditorConditionIn => 'Einer dieser Werte';
+
+  @override
+  String get configEditorConditionActive => 'Ist aktiv';
+
+  @override
+  String get configEditorConditionValue =>
+      'Wert(e), bei „einer von“ kommasepariert';
+
+  @override
+  String get configEditorMatchAny => 'Eine beliebige Bedingung genügt';
+
+  @override
+  String get configEditorSave => 'YAML speichern';
+
+  @override
+  String configEditorSaveFailed(String error) {
+    return 'Konfiguration konnte nicht gespeichert werden: $error';
+  }
+
+  @override
+  String get configEditorSaved => 'Konfiguration gespeichert.';
+
+  @override
+  String get configEditorInvalid =>
+      'Behebe die Konfigurationsfehler vor dem Speichern.';
+
+  @override
+  String get configEditorDeleteElement => 'Element löschen';
+
+  @override
+  String get configEditorNewFileExists =>
+      'Eine Konfiguration mit diesem Befehl ist bereits vorhanden.';
+
+  @override
+  String get configEditorDiscardTitle => 'Ungespeicherte Änderungen verwerfen?';
+
+  @override
+  String get configEditorDiscard => 'Verwerfen';
+
+  @override
+  String get configEditorDiscardMessage =>
+      'Wenn du den Editor verlässt, gehen deine Änderungen verloren.';
+
+  @override
+  String get configEditorExecutable => 'Programm';
+
+  @override
+  String get configEditorArguments => 'Argumente';
+
+  @override
+  String get configEditorPrefix => 'Präfix';
+
+  @override
+  String get configEditorSuffix => 'Suffix';
+
+  @override
+  String get configEditorExample => 'Beispiel';
+
+  @override
+  String get configEditorNote => 'Hinweis';
+
+  @override
+  String get configEditorLabel => 'Beschriftung';
+
+  @override
+  String get configEditorMustDiffer =>
+      'Muss sich von abhängigen Werten unterscheiden';
+
+  @override
+  String get configEditorPlacement => 'Position des Werts';
+
+  @override
+  String get configEditorJoin => 'Format von Flag und Wert';
+
+  @override
+  String get configEditorAutomatic => 'Automatisch';
+
+  @override
+  String get configEditorBeforeCommand => 'Vor dem Befehl';
+
+  @override
+  String get configEditorArgument => 'Befehlsargument';
+
+  @override
+  String get configEditorPipeline => 'Pipeline';
+
+  @override
+  String get configEditorSeparated => 'Getrennt';
+
+  @override
+  String get configEditorAttached => 'Angehängt';
+
+  @override
+  String get configEditorModeFile => 'Datei';
+
+  @override
+  String get configEditorModeDirectory => 'Ordner';
+
+  @override
+  String get configEditorModeAny => 'Datei oder Ordner';
+
+  @override
+  String get mainCreateFileType => 'Was möchtest du erstellen?';
+
+  @override
+  String get mainCommandConfigDescription =>
+      'Eingabefelder und Bedingungen für einen Befehl festlegen.';
+
+  @override
+  String get mainBatchConfigDescription =>
+      'Leere Befehlsliste erstellen und später Befehle hinzufügen.';
+
+  @override
+  String get batchCreateFile => 'Neue Batch-YAML';
+
+  @override
+  String get batchCreateFileTitle => 'Batch-Datei erstellen';
+
+  @override
+  String get batchCreateFileName => 'Dateiname';
+
+  @override
+  String get batchFileCreated => 'Leere Batch-Datei erstellt.';
+
+  @override
+  String batchCreateFileFailed(String error) {
+    return 'Batch-Datei konnte nicht erstellt werden: $error';
+  }
 }
