@@ -1,6 +1,0 @@
-{
-    "CodeGPT.apiKey": "OpenAI",
-    "files.associations": {
-        "*.yaml": "home-assistant"
-    }
-}

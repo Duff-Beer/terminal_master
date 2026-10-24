@@ -6,10 +6,19 @@ import 'package:terminal_master/models/ssh_connection_profile.dart';
 import 'package:terminal_master/services/ssh_authentication.dart';
 import 'package:terminal_master/services/ssh_credential_store.dart';
 
+import 'support/ssh_test_key_generator.dart';
+
 void main() {
+  late SshTestKeyFiles testKeys;
+
+  setUpAll(() async {
+    testKeys = await SshTestKeyGenerator.create();
+  });
+  tearDownAll(() => testKeys.dispose());
+
   test('loads an unencrypted Ed25519 private key', () async {
     final identities = await const SshPrivateKeyLoader().load(
-      'test/fixtures/id_ed25519',
+      testKeys.unencryptedPath,
     );
 
     expect(identities, hasLength(1));
@@ -21,13 +30,13 @@ void main() {
         await SshAuthenticationResolver(
           credentialStore: _FailingCredentialStore(),
         ).resolve(
-          const SshConnectionProfile(
+          SshConnectionProfile(
             id: 'key-server',
             name: 'Key server',
             host: 'server.example.com',
             username: 'deploy',
             authenticationType: SshAuthenticationType.privateKey,
-            privateKeyPath: 'test/fixtures/id_ed25519',
+            privateKeyPath: testKeys.unencryptedPath,
           ),
         );
 
@@ -36,20 +45,17 @@ void main() {
 
   test('loads an encrypted key only with the correct passphrase', () async {
     await expectLater(
-      const SshPrivateKeyLoader().load('test/fixtures/id_ed25519_encrypted'),
+      const SshPrivateKeyLoader().load(testKeys.encryptedPath),
       throwsA(isA<SshAuthenticationException>()),
     );
     await expectLater(
-      const SshPrivateKeyLoader().load(
-        'test/fixtures/id_ed25519_encrypted',
-        'wrong',
-      ),
+      const SshPrivateKeyLoader().load(testKeys.encryptedPath, 'wrong'),
       throwsA(isA<SshAuthenticationException>()),
     );
 
     final identities = await const SshPrivateKeyLoader().load(
-      'test/fixtures/id_ed25519_encrypted',
-      '123456',
+      testKeys.encryptedPath,
+      SshTestKeyGenerator.passphrase,
     );
     expect(identities.single, isA<OpenSSHEd25519KeyPair>());
   });

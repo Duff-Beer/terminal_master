@@ -7,7 +7,16 @@ import 'package:terminal_master/models/ssh_connection_profile.dart';
 import 'package:terminal_master/services/ssh_backup_service.dart';
 import 'package:terminal_master/services/ssh_credential_store.dart';
 
+import 'support/ssh_test_key_generator.dart';
+
 void main() {
+  late SshTestKeyFiles testKeys;
+
+  setUpAll(() async {
+    testKeys = await SshTestKeyGenerator.create();
+  });
+  tearDownAll(() => testKeys.dispose());
+
   test('encrypts and decrypts complete SSH connection backups', () async {
     final credentials = MemorySshCredentialStore({
       'credential-production': 'production-secret',
@@ -136,7 +145,7 @@ void main() {
         'key-credential': 'key-passphrase',
       });
       final service = SshBackupService(credentialStore: credentials);
-      final backup = await service.exportEncrypted(const [
+      final backup = await service.exportEncrypted([
         SshConnectionProfile(
           id: 'key-server',
           name: 'Key server',
@@ -144,7 +153,7 @@ void main() {
           username: 'deploy',
           credentialId: 'key-credential',
           authenticationType: SshAuthenticationType.privateKey,
-          privateKeyPath: 'test/fixtures/id_ed25519_encrypted',
+          privateKeyPath: testKeys.encryptedPath,
         ),
       ], 'correct horse battery staple');
 
@@ -155,7 +164,7 @@ void main() {
         'correct horse battery staple',
       )).single;
       expect(entry.authenticationType, SshAuthenticationType.privateKey);
-      expect(entry.privateKeyPath, 'test/fixtures/id_ed25519_encrypted');
+      expect(entry.privateKeyPath, testKeys.encryptedPath);
       expect(entry.password, 'key-passphrase');
     },
   );
@@ -165,14 +174,14 @@ void main() {
       credentialStore: _FailingCredentialStore(),
     );
 
-    final backup = await service.exportEncrypted(const [
+    final backup = await service.exportEncrypted([
       SshConnectionProfile(
         id: 'key-server',
         name: 'Key server',
         host: 'server.example.com',
         username: 'deploy',
         authenticationType: SshAuthenticationType.privateKey,
-        privateKeyPath: 'test/fixtures/id_ed25519',
+        privateKeyPath: testKeys.unencryptedPath,
       ),
     ], 'correct horse battery staple');
 

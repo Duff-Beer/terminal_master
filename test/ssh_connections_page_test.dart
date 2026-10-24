@@ -12,7 +12,16 @@ import 'package:terminal_master/services/ssh_connection_profile_store.dart';
 import 'package:terminal_master/services/ssh_credential_store.dart';
 import 'package:terminal_master/services/ssh_host_key_verifier.dart';
 
+import 'support/ssh_test_key_generator.dart';
+
 void main() {
+  late SshTestKeyFiles testKeys;
+
+  setUpAll(() async {
+    testKeys = await SshTestKeyGenerator.create();
+  });
+  tearDownAll(() => testKeys.dispose());
+
   testWidgets('adds and deletes an SSH profile and its password', (
     tester,
   ) async {
@@ -330,7 +339,7 @@ void main() {
     await tester.pump();
     await tester.enterText(
       find.byKey(const Key('ssh-profile-private-key-path')),
-      'test/fixtures/id_ed25519',
+      testKeys.unencryptedPath,
     );
     await tester.tap(find.byKey(const Key('save-ssh-profile')));
     await tester.pump();
@@ -347,7 +356,7 @@ void main() {
 
     final profile = (await profiles.load()).single;
     expect(profile.authenticationType, SshAuthenticationType.privateKey);
-    expect(profile.privateKeyPath, 'test/fixtures/id_ed25519');
+    expect(profile.privateKeyPath, testKeys.unencryptedPath);
     expect(await credentials.readPassword(profile.credentialId), isNull);
     expect(find.text('Authentifizierung: SSH-Key'), findsOneWidget);
   });
@@ -362,15 +371,15 @@ void main() {
     );
     addTearDown(() => directory.deleteSync(recursive: true));
     final replacementKey = File('${directory.path}/id_ed25519');
-    File('test/fixtures/id_ed25519_encrypted').copySync(replacementKey.path);
-    const original = SshConnectionProfile(
+    File(testKeys.encryptedPath).copySync(replacementKey.path);
+    final original = SshConnectionProfile(
       id: 'key-server',
       name: 'Key server',
       host: 'key.example.com',
       username: 'deploy',
       credentialId: 'old-credential',
       authenticationType: SshAuthenticationType.privateKey,
-      privateKeyPath: 'test/fixtures/id_ed25519_encrypted',
+      privateKeyPath: testKeys.encryptedPath,
     );
     final profiles = MemorySshConnectionProfileStore([original]);
     final credentials = MemorySshCredentialStore({'old-credential': '123456'});
@@ -414,7 +423,7 @@ void main() {
     await tester.pump();
     await tester.enterText(
       find.byKey(const Key('ssh-profile-private-key-path')),
-      'test/fixtures/id_ed25519',
+      testKeys.unencryptedPath,
     );
     await tester.tap(find.byKey(const Key('clear-ssh-key-passphrase')));
     await tester.pump();
