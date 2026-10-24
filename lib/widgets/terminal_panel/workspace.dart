@@ -85,6 +85,8 @@ class TerminalWorkspace extends StatefulWidget {
   final GlobalKey<NavigatorState> navigatorKey;
   final List<ShellProfile>? profiles;
   final SavedTerminalTabStore? savedTabStore;
+  final bool commandBarPinned;
+  final Future<void> Function(bool pinned)? saveCommandBarPinned;
   final Widget? sshPanel;
   final Widget? settingsPanel;
   final Widget child;
@@ -95,6 +97,8 @@ class TerminalWorkspace extends StatefulWidget {
     required this.navigatorKey,
     this.profiles,
     this.savedTabStore,
+    this.commandBarPinned = false,
+    this.saveCommandBarPinned,
     this.sshPanel,
     this.settingsPanel,
     required this.child,
@@ -117,6 +121,8 @@ class _TerminalWorkspaceState extends State<TerminalWorkspace> {
       navigatorKey: widget.navigatorKey,
       profiles: widget.profiles,
       savedTabStore: widget.savedTabStore ?? MemorySavedTerminalTabStore(),
+      commandBarPinned: widget.commandBarPinned,
+      saveCommandBarPinned: widget.saveCommandBarPinned,
     );
     _configurationController = ConfigurationPanelController()
       ..addListener(_handleConfigurationVisibility);
@@ -363,79 +369,149 @@ class _ConfigurationToolRail extends StatelessWidget {
   }
 }
 
-class TerminalPanel extends StatelessWidget {
+class TerminalPanel extends StatefulWidget {
   final TerminalPanelController controller;
 
   const TerminalPanel({super.key, required this.controller});
 
   @override
+  State<TerminalPanel> createState() => _TerminalPanelState();
+}
+
+class _TerminalPanelState extends State<TerminalPanel> {
+  final _commandFocusNode = FocusNode();
+  TextEditingController? _observedCommandController;
+
+  TerminalPanelController get controller => widget.controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _commandFocusNode.addListener(_handleCommandFocusChange);
+    _syncCommandController();
+  }
+
+  @override
+  void didUpdateWidget(covariant TerminalPanel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.controller != widget.controller) _syncCommandController();
+  }
+
+  @override
+  void dispose() {
+    _observedCommandController?.removeListener(_handleCommandTextChange);
+    _commandFocusNode
+      ..removeListener(_handleCommandFocusChange)
+      ..dispose();
+    super.dispose();
+  }
+
+  void _syncCommandController() {
+    final commandController = controller.commandController;
+    if (identical(commandController, _observedCommandController)) return;
+    _observedCommandController?.removeListener(_handleCommandTextChange);
+    _observedCommandController = commandController
+      ..addListener(_handleCommandTextChange);
+  }
+
+  void _handleCommandTextChange() {
+    if (mounted) setState(() {});
+  }
+
+  void _handleCommandFocusChange() {
+    if (mounted) setState(() {});
+  }
+
+  bool get _shouldShowCommandBar =>
+      controller.commandBarPinned ||
+      controller.commandController.text.trim().isNotEmpty ||
+      _commandFocusNode.hasFocus;
+
+  void _toggleCommandBarPinned() {
+    final shouldPin = !controller.commandBarPinned;
+    unawaited(
+      controller.setCommandBarPinned(shouldPin).catchError((Object error) {
+        if (mounted) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text(error.toString())));
+        }
+      }),
+    );
+    if (shouldPin) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && controller.commandBarPinned) {
+          _commandFocusNode.requestFocus();
+        }
+      });
+    } else {
+      _commandFocusNode.unfocus();
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    _syncCommandController();
     final l10n = AppLocalizations.of(context);
     final pane = controller.activePane;
     return Column(
       children: [
         _buildTabBar(context),
         Expanded(child: _buildPanes()),
-        Container(
-          key: const Key('terminal-bottom-toolbar'),
-          padding: const EdgeInsets.fromLTRB(10, 8, 6, 10),
-          decoration: const BoxDecoration(
-            color: TerminalMasterColors.surface,
-            border: Border(top: BorderSide(color: TerminalMasterColors.border)),
-          ),
-          child: LayoutBuilder(
-            builder: (context, constraints) => Row(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                if (constraints.maxWidth >= 560) ...[
-                  _buildSearchButton(l10n),
-                  const SizedBox(width: 6),
-                ],
-                Expanded(
-                  child: TextField(
-                    key: const Key('terminal-command-input'),
-                    controller: controller.commandController,
-                    minLines: 1,
-                    maxLines: 4,
-                    decoration: InputDecoration(
-                      hintText: l10n.terminalCommandHint(
-                        controller.activeProfile.name,
-                      ),
-                      isDense: true,
+        AnimatedSize(
+          duration: const Duration(milliseconds: 160),
+          alignment: Alignment.bottomCenter,
+          child: _shouldShowCommandBar
+              ? Container(
+                  key: const Key('terminal-bottom-toolbar'),
+                  padding: const EdgeInsets.fromLTRB(10, 8, 6, 10),
+                  decoration: const BoxDecoration(
+                    color: TerminalMasterColors.surface,
+                    border: Border(
+                      top: BorderSide(color: TerminalMasterColors.border),
                     ),
                   ),
-                ),
-                const SizedBox(width: 6),
-                IconButton.filled(
-                  key: const Key('send-terminal-input'),
-                  tooltip: l10n.terminalSendToTerminal,
-                  style: IconButton.styleFrom(
-                    backgroundColor: TerminalMasterColors.green,
-                    foregroundColor: TerminalMasterColors.background,
+                  child: LayoutBuilder(
+                    builder: (context, constraints) => Row(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            key: const Key('terminal-command-input'),
+                            controller: controller.commandController,
+                            focusNode: _commandFocusNode,
+                            minLines: 1,
+                            maxLines: 4,
+                            decoration: InputDecoration(
+                              hintText: l10n.terminalCommandHint(
+                                controller.activeProfile.name,
+                              ),
+                              isDense: true,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        IconButton.filled(
+                          key: const Key('send-terminal-input'),
+                          tooltip: l10n.terminalSendToTerminal,
+                          style: IconButton.styleFrom(
+                            backgroundColor: TerminalMasterColors.green,
+                            foregroundColor: TerminalMasterColors.background,
+                          ),
+                          onPressed: controller.sendPending,
+                          icon: const Icon(Icons.send_rounded),
+                        ),
+                        if (constraints.maxWidth < 560) ...[
+                          const SizedBox(width: 6),
+                          _buildCompactActions(context, pane),
+                        ],
+                      ],
+                    ),
                   ),
-                  onPressed: controller.sendPending,
-                  icon: const Icon(Icons.send_rounded),
-                ),
-                if (constraints.maxWidth < 560) ...[
-                  const SizedBox(width: 6),
-                  _buildCompactActions(context, pane),
-                ],
-              ],
-            ),
-          ),
+                )
+              : const SizedBox(width: double.infinity),
         ),
       ],
-    );
-  }
-
-  Widget _buildSearchButton(AppLocalizations l10n) {
-    return IconButton(
-      key: const Key('terminal-search-toggle'),
-      tooltip: controller.isSearchOpen
-          ? l10n.terminalCloseSearch
-          : l10n.terminalSearch,
-      onPressed: controller.toggleSearch,
-      icon: Icon(controller.isSearchOpen ? Icons.search_off : Icons.search),
     );
   }
 
@@ -446,26 +522,11 @@ class TerminalPanel extends StatelessWidget {
       tooltip: l10n.terminalMoreActions,
       onSelected: (action) {
         switch (action) {
-          case 'search':
-            controller.toggleSearch();
           case 'restart':
             _confirmRestart(context, pane);
         }
       },
       itemBuilder: (context) => [
-        PopupMenuItem(
-          value: 'search',
-          child: ListTile(
-            leading: Icon(
-              controller.isSearchOpen ? Icons.search_off : Icons.search,
-            ),
-            title: Text(
-              controller.isSearchOpen
-                  ? l10n.terminalCloseSearch
-                  : l10n.terminalSearch,
-            ),
-          ),
-        ),
         PopupMenuItem(
           value: 'restart',
           child: ListTile(
@@ -569,6 +630,28 @@ class TerminalPanel extends StatelessWidget {
                   onPressed: controller.createDefaultTab,
                 ),
               ],
+            ),
+          ),
+          IconButton(
+            key: const Key('toggle-command-bar-pinned'),
+            tooltip: controller.commandBarPinned
+                ? l10n.terminalUseAutomaticCommandBar
+                : l10n.terminalPinCommandBar,
+            onPressed: _toggleCommandBarPinned,
+            icon: Icon(
+              controller.commandBarPinned
+                  ? Icons.keyboard_hide_outlined
+                  : Icons.keyboard_alt_outlined,
+            ),
+          ),
+          IconButton(
+            key: const Key('terminal-search-toggle'),
+            tooltip: controller.isSearchOpen
+                ? l10n.terminalCloseSearch
+                : l10n.terminalSearch,
+            onPressed: controller.toggleSearch,
+            icon: Icon(
+              controller.isSearchOpen ? Icons.search_off : Icons.search,
             ),
           ),
           PopupMenuButton<_SavedTabMenuAction>(

@@ -892,6 +892,13 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get terminalPinCommandBar => 'Keep command bar visible';
+
+  @override
+  String get terminalUseAutomaticCommandBar =>
+      'Automatically show/hide command bar';
+
+  @override
   String get terminalDeleteSavedTab => 'Delete saved state';
 
   @override
@@ -977,14 +984,14 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String terminalCommandBlocksCount(int count) {
-    return 'Command blocks ($count)';
+    return 'Show command history and output ($count)';
   }
 
   @override
-  String get terminalSplitLeftRight => 'Split window left/right';
+  String get terminalSplitLeftRight => 'Split active window left/right';
 
   @override
-  String get terminalSplitTopBottom => 'Split window top/bottom';
+  String get terminalSplitTopBottom => 'Split active window top/bottom';
 
   @override
   String get terminalClosePane => 'Close window';

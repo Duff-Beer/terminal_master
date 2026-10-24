@@ -21,6 +21,9 @@ Future<void> main() async {
       terminalBackendFactory: FlutterPtyBackend.start,
       shellProfiles: SettingsLoader.integratedTerminalProfiles,
       languageCode: SettingsLoader.languageCode,
+      commandBarPinned: SettingsLoader.commandBarPinned,
+      saveCommandBarPinned: (pinned) =>
+          SettingsLoader.saveCommandBarPinned(initData.configPath, pinned),
       sshProfileStore: FileSshConnectionProfileStore(
         Directory(initData.configPath),
       ),

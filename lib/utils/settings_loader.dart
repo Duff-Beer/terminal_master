@@ -19,6 +19,7 @@ class SettingsLoader {
 
   /// `null` means "follow the operating system locale".
   static late String? languageCode;
+  static late bool commandBarPinned;
 
   static Future<void> saveDefaultIntegratedTerminalProfile(
     String dirPath,
@@ -66,6 +67,19 @@ class SettingsLoader {
         final setting = 'language: ${jsonEncode(code ?? systemLanguage)}';
         if (settingIndex < 0) {
           lines.insert(0, setting);
+        } else {
+          lines[settingIndex] = setting;
+        }
+      });
+
+  static Future<void> saveCommandBarPinned(String dirPath, bool pinned) =>
+      _updateSettings(dirPath, (lines) {
+        final setting = 'terminal_command_bar_pinned: $pinned';
+        final settingIndex = lines.indexWhere(
+          (line) => RegExp(r'^terminal_command_bar_pinned\s*:').hasMatch(line),
+        );
+        if (settingIndex < 0) {
+          lines.add(setting);
         } else {
           lines[settingIndex] = setting;
         }
@@ -127,11 +141,13 @@ class SettingsLoader {
       yamlDirectoryPath = dirPath;
       integratedTerminalProfiles = defaultProfiles;
       languageCode = null;
+      commandBarPinned = false;
       return;
     }
 
     final doc = loadYaml(file.readAsStringSync());
     languageCode = _loadLanguage(doc['language']);
+    commandBarPinned = doc['terminal_command_bar_pinned'] == true;
     terminalCommand = doc['terminal']?.toString() ?? defaults['terminal']!;
     fileManagerCommand =
         doc['file_manager']?.toString() ?? defaults['file_manager']!;

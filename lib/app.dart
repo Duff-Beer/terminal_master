@@ -30,6 +30,8 @@ class MyApp extends StatefulWidget {
   /// Initial UI language. `null` follows the operating system locale.
   final String? languageCode;
   final Future<void> Function(String? code)? saveLanguage;
+  final bool commandBarPinned;
+  final Future<void> Function(bool pinned)? saveCommandBarPinned;
 
   const MyApp({
     super.key,
@@ -45,6 +47,8 @@ class MyApp extends StatefulWidget {
     this.selectYamlDirectory,
     this.languageCode,
     this.saveLanguage,
+    this.commandBarPinned = false,
+    this.saveCommandBarPinned,
   });
 
   @override
@@ -105,6 +109,8 @@ class _MyAppState extends State<MyApp> {
         savedTabStore: FileSavedTerminalTabStore(
           Directory(widget.configDirectoryPath),
         ),
+        commandBarPinned: widget.commandBarPinned,
+        saveCommandBarPinned: widget.saveCommandBarPinned,
         sshPanel: SshConnectionsPage(
           profileStore: _sshProfileStore,
           credentialStore: _sshCredentialStore,

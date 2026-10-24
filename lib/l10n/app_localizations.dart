@@ -1466,6 +1466,18 @@ abstract class AppLocalizations {
   /// **'{panes} terminal panes · {commands} saved commands'**
   String terminalSnapshotSummary(int panes, int commands);
 
+  /// No description provided for @terminalPinCommandBar.
+  ///
+  /// In en, this message translates to:
+  /// **'Keep command bar visible'**
+  String get terminalPinCommandBar;
+
+  /// No description provided for @terminalUseAutomaticCommandBar.
+  ///
+  /// In en, this message translates to:
+  /// **'Automatically show/hide command bar'**
+  String get terminalUseAutomaticCommandBar;
+
   /// No description provided for @terminalDeleteSavedTab.
   ///
   /// In en, this message translates to:
@@ -1607,19 +1619,19 @@ abstract class AppLocalizations {
   /// No description provided for @terminalCommandBlocksCount.
   ///
   /// In en, this message translates to:
-  /// **'Command blocks ({count})'**
+  /// **'Show command history and output ({count})'**
   String terminalCommandBlocksCount(int count);
 
   /// No description provided for @terminalSplitLeftRight.
   ///
   /// In en, this message translates to:
-  /// **'Split window left/right'**
+  /// **'Split active window left/right'**
   String get terminalSplitLeftRight;
 
   /// No description provided for @terminalSplitTopBottom.
   ///
   /// In en, this message translates to:
-  /// **'Split window top/bottom'**
+  /// **'Split active window top/bottom'**
   String get terminalSplitTopBottom;
 
   /// No description provided for @terminalClosePane.

@@ -120,6 +120,42 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(controller.savedTabs, hasLength(1));
+    expect(find.byKey(const Key('terminal-bottom-toolbar')), findsNothing);
+    await tester.tap(find.byKey(const Key('toggle-command-bar-pinned')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('terminal-bottom-toolbar')), findsOneWidget);
+    expect(
+      tester
+          .widget<TextField>(find.byKey(const Key('terminal-command-input')))
+          .controller!
+          .text,
+      isEmpty,
+    );
+    await tester.tap(find.byKey(const Key('toggle-command-bar-pinned')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('terminal-bottom-toolbar')), findsNothing);
+    await tester.tap(find.byKey(const Key('toggle-command-bar-pinned')));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const Key('terminal-command-input')),
+      'echo draft',
+    );
+    await tester.tap(find.byKey(const Key('toggle-command-bar-pinned')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('terminal-bottom-toolbar')), findsOneWidget);
+    expect(
+      tester
+          .widget<TextField>(find.byKey(const Key('terminal-command-input')))
+          .controller!
+          .text,
+      'echo draft',
+    );
+    expect(
+      tester.getCenter(find.byKey(const Key('terminal-search-toggle'))).dx,
+      lessThan(
+        tester.getCenter(find.byKey(const Key('open-saved-terminal-tab'))).dx,
+      ),
+    );
 
     await tester.tap(find.byKey(const Key('open-saved-terminal-tab')));
     await tester.pumpAndSettle();
@@ -514,12 +550,16 @@ void main() {
 
       tester.view.physicalSize = const Size(500, 800);
       await tester.pumpAndSettle();
-      expect(find.byKey(const Key('terminal-search-toggle')), findsNothing);
+      expect(find.byKey(const Key('terminal-search-toggle')), findsOneWidget);
       expect(find.byKey(const Key('stop-terminal-session')), findsNothing);
+      expect(find.byKey(const Key('terminal-more-actions')), findsNothing);
+      await tester.tap(find.byKey(const Key('toggle-command-bar-pinned')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('terminal-bottom-toolbar')), findsOneWidget);
       expect(find.byKey(const Key('terminal-more-actions')), findsOneWidget);
       await tester.tap(find.byKey(const Key('terminal-more-actions')));
       await tester.pumpAndSettle();
-      expect(find.text('Terminal durchsuchen'), findsOneWidget);
+      expect(find.text('Sitzung neu starten'), findsOneWidget);
     },
   );
 
@@ -1003,13 +1043,18 @@ void main() {
     );
     final verticalSplit = find.byKey(const Key('split-terminal-vertical'));
     final horizontalSplit = find.byKey(const Key('split-terminal-horizontal'));
+    final sessionDetails = find.byKey(const Key('terminal-session-details'));
     expect(
-      tester.getCenter(commandBlocks).dx,
-      lessThan(tester.getCenter(verticalSplit).dx),
+      tester.getRect(sessionDetails).right,
+      lessThan(tester.getRect(verticalSplit).left),
     );
     expect(
       tester.getCenter(verticalSplit).dx,
       lessThan(tester.getCenter(horizontalSplit).dx),
+    );
+    expect(
+      tester.getCenter(horizontalSplit).dx,
+      lessThan(tester.getCenter(commandBlocks).dx),
     );
 
     await tester.tap(verticalSplit);

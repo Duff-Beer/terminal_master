@@ -167,6 +167,27 @@ integrated_terminal:
     expect(file.readAsStringSync(), contains('language: "system"'));
   });
 
+  test('persists the command bar pinned preference in settings.yaml', () async {
+    final directory = Directory.systemTemp.createTempSync(
+      'terminal-master-settings-',
+    );
+    addTearDown(() => directory.deleteSync(recursive: true));
+    final file = File('${directory.path}/settings.yaml')
+      ..writeAsStringSync('terminal: Example Terminal\n');
+
+    SettingsLoader.initialize(directory.path);
+    expect(SettingsLoader.commandBarPinned, isFalse);
+
+    await SettingsLoader.saveCommandBarPinned(directory.path, true);
+    SettingsLoader.initialize(directory.path);
+    expect(SettingsLoader.commandBarPinned, isTrue);
+    expect(file.readAsStringSync(), contains('terminal: Example Terminal'));
+
+    await SettingsLoader.saveCommandBarPinned(directory.path, false);
+    SettingsLoader.initialize(directory.path);
+    expect(SettingsLoader.commandBarPinned, isFalse);
+  });
+
   test('falls back to the system locale for an unsupported language', () {
     final directory = Directory.systemTemp.createTempSync(
       'terminal-master-settings-',

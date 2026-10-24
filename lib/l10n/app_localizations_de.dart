@@ -899,6 +899,13 @@ class AppLocalizationsDe extends AppLocalizations {
   }
 
   @override
+  String get terminalPinCommandBar => 'Befehlsleiste dauerhaft anzeigen';
+
+  @override
+  String get terminalUseAutomaticCommandBar =>
+      'Befehlsleiste automatisch ein-/ausblenden';
+
+  @override
   String get terminalDeleteSavedTab => 'Gespeicherten Zustand löschen';
 
   @override
@@ -983,14 +990,14 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String terminalCommandBlocksCount(int count) {
-    return 'Command Blocks ($count)';
+    return 'Befehlsverlauf und Ausgaben anzeigen ($count)';
   }
 
   @override
-  String get terminalSplitLeftRight => 'Fenster links/rechts teilen';
+  String get terminalSplitLeftRight => 'Aktives Fenster links/rechts teilen';
 
   @override
-  String get terminalSplitTopBottom => 'Fenster oben/unten teilen';
+  String get terminalSplitTopBottom => 'Aktives Fenster oben/unten teilen';
 
   @override
   String get terminalClosePane => 'Fenster schließen';

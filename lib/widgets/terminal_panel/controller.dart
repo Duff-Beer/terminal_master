@@ -174,13 +174,17 @@ class TerminalPanelController extends ChangeNotifier {
   final GlobalKey<NavigatorState> navigatorKey;
   final List<ShellProfile> profiles;
   final SavedTerminalTabStore savedTabStore;
+  final Future<void> Function(bool pinned)? saveCommandBarPinned;
 
   TerminalPanelController({
     required this.backendFactory,
     required this.navigatorKey,
     required this.savedTabStore,
+    bool commandBarPinned = false,
+    this.saveCommandBarPinned,
     List<ShellProfile>? profiles,
-  }) : profiles = List.unmodifiable(
+  }) : _commandBarPinned = commandBarPinned,
+       profiles = List.unmodifiable(
          profiles == null || profiles.isEmpty
              ? ShellProfile.platformDefaults()
              : profiles,
@@ -205,6 +209,7 @@ class TerminalPanelController extends ChangeNotifier {
   TerminalTabException? _savedTabsError;
   double _fontSize = defaultFontSize;
   bool _disposed = false;
+  bool _commandBarPinned;
 
   List<TerminalTab> get tabs => List.unmodifiable(_tabs);
   List<SavedTerminalTab> get savedTabs => List.unmodifiable(_savedTabs);
@@ -228,6 +233,20 @@ class TerminalPanelController extends ChangeNotifier {
       activeTab.hasSplit(orientation);
   bool isPaneMaximized(String paneId) => activeTab.maximizedPaneId == paneId;
   double get fontSize => _fontSize;
+  bool get commandBarPinned => _commandBarPinned;
+
+  Future<void> setCommandBarPinned(bool pinned) async {
+    if (_commandBarPinned == pinned) return;
+    _commandBarPinned = pinned;
+    notifyListeners();
+    try {
+      await saveCommandBarPinned?.call(pinned);
+    } on Object {
+      _commandBarPinned = !pinned;
+      notifyListeners();
+      rethrow;
+    }
+  }
 
   Future<void> attach() async {
     if (_isAttached) return;

@@ -105,7 +105,7 @@ class _TerminalPaneState extends State<TerminalPane> {
               builder: (context, constraints) {
                 final showSessionStatus = constraints.maxWidth >= 220;
                 final showIndicators = constraints.maxWidth >= 360;
-                final showZoomControls = constraints.maxWidth >= 480;
+                final showZoomControls = constraints.maxWidth >= 600;
                 final compactActionSize = constraints.maxWidth < 160
                     ? 28.0
                     : 32.0;
@@ -118,7 +118,8 @@ class _TerminalPaneState extends State<TerminalPane> {
                         color: _statusColor(session.status),
                       ),
                       const SizedBox(width: 8),
-                      Expanded(
+                      ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 180),
                         child: Tooltip(
                           message: _statusTooltip(),
                           child: Column(
@@ -152,6 +153,27 @@ class _TerminalPaneState extends State<TerminalPane> {
                       ),
                     ] else
                       const Spacer(),
+                    _compactIconButton(
+                      key: _paneKey('split-terminal-vertical'),
+                      tooltip: l10n.terminalSplitLeftRight,
+                      icon: Icons.view_column_outlined,
+                      size: compactActionSize,
+                      onPressed: () => widget.panelController.toggleSplit(
+                        TerminalSplitOrientation.vertical,
+                        widget.pane.id,
+                      ),
+                    ),
+                    _compactIconButton(
+                      key: _paneKey('split-terminal-horizontal'),
+                      tooltip: l10n.terminalSplitTopBottom,
+                      icon: Icons.view_agenda_outlined,
+                      size: compactActionSize,
+                      onPressed: () => widget.panelController.toggleSplit(
+                        TerminalSplitOrientation.horizontal,
+                        widget.pane.id,
+                      ),
+                    ),
+                    const Spacer(),
                     if (showIndicators)
                       Tooltip(
                         message: l10n.terminalTrueColorTooltip,
@@ -198,67 +220,13 @@ class _TerminalPaneState extends State<TerminalPane> {
                         session.commandBlocks.length,
                       ),
                       icon: _showCommandHistory
-                          ? Icons.view_agenda
-                          : Icons.view_agenda_outlined,
+                          ? Icons.receipt_long
+                          : Icons.receipt_long_outlined,
                       size: compactActionSize,
                       onPressed: () {
                         setState(
                           () => _showCommandHistory = !_showCommandHistory,
                         );
-                      },
-                    ),
-                    _compactIconButton(
-                      key: _paneKey('split-terminal-vertical'),
-                      tooltip: l10n.terminalSplitLeftRight,
-                      icon: Icons.vertical_split_outlined,
-                      size: compactActionSize,
-                      onPressed: () => widget.panelController.toggleSplit(
-                        TerminalSplitOrientation.vertical,
-                        widget.pane.id,
-                      ),
-                    ),
-                    _compactIconButton(
-                      key: _paneKey('split-terminal-horizontal'),
-                      tooltip: l10n.terminalSplitTopBottom,
-                      icon: Icons.horizontal_split_outlined,
-                      size: compactActionSize,
-                      onPressed: () => widget.panelController.toggleSplit(
-                        TerminalSplitOrientation.horizontal,
-                        widget.pane.id,
-                      ),
-                    ),
-                    _compactIconButton(
-                      key: _paneKey('close-terminal-pane'),
-                      tooltip: l10n.terminalClosePane,
-                      icon: Icons.close,
-                      size: compactActionSize,
-                      color: TerminalMasterColors.red,
-                      onPressed: () async {
-                        if (session.isRunning) {
-                          final shouldClose = await showDialog<bool>(
-                            context: context,
-                            builder: (dialogContext) => AlertDialog(
-                              title: Text(l10n.terminalCloseRunningPaneTitle),
-                              content: Text(
-                                l10n.terminalCloseRunningPaneMessage,
-                              ),
-                              actions: [
-                                TextButton(
-                                  onPressed: () =>
-                                      Navigator.pop(dialogContext, false),
-                                  child: Text(l10n.terminalCancel),
-                                ),
-                                TextButton(
-                                  onPressed: () =>
-                                      Navigator.pop(dialogContext, true),
-                                  child: Text(l10n.terminalClosePane),
-                                ),
-                              ],
-                            ),
-                          );
-                          if (shouldClose != true) return;
-                        }
-                        await widget.panelController.closePane(widget.pane.id);
                       },
                     ),
                     if (widget.panelController.isSplit)
@@ -311,6 +279,40 @@ class _TerminalPaneState extends State<TerminalPane> {
                         onPressed: widget.panelController.zoomIn,
                       ),
                     ],
+                    _compactIconButton(
+                      key: _paneKey('close-terminal-pane'),
+                      tooltip: l10n.terminalClosePane,
+                      icon: Icons.close,
+                      size: compactActionSize,
+                      color: TerminalMasterColors.red,
+                      onPressed: () async {
+                        if (session.isRunning) {
+                          final shouldClose = await showDialog<bool>(
+                            context: context,
+                            builder: (dialogContext) => AlertDialog(
+                              title: Text(l10n.terminalCloseRunningPaneTitle),
+                              content: Text(
+                                l10n.terminalCloseRunningPaneMessage,
+                              ),
+                              actions: [
+                                TextButton(
+                                  onPressed: () =>
+                                      Navigator.pop(dialogContext, false),
+                                  child: Text(l10n.terminalCancel),
+                                ),
+                                TextButton(
+                                  onPressed: () =>
+                                      Navigator.pop(dialogContext, true),
+                                  child: Text(l10n.terminalClosePane),
+                                ),
+                              ],
+                            ),
+                          );
+                          if (shouldClose != true) return;
+                        }
+                        await widget.panelController.closePane(widget.pane.id);
+                      },
+                    ),
                   ],
                 );
               },

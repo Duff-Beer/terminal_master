@@ -428,6 +428,8 @@
     "placeholders": { "name": { "type": "String" } }
   },
   "terminalSnapshotSummary": "{panes} terminal panes · {commands} saved commands",
+  "terminalPinCommandBar": "Keep command bar visible",
+  "terminalUseAutomaticCommandBar": "Automatically show/hide command bar",
   "terminalDeleteSavedTab": "Delete saved state",
   "terminalDeleteSavedTabTitle": "Delete saved state?",
   "terminalDeleteSavedTabMessage": "Are you sure you want to delete “{name}”? Already open terminal sessions will not be affected.",
@@ -471,12 +473,12 @@
   "terminalTrueColorTooltip": "xterm-256color with 24-bit true color",
   "terminalAlternateScreenActive": "Alternate screen active",
   "terminalMouseControlActive": "Terminal mouse control active",
-  "terminalCommandBlocksCount": "Command blocks ({count})",
+  "terminalCommandBlocksCount": "Show command history and output ({count})",
   "@terminalCommandBlocksCount": {
     "placeholders": { "count": { "type": "int" } }
   },
-  "terminalSplitLeftRight": "Split window left/right",
-  "terminalSplitTopBottom": "Split window top/bottom",
+  "terminalSplitLeftRight": "Split active window left/right",
+  "terminalSplitTopBottom": "Split active window top/bottom",
   "terminalClosePane": "Close window",
   "terminalCloseRunningPaneTitle": "Close running terminal?",
   "terminalCloseRunningPaneMessage": "The running session will be terminated.",
