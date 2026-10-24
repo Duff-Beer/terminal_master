@@ -29,9 +29,13 @@ class MainPage extends StatefulWidget {
 }
 
 class _MainPageState extends State<MainPage> {
-  late List<ConfigItem> _all;
-  late List<ConfigItem> _filtered;
+  List<ConfigItem> _all = const [];
+  List<ConfigItem> _filtered = const [];
   final TextEditingController _controller = TextEditingController();
+  bool _loading = true;
+  String? _loadedDirectory;
+  String? _loadedLanguage;
+  int _loadGeneration = 0;
 
   String get _directoryPath =>
       widget.yamlDirectoryPath?.value ?? widget.configDirectoryPath;
@@ -59,18 +63,49 @@ class _MainPageState extends State<MainPage> {
     // Not initState: the templates' titles and descriptions come from the YAML
     // files and are resolved per language, so the list has to be read with the
     // active locale available — and re-read whenever that locale changes.
-    _readConfigs();
+    _loadConfigs();
   }
 
-  void _readConfigs() {
-    _all = ConfigLoader.loadConfigs(
-      _directoryPath,
-      languageCode: Localizations.localeOf(context).languageCode,
-    );
-    _filtered = List.from(_all);
-  }
+  void _reloadConfigs() => _loadConfigs(force: true);
 
-  void _reloadConfigs() => setState(_readConfigs);
+  Future<void> _loadConfigs({bool force = false}) async {
+    final directory = _directoryPath;
+    final language = Localizations.localeOf(context).languageCode;
+    if (!force &&
+        directory == _loadedDirectory &&
+        language == _loadedLanguage) {
+      return;
+    }
+    final generation = ++_loadGeneration;
+    setState(() => _loading = true);
+    late final List<ConfigItem> configs;
+    try {
+      configs = await ConfigLoader.loadConfigsAsync(
+        directory,
+        languageCode: language,
+      );
+    } on Object catch (error) {
+      if (!mounted || generation != _loadGeneration) return;
+      setState(() => _loading = false);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.toString())));
+      return;
+    }
+    if (!mounted || generation != _loadGeneration) return;
+    final query = _controller.text.trim().toLowerCase();
+    setState(() {
+      _all = configs;
+      _filtered = query.isEmpty
+          ? List.of(configs)
+          : configs
+                .where((item) => item.command.toLowerCase().contains(query))
+                .toList();
+      _loadedDirectory = directory;
+      _loadedLanguage = language;
+      _loading = false;
+    });
+  }
 
   void _onSearch() {
     final q = _controller.text.trim().toLowerCase();
@@ -174,7 +209,14 @@ class _MainPageState extends State<MainPage> {
             ),
           ),
           Expanded(
-            child: _filtered.isEmpty
+            child: _loading
+                ? const Center(
+                    child: Icon(
+                      Icons.hourglass_empty,
+                      key: Key('config-loading'),
+                    ),
+                  )
+                : _filtered.isEmpty
                 ? Center(child: Text(l10n.mainNoConfigFiles))
                 : ListView(children: _buildMenuItems()),
           ),

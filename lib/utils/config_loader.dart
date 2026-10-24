@@ -126,61 +126,98 @@ class ConfigLoader {
   static List<ConfigItem> loadConfigs(String dirPath, {String? languageCode}) {
     final directory = Directory(dirPath);
     if (!directory.existsSync()) return [];
+    final files = directory.listSync().whereType<File>().where(_isYamlFile);
+    return _loadConfigItems(files, languageCode);
+  }
 
-    final files = directory.listSync().whereType<File>().where((file) {
-      final path = file.path.toLowerCase();
-      return path.endsWith('.yaml') || path.endsWith('.yml');
-    });
-
+  /// Loads directory entries and YAML text without blocking the UI isolate.
+  static Future<List<ConfigItem>> loadConfigsAsync(
+    String dirPath, {
+    String? languageCode,
+  }) async {
+    final directory = Directory(dirPath);
+    if (!await directory.exists()) return [];
+    final entities = await directory.list().toList();
+    final files = entities.whereType<File>().where(_isYamlFile).toList();
     final items = <ConfigItem>[];
     for (final file in files) {
       final name = file.uri.pathSegments.last;
       try {
-        final isBatch = name.startsWith('-');
-        final doc = _readDocument(file.path);
-
-        if (isBatch) {
-          final batch = _parseBatchDocument(doc, file.path, languageCode);
-          items.add(
-            ConfigItem(
-              command: _batchDisplayName(name),
-              filePath: file.path,
-              isBatch: true,
-              batchCommandCount: batch.commands.length,
-            ),
-          );
-          continue;
-        }
-
-        final command = doc['command'];
-        if (command is! String || command.trim().isEmpty) continue;
-        final displayName = _localizedString(
-          doc,
-          'display_name',
-          file.path,
-          'display_name',
-          languageCode,
-        );
-        items.add(
-          ConfigItem(
-            command: displayName ?? command,
-            description: _localizedString(
-              doc,
-              'description',
-              file.path,
-              'description',
-              languageCode,
-            ),
-            filePath: file.path,
-          ),
-        );
+        final doc = await _readDocumentAsync(file.path);
+        final item = _configItem(file.path, name, doc, languageCode);
+        if (item != null) items.add(item);
       } on Object catch (error) {
         items.add(ConfigItem(command: name, filePath: file.path, error: error));
       }
     }
-
     items.sort((a, b) => a.command.compareTo(b.command));
     return items;
+  }
+
+  static bool _isYamlFile(FileSystemEntity entity) {
+    final path = entity.path.toLowerCase();
+    return path.endsWith('.yaml') || path.endsWith('.yml');
+  }
+
+  static List<ConfigItem> _loadConfigItems(
+    Iterable<File> files,
+    String? languageCode,
+  ) {
+    final items = <ConfigItem>[];
+    for (final file in files) {
+      final name = file.uri.pathSegments.last;
+      try {
+        final item = _configItem(
+          file.path,
+          name,
+          _readDocument(file.path),
+          languageCode,
+        );
+        if (item != null) items.add(item);
+      } on Object catch (error) {
+        items.add(ConfigItem(command: name, filePath: file.path, error: error));
+      }
+    }
+    items.sort((a, b) => a.command.compareTo(b.command));
+    return items;
+  }
+
+  static ConfigItem? _configItem(
+    String filePath,
+    String name,
+    Map doc,
+    String? languageCode,
+  ) {
+    if (name.startsWith('-')) {
+      final batch = _parseBatchDocument(doc, filePath, languageCode);
+      return ConfigItem(
+        command: _batchDisplayName(name),
+        filePath: filePath,
+        isBatch: true,
+        batchCommandCount: batch.commands.length,
+      );
+    }
+    final command = doc['command'];
+    if (command is! String || command.trim().isEmpty) return null;
+    return ConfigItem(
+      command:
+          _localizedString(
+            doc,
+            'display_name',
+            filePath,
+            'display_name',
+            languageCode,
+          ) ??
+          command,
+      description: _localizedString(
+        doc,
+        'description',
+        filePath,
+        'description',
+        languageCode,
+      ),
+      filePath: filePath,
+    );
   }
 
   static String _batchDisplayName(String fileName) {
@@ -589,7 +626,45 @@ class ConfigLoader {
       );
     }
     try {
-      final document = loadYaml(file.readAsStringSync());
+      return _parseDocument(filePath, file.readAsStringSync());
+    } on ConfigFormatException {
+      rethrow;
+    } on FileSystemException catch (error) {
+      throw ConfigFormatException(
+        filePath,
+        r'$',
+        ConfigErrorReason.fileUnreadable,
+        error.message,
+      );
+    }
+  }
+
+  static Future<Map> _readDocumentAsync(String filePath) async {
+    final file = File(filePath);
+    try {
+      if (!await file.exists()) {
+        throw ConfigFormatException(
+          filePath,
+          r'$',
+          ConfigErrorReason.fileNotFound,
+        );
+      }
+      return _parseDocument(filePath, await file.readAsString());
+    } on ConfigFormatException {
+      rethrow;
+    } on FileSystemException catch (error) {
+      throw ConfigFormatException(
+        filePath,
+        r'$',
+        ConfigErrorReason.fileUnreadable,
+        error.message,
+      );
+    }
+  }
+
+  static Map _parseDocument(String filePath, String contents) {
+    try {
+      final document = loadYaml(contents);
       if (document is! Map) {
         throw ConfigFormatException(
           filePath,
@@ -600,13 +675,6 @@ class ConfigLoader {
       return document;
     } on ConfigFormatException {
       rethrow;
-    } on FileSystemException catch (error) {
-      throw ConfigFormatException(
-        filePath,
-        r'$',
-        ConfigErrorReason.fileUnreadable,
-        error.message,
-      );
     } on Object catch (error) {
       throw ConfigFormatException(
         filePath,

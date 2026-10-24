@@ -27,6 +27,41 @@ void main() {
       }
     });
 
+    test('async directory loading matches the synchronous loader', () async {
+      final syncItems = ConfigLoader.loadConfigs('data', languageCode: 'de');
+      final asyncItems = await ConfigLoader.loadConfigsAsync(
+        'data',
+        languageCode: 'de',
+      );
+
+      expect(
+        asyncItems.map(
+          (item) => (
+            item.command,
+            item.description,
+            item.filePath,
+            item.isBatch,
+            item.batchCommandCount,
+            item.error?.toString(),
+          ),
+        ),
+        syncItems.map(
+          (item) => (
+            item.command,
+            item.description,
+            item.filePath,
+            item.isBatch,
+            item.batchCommandCount,
+            item.error?.toString(),
+          ),
+        ),
+      );
+      expect(
+        await ConfigLoader.loadConfigsAsync('missing-test-directory'),
+        isEmpty,
+      );
+    });
+
     test('uses display names to distinguish Nmap configurations', () {
       final items = ConfigLoader.loadConfigs('data');
       final advanced = ConfigLoader.loadConfig('data/nmap.yaml');

@@ -84,6 +84,18 @@ parameters: []
 
     await tester.tap(find.byKey(const Key('configuration-panel-toggle')));
     await tester.pumpAndSettle();
+    for (
+      var attempt = 0;
+      attempt < 20 &&
+          find.byKey(const Key('config-loading')).evaluate().isNotEmpty;
+      attempt++
+    ) {
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 50)),
+      );
+      await tester.pump();
+    }
+    await tester.pumpAndSettle();
 
     expect(
       find.byKey(const Key('configuration-panel')).hitTestable(),
@@ -136,6 +148,18 @@ parameters: []
     expect(find.text(yamlDirectory.path), findsOneWidget);
 
     await tester.tap(find.byKey(const Key('configuration-panel-toggle')));
+    await tester.pumpAndSettle();
+    for (
+      var attempt = 0;
+      attempt < 20 &&
+          find.byKey(const Key('config-loading')).evaluate().isNotEmpty;
+      attempt++
+    ) {
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 50)),
+      );
+      await tester.pump();
+    }
     await tester.pumpAndSettle();
     expect(
       tester.widget<TextField>(configSearch).controller!.text,

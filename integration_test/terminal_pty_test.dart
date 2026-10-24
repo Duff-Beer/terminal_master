@@ -67,6 +67,44 @@ void main() {
     expect(exitCode, 0);
   });
 
+  testWidgets('native PTY resize updates the shell window size', (
+    tester,
+  ) async {
+    if (Platform.isWindows) return;
+
+    final session = TerminalSession(
+      backendFactory: FlutterPtyBackend.start,
+      profile: ShellProfile(
+        id: 'integration-resize-shell',
+        name: 'Integration Resize Shell',
+        executable: Platform.environment['SHELL'] ?? '/bin/sh',
+        workingDirectory: Platform.environment['HOME'],
+        dialect: ShellDialect.posix,
+      ),
+    );
+    final completed = Completer<void>();
+    void onSessionChanged() {
+      if (session.commandBlocks.lastOrNull?.finishedAt != null &&
+          !completed.isCompleted) {
+        completed.complete();
+      }
+    }
+
+    session.addListener(onSessionChanged);
+    addTearDown(() {
+      session.removeListener(onSessionChanged);
+      session.dispose();
+    });
+
+    await session.start();
+    session.terminal.resize(101, 41);
+    session.sendTrackedCommand('stty size');
+    await _waitForTrackedCommand(completed, session);
+
+    expect(session.commandBlocks.single.output, contains('41 101'));
+    await session.stop();
+  });
+
   testWidgets('tracks a command through a native shell PTY', (tester) async {
     if (Platform.isWindows) return;
 

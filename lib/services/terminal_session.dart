@@ -291,6 +291,10 @@ class TerminalSession extends ChangeNotifier {
     backend.write(const Utf8Encoder().convert(data));
   }
 
+  // Tracked-command output can arrive split at any byte boundary. Keep the
+  // possible echo and end-marker suffixes between callbacks; only finalize a
+  // block after its complete marker and exit code have been observed. Ordinary
+  // terminal input/output bypasses this protocol and remains untracked.
   void _writeOutput(String data) {
     final block = _activeCommandBlock;
     if (block == null) {
