@@ -15,6 +15,130 @@ import 'package:xterm/xterm.dart';
 import 'support/fake_terminal_backend.dart';
 
 void main() {
+  test('splits, closes, and restores an arbitrary nested layout', () async {
+    final controller = TerminalPanelController(
+      backendFactory: RecordingTerminalBackendFactory().create,
+      navigatorKey: GlobalKey<NavigatorState>(),
+      profiles: const [
+        ShellProfile(
+          id: 'primary',
+          name: 'Primary Shell',
+          executable: '/bin/primary',
+          dialect: ShellDialect.posix,
+        ),
+      ],
+      savedTabStore: MemorySavedTerminalTabStore(),
+    );
+    addTearDown(controller.dispose);
+
+    for (var index = 0; index < 4; index++) {
+      await controller.toggleSplit(
+        index.isEven
+            ? TerminalSplitOrientation.vertical
+            : TerminalSplitOrientation.horizontal,
+      );
+    }
+    expect(controller.activeTab.panes, hasLength(5));
+    expect(
+      controller.activeTab.layout.paneIds.toSet(),
+      controller.activeTab.panes.map((pane) => pane.id).toSet(),
+    );
+
+    final snapshot = await controller.saveActiveTab('Nested Layout');
+    expect(snapshot.layout, isNotNull);
+    expect(snapshot.panes, hasLength(5));
+    final restored = await controller.openSavedTab(snapshot.id);
+    expect(restored.panes, hasLength(5));
+    expect(
+      restored.layout.paneIds.toSet(),
+      restored.panes.map((pane) => pane.id).toSet(),
+    );
+    final rootSplit = restored.layout as TerminalLayoutSplit;
+    controller.resizeSplit(
+      rootSplit.first.paneIds.first,
+      rootSplit.second.paneIds.first,
+      0.1,
+    );
+    expect((restored.layout as TerminalLayoutSplit).ratio, closeTo(0.6, 0.001));
+    final resizedSnapshot = await controller.saveActiveTab('Nested Layout');
+    expect(
+      (resizedSnapshot.layout['ratio'] as num).toDouble(),
+      closeTo(0.6, 0.001),
+    );
+
+    final removedPaneId = restored.activePane.id;
+    expect(await controller.closePane(removedPaneId), isTrue);
+    expect(restored.panes, hasLength(4));
+    expect(restored.layout.paneIds, hasLength(4));
+    while (restored.panes.length > 1) {
+      await controller.closePane(restored.panes.last.id);
+    }
+    final lastPaneId = restored.panes.single.id;
+    expect(await controller.closePane(lastPaneId), isTrue);
+    expect(restored.panes, hasLength(1));
+    expect(restored.panes.single.id, isNot(lastPaneId));
+    expect(restored.layout.paneIds.single, restored.panes.single.id);
+  });
+
+  testWidgets('deletes a saved state only after confirmation', (tester) async {
+    final createdAt = DateTime.utc(2026, 1, 1);
+    final savedState = SavedTerminalTab(
+      id: 'saved-to-delete',
+      name: 'Temporary Layout',
+      createdAt: createdAt,
+      updatedAt: createdAt,
+      panes: const [SavedTerminalPane(profileId: 'primary')],
+      layout: const {'pane': 0},
+      focusedPaneIndex: 0,
+    );
+    final store = MemorySavedTerminalTabStore([savedState]);
+    final factory = RecordingTerminalBackendFactory();
+    final navigatorKey = GlobalKey<NavigatorState>();
+    const profiles = [
+      ShellProfile(
+        id: 'primary',
+        name: 'Primary Shell',
+        executable: '/bin/primary',
+        dialect: ShellDialect.posix,
+      ),
+    ];
+
+    await tester.pumpWidget(
+      localizedApp(
+        navigatorKey: navigatorKey,
+        home: TerminalWorkspace(
+          backendFactory: factory.create,
+          navigatorKey: navigatorKey,
+          profiles: profiles,
+          savedTabStore: store,
+          child: const _FirstPage(),
+        ),
+      ),
+    );
+    final controller = TerminalPanelScope.of(
+      tester.element(find.byType(_FirstPage)),
+    );
+    await tester.pumpAndSettle();
+    expect(controller.savedTabs, hasLength(1));
+
+    await tester.tap(find.byKey(const Key('open-saved-terminal-tab')));
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.byKey(const Key('delete-saved-terminal-tab-saved-to-delete')),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Gespeicherten Zustand löschen?'), findsOneWidget);
+    expect(controller.savedTabs, hasLength(1));
+
+    await tester.tap(
+      find.byKey(const Key('confirm-delete-saved-terminal-tab')),
+    );
+    await tester.pumpAndSettle();
+    expect(controller.savedTabs, isEmpty);
+    expect(await store.load(), isEmpty);
+    expect(controller.tabs, hasLength(1));
+  });
+
   test('serializes tab saves without losing snapshots', () async {
     final store = MemorySavedTerminalTabStore();
     const profile = ShellProfile(
@@ -659,22 +783,28 @@ void main() {
         name: 'Saved Grid',
         createdAt: executedAt,
         updatedAt: executedAt,
-        verticalSplit: true,
-        horizontalSplit: true,
-        focusedRow: 1,
-        focusedColumn: 1,
+        focusedPaneIndex: 3,
+        layout: {
+          'orientation': 'horizontal',
+          'ratio': 0.5,
+          'first': {
+            'orientation': 'vertical',
+            'ratio': 0.5,
+            'first': {'pane': 0},
+            'second': {'pane': 1},
+          },
+          'second': {
+            'orientation': 'vertical',
+            'ratio': 0.5,
+            'first': {'pane': 2},
+            'second': {'pane': 3},
+          },
+        },
         panes: [
+          SavedTerminalPane(profileId: 'primary', commands: [topLeftCommand]),
+          const SavedTerminalPane(profileId: 'primary'),
+          const SavedTerminalPane(profileId: 'primary'),
           SavedTerminalPane(
-            row: 0,
-            column: 0,
-            profileId: 'primary',
-            commands: [topLeftCommand],
-          ),
-          const SavedTerminalPane(row: 0, column: 1, profileId: 'primary'),
-          const SavedTerminalPane(row: 1, column: 0, profileId: 'primary'),
-          SavedTerminalPane(
-            row: 1,
-            column: 1,
             profileId: 'primary',
             workingDirectory: '/restored',
             draft: 'echo draft',
@@ -789,7 +919,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('confirm-command-execution')), findsOneWidget);
     await tester.tap(find.byKey(const Key('confirm-command-execution')));
-    await tester.pump();
+    await tester.pumpAndSettle();
 
     expect(factory.backends, hasLength(9));
     expect(
@@ -901,31 +1031,26 @@ void main() {
     await tester.pumpAndSettle();
     expect(controller.hasSplit(TerminalSplitOrientation.vertical), isTrue);
     expect(controller.hasSplit(TerminalSplitOrientation.horizontal), isTrue);
-    expect(controller.activeTab.panes, hasLength(4));
-    expect(factory.backends, hasLength(5));
+    expect(controller.activeTab.panes, hasLength(3));
+    expect(factory.backends, hasLength(4));
     visiblePanes = find.byType(TerminalPane).hitTestable();
-    expect(visiblePanes, findsNWidgets(4));
+    expect(visiblePanes, findsNWidgets(3));
     final panePositions = List.generate(
-      4,
+      3,
       (index) => tester.getTopLeft(visiblePanes.at(index)),
     );
-    expect(panePositions[0].dy, closeTo(panePositions[1].dy, 0.1));
     expect(panePositions[0].dx, lessThan(panePositions[1].dx));
-    expect(panePositions[0].dx, closeTo(panePositions[2].dx, 0.1));
-    expect(panePositions[0].dy, lessThan(panePositions[2].dy));
-    expect(panePositions[2].dy, closeTo(panePositions[3].dy, 0.1));
-    expect(panePositions[2].dx, lessThan(panePositions[3].dx));
+    expect(panePositions[1].dx, closeTo(panePositions[2].dx, 0.1));
+    expect(panePositions[1].dy, lessThan(panePositions[2].dy));
 
-    final primarySplitPaneId = controller.activeTab
-        .paneAt(row: 1, column: 1)!
-        .id;
+    final primarySplitPaneId = controller.activePane.id;
     controller.focusPane(primarySplitPaneId);
     await tester.pump();
     expect(controller.commandController.text, isEmpty);
     await controller.insertCommand('echo primary split');
     await controller.sendPending();
     expect(
-      factory.backends[4].writes.map(utf8.decode).single,
+      factory.backends.last.writes.map(utf8.decode).single,
       contains('echo primary split'),
     );
 
@@ -946,12 +1071,11 @@ void main() {
     final maximizedPaneSize = tester.getSize(panePosition);
     expect(maximizedPaneSize.width, greaterThan(splitPaneSize.width));
     expect(maximizedPaneSize.height, greaterThan(splitPaneSize.height));
-    expect(factory.backends, hasLength(5));
+    expect(factory.backends, hasLength(4));
 
-    factory.backends[0].emit(utf8.encode('PRIMARY_TOP_LEFT\r\n'));
-    factory.backends[2].emit(utf8.encode('PRIMARY_TOP_RIGHT\r\n'));
-    factory.backends[3].emit(utf8.encode('PRIMARY_BOTTOM_LEFT\r\n'));
-    factory.backends[4].emit(utf8.encode('PRIMARY_BOTTOM_RIGHT\r\n'));
+    factory.backends[0].emit(utf8.encode('PRIMARY_LEFT\r\n'));
+    factory.backends[2].emit(utf8.encode('PRIMARY_RIGHT_TOP\r\n'));
+    factory.backends[3].emit(utf8.encode('PRIMARY_RIGHT_BOTTOM\r\n'));
     await tester.pump();
     var visibleOutput = find
         .byType(TerminalView)
@@ -963,12 +1087,12 @@ void main() {
         )
         .toList();
     expect(visibleOutput, hasLength(1));
-    expect(visibleOutput.single, contains('PRIMARY_BOTTOM_RIGHT'));
+    expect(visibleOutput.single, contains('PRIMARY_RIGHT_BOTTOM'));
 
     await tester.tap(find.byKey(const Key('maximize-terminal-pane')));
     await tester.pumpAndSettle();
     expect(controller.maximizedPaneId, isNull);
-    expect(find.byType(TerminalPane).hitTestable(), findsNWidgets(4));
+    expect(find.byType(TerminalPane).hitTestable(), findsNWidgets(3));
     visibleOutput = find
         .byType(TerminalView)
         .hitTestable()
@@ -978,44 +1102,37 @@ void main() {
               (element.widget as TerminalView).terminal.buffer.getText(),
         )
         .toList();
-    expect(visibleOutput, hasLength(4));
+    expect(visibleOutput, hasLength(3));
     expect(
-      visibleOutput.any((output) => output.contains('PRIMARY_TOP_LEFT')),
+      visibleOutput.any((output) => output.contains('PRIMARY_LEFT')),
       isTrue,
     );
     expect(
-      visibleOutput.any((output) => output.contains('PRIMARY_TOP_RIGHT')),
+      visibleOutput.any((output) => output.contains('PRIMARY_RIGHT_TOP')),
       isTrue,
     );
     expect(
-      visibleOutput.any((output) => output.contains('PRIMARY_BOTTOM_LEFT')),
-      isTrue,
-    );
-    expect(
-      visibleOutput.any((output) => output.contains('PRIMARY_BOTTOM_RIGHT')),
+      visibleOutput.any((output) => output.contains('PRIMARY_RIGHT_BOTTOM')),
       isTrue,
     );
 
-    await tester.tap(find.byKey(const Key('split-terminal-vertical')));
+    final closePaneOperation = controller.closePane(primarySplitPaneId);
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(await closePaneOperation, isTrue);
     await tester.pumpAndSettle();
-    expect(controller.hasSplit(TerminalSplitOrientation.vertical), isFalse);
-    expect(controller.hasSplit(TerminalSplitOrientation.horizontal), isTrue);
+    expect(controller.activeTab.panes, hasLength(2));
     expect(find.byType(TerminalPane).hitTestable(), findsNWidgets(2));
-    expect(factory.backends, hasLength(5));
-    await tester.tap(find.byKey(const Key('split-terminal-vertical')));
-    await tester.pumpAndSettle();
-    expect(find.byType(TerminalPane).hitTestable(), findsNWidgets(4));
-    expect(factory.backends, hasLength(5));
+    expect(factory.backends, hasLength(4));
 
     await controller.selectTab(secondaryTabId);
     await controller.toggleSplit(TerminalSplitOrientation.horizontal);
     await tester.pump();
     expect(controller.isSplit, isTrue);
     expect(controller.activeTab.panes, hasLength(2));
-    expect(factory.backends, hasLength(6));
+    expect(factory.backends, hasLength(5));
 
     factory.backends[1].emit(utf8.encode('SECONDARY_MAIN\r\n'));
-    factory.backends[5].emit(utf8.encode('SECONDARY_SPLIT\r\n'));
+    factory.backends.last.emit(utf8.encode('SECONDARY_SPLIT\r\n'));
     await tester.pump();
     visibleOutput = find
         .byType(TerminalView)
@@ -1062,13 +1179,13 @@ void main() {
     await tester.pump();
     expect(controller.tabs, hasLength(1));
     expect(factory.backends[1].wasKilled, isFalse);
-    expect(factory.backends[5].wasKilled, isFalse);
+    expect(factory.backends.last.wasKilled, isFalse);
     expect(
       factory.backends[1].writes.map(utf8.decode),
       containsAllInOrder(['\x03', 'exit\n']),
     );
     expect(
-      factory.backends[5].writes.map(utf8.decode),
+      factory.backends.last.writes.map(utf8.decode),
       containsAllInOrder(['\x03', 'exit\n']),
     );
   });

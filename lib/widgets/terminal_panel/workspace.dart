@@ -1,5 +1,13 @@
 part of '../terminal_panel.dart';
 
+class _SavedTabMenuAction {
+  final String snapshotId;
+  final bool delete;
+
+  const _SavedTabMenuAction.open(this.snapshotId) : delete = false;
+  const _SavedTabMenuAction.delete(this.snapshotId) : delete = true;
+}
+
 class TerminalPanelScope extends InheritedNotifier<TerminalPanelController> {
   const TerminalPanelScope({
     super.key,
@@ -563,7 +571,7 @@ class TerminalPanel extends StatelessWidget {
               ],
             ),
           ),
-          PopupMenuButton<String>(
+          PopupMenuButton<_SavedTabMenuAction>(
             key: const Key('open-saved-terminal-tab'),
             tooltip: l10n.terminalOpenSavedTab,
             enabled: !controller.isLoadingSavedTabs,
@@ -574,11 +582,17 @@ class TerminalPanel extends StatelessWidget {
                   ? null
                   : Theme.of(context).colorScheme.error,
             ),
-            onSelected: (id) => _openSavedTab(context, id),
+            onSelected: (action) {
+              if (action.delete) {
+                unawaited(_confirmDeleteSavedTab(context, action.snapshotId));
+              } else {
+                _openSavedTab(context, action.snapshotId);
+              }
+            },
             itemBuilder: (context) {
               if (controller.savedTabsError case final error?) {
                 return [
-                  PopupMenuItem<String>(
+                  PopupMenuItem<_SavedTabMenuAction>(
                     enabled: false,
                     child: Text(localizeError(l10n, error)),
                   ),
@@ -586,20 +600,36 @@ class TerminalPanel extends StatelessWidget {
               }
               if (controller.savedTabs.isEmpty) {
                 return [
-                  PopupMenuItem<String>(
+                  PopupMenuItem<_SavedTabMenuAction>(
                     enabled: false,
                     child: Text(l10n.terminalNoSavedTabs),
                   ),
                 ];
               }
-              return controller.savedTabs
-                  .map(
-                    (snapshot) => PopupMenuItem<String>(
-                      value: snapshot.id,
-                      child: Text(snapshot.name),
+              return [
+                for (final snapshot in controller.savedTabs) ...[
+                  PopupMenuItem<_SavedTabMenuAction>(
+                    value: _SavedTabMenuAction.open(snapshot.id),
+                    child: Text(snapshot.name),
+                  ),
+                  PopupMenuItem<_SavedTabMenuAction>(
+                    key: Key('delete-saved-terminal-tab-${snapshot.id}'),
+                    value: _SavedTabMenuAction.delete(snapshot.id),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.delete_outline, size: 18),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            l10n.terminalDeleteSavedTab,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
                     ),
-                  )
-                  .toList();
+                  ),
+                ],
+              ];
             },
           ),
         ],
@@ -608,85 +638,93 @@ class TerminalPanel extends StatelessWidget {
   }
 
   Widget _buildPanes() {
+    return Stack(
+      children: [
+        for (final tab in controller.tabs)
+          Positioned.fill(
+            child: Offstage(
+              offstage: tab.id != controller.activeTab.id,
+              child: _buildLayoutNode(
+                tab,
+                tab.maximizedPaneId == null
+                    ? tab.layout
+                    : TerminalLayoutPane(tab.maximizedPaneId!),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildLayoutNode(TerminalTab tab, TerminalLayoutNode node) {
+    if (node case TerminalLayoutPane(:final paneId)) {
+      final pane = tab.panes.firstWhere((candidate) => candidate.id == paneId);
+      final isMaximized =
+          tab.maximizedPaneId == null || tab.maximizedPaneId == pane.id;
+      return Offstage(
+        offstage: !isMaximized,
+        child: IgnorePointer(
+          ignoring: !isMaximized,
+          child: Listener(
+            behavior: HitTestBehavior.translucent,
+            onPointerDown: (_) => controller.focusPane(pane.id),
+            child: DecoratedBox(
+              key: Key('terminal-pane-position-${pane.id}'),
+              decoration: BoxDecoration(
+                border: Border.all(
+                  color: controller.activePane.id == pane.id
+                      ? TerminalMasterColors.green
+                      : Colors.transparent,
+                ),
+              ),
+              child: TerminalPane(
+                key: ValueKey(pane.session),
+                pane: pane,
+                panelController: controller,
+                navigatorKey: controller.navigatorKey,
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+    final split = node as TerminalLayoutSplit;
+    final isVertical = split.orientation == TerminalSplitOrientation.vertical;
     return LayoutBuilder(
       builder: (context, constraints) {
-        final activeTabId = controller.activeTab.id;
-        final isVerticallySplit = controller.hasSplit(
-          TerminalSplitOrientation.vertical,
-        );
-        final isHorizontallySplit = controller.hasSplit(
-          TerminalSplitOrientation.horizontal,
-        );
-        final isPaneMaximized = controller.maximizedPaneId != null;
-        final verticalOffset = constraints.maxWidth / 2;
-        final horizontalOffset = constraints.maxHeight / 2;
-        return Stack(
+        final extent = isVertical
+            ? constraints.maxWidth
+            : constraints.maxHeight;
+        final firstPaneId = split.first.paneIds.first;
+        final secondPaneId = split.second.paneIds.first;
+        return Flex(
+          direction: isVertical ? Axis.horizontal : Axis.vertical,
           children: [
-            for (final tab in controller.tabs)
-              for (final pane in tab.panes)
-                Positioned(
-                  key: Key('terminal-pane-position-${pane.id}'),
-                  top: !isPaneMaximized && pane.row == 1 && isHorizontallySplit
-                      ? horizontalOffset + 3
-                      : 0,
-                  bottom:
-                      !isPaneMaximized && pane.row == 0 && isHorizontallySplit
-                      ? horizontalOffset + 3
-                      : 0,
-                  left:
-                      !isPaneMaximized && pane.column == 1 && isVerticallySplit
-                      ? verticalOffset + 3
-                      : 0,
-                  right:
-                      !isPaneMaximized && pane.column == 0 && isVerticallySplit
-                      ? verticalOffset + 3
-                      : 0,
-                  child: Offstage(
-                    offstage:
-                        tab.id != activeTabId ||
-                        !tab.displayedPanes.contains(pane),
-                    child: IgnorePointer(
-                      ignoring:
-                          tab.id != activeTabId ||
-                          !tab.displayedPanes.contains(pane),
-                      child: Listener(
-                        behavior: HitTestBehavior.translucent,
-                        onPointerDown: (_) => controller.focusPane(pane.id),
-                        child: DecoratedBox(
-                          decoration: BoxDecoration(
-                            border: Border.all(
-                              color: controller.activePane.id == pane.id
-                                  ? TerminalMasterColors.green
-                                  : Colors.transparent,
-                            ),
-                          ),
-                          child: TerminalPane(
-                            key: ValueKey(pane.session),
-                            pane: pane,
-                            panelController: controller,
-                            navigatorKey: controller.navigatorKey,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-            if (isHorizontallySplit && !isPaneMaximized)
-              Positioned(
-                left: 0,
-                right: 0,
-                top: horizontalOffset,
-                height: 6,
-                child: Container(color: TerminalMasterColors.border),
+            Expanded(
+              flex: (split.ratio * 1000).round().clamp(1, 999),
+              child: _buildLayoutNode(tab, split.first),
+            ),
+            GestureDetector(
+              key: Key('terminal-split-divider-$firstPaneId-$secondPaneId'),
+              behavior: HitTestBehavior.opaque,
+              onPanUpdate: extent.isFinite && extent > 0
+                  ? (details) => controller.resizeSplit(
+                      firstPaneId,
+                      secondPaneId,
+                      (isVertical ? details.delta.dx : details.delta.dy) /
+                          extent,
+                    )
+                  : null,
+              child: SizedBox(
+                width: isVertical ? 8 : null,
+                height: isVertical ? null : 8,
+                child: const ColoredBox(color: TerminalMasterColors.border),
               ),
-            if (isVerticallySplit && !isPaneMaximized)
-              Positioned(
-                top: 0,
-                bottom: 0,
-                left: verticalOffset,
-                width: 6,
-                child: Container(color: TerminalMasterColors.border),
-              ),
+            ),
+            Expanded(
+              flex: ((1 - split.ratio) * 1000).round().clamp(1, 999),
+              child: _buildLayoutNode(tab, split.second),
+            ),
           ],
         );
       },
@@ -759,6 +797,45 @@ class TerminalPanel extends StatelessWidget {
           content: Text(l10n.terminalSaveFailed(localizeError(l10n, error))),
         ),
       );
+    }
+  }
+
+  Future<void> _confirmDeleteSavedTab(
+    BuildContext context,
+    String snapshotId,
+  ) async {
+    final l10n = AppLocalizations.of(context);
+    final snapshot = controller.savedTabs
+        .where((candidate) => candidate.id == snapshotId)
+        .firstOrNull;
+    if (snapshot == null) return;
+    final dialogContext = controller.navigatorKey.currentContext ?? context;
+    final confirmed = await showDialog<bool>(
+      context: dialogContext,
+      builder: (context) => AlertDialog(
+        title: Text(l10n.terminalDeleteSavedTabTitle),
+        content: Text(l10n.terminalDeleteSavedTabMessage(snapshot.name)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(l10n.commonCancel),
+          ),
+          TextButton(
+            key: const Key('confirm-delete-saved-terminal-tab'),
+            onPressed: () => Navigator.pop(context, true),
+            child: Text(l10n.commonDelete),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+    try {
+      await controller.deleteSavedTab(snapshotId);
+    } on Object catch (error) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(localizeError(l10n, error))));
     }
   }
 

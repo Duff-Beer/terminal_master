@@ -357,14 +357,6 @@ class AppLocalizationsDe extends AppLocalizations {
   String get persistedInvalidPaneTopology => 'Ungültige Pane-Topologie.';
 
   @override
-  String get persistedIncompleteSplitPanes =>
-      'Die Split-Panes sind unvollständig.';
-
-  @override
-  String get persistedInvalidFocusedPane =>
-      'Die fokussierte Pane ist ungültig.';
-
-  @override
   String get persistedInvalidSshAuthentication =>
       'Ungültige SSH-Authentifizierung.';
 
@@ -907,6 +899,17 @@ class AppLocalizationsDe extends AppLocalizations {
   }
 
   @override
+  String get terminalDeleteSavedTab => 'Gespeicherten Zustand löschen';
+
+  @override
+  String get terminalDeleteSavedTabTitle => 'Gespeicherten Zustand löschen?';
+
+  @override
+  String terminalDeleteSavedTabMessage(Object name) {
+    return 'Möchtest du „$name“ wirklich löschen? Bereits geöffnete Terminalsitzungen bleiben unverändert.';
+  }
+
+  @override
   String get terminalRunSavedCommands =>
       'Gespeicherte Befehle nach dem Öffnen direkt ausführen';
 
@@ -984,16 +987,23 @@ class AppLocalizationsDe extends AppLocalizations {
   }
 
   @override
-  String get terminalCloseVerticalSplit => 'Vertikale Teilung schließen';
+  String get terminalSplitLeftRight => 'Fenster links/rechts teilen';
 
   @override
-  String get terminalSplitVertically => 'Terminal vertikal teilen';
+  String get terminalSplitTopBottom => 'Fenster oben/unten teilen';
 
   @override
-  String get terminalCloseHorizontalSplit => 'Horizontale Teilung schließen';
+  String get terminalClosePane => 'Fenster schließen';
 
   @override
-  String get terminalSplitHorizontally => 'Terminal horizontal teilen';
+  String get terminalCloseRunningPaneTitle => 'Laufendes Terminal schließen?';
+
+  @override
+  String get terminalCloseRunningPaneMessage =>
+      'Die laufende Sitzung wird beendet.';
+
+  @override
+  String get terminalCancel => 'Abbrechen';
 
   @override
   String get terminalRestoreSplitView => 'Geteilte Ansicht wiederherstellen';

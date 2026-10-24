@@ -20,8 +20,7 @@ void main() {
     expect(loaded, hasLength(1));
     expect(loaded.single.id, snapshot.id);
     expect(loaded.single.name, 'Server Maintenance');
-    expect(loaded.single.verticalSplit, isTrue);
-    expect(loaded.single.horizontalSplit, isTrue);
+    expect(loaded.single.layout['orientation'], 'horizontal');
     expect(loaded.single.panes, hasLength(4));
     expect(loaded.single.panes.last.draft, 'git status');
     expect(loaded.single.panes.last.commands.single.command, 'uname -a');
@@ -89,17 +88,28 @@ SavedTerminalTab _snapshot() {
     name: 'Server Maintenance',
     createdAt: createdAt,
     updatedAt: createdAt.add(const Duration(minutes: 5)),
-    verticalSplit: true,
-    horizontalSplit: true,
-    focusedRow: 1,
-    focusedColumn: 1,
+    focusedPaneIndex: 3,
+    layout: {
+      'orientation': 'horizontal',
+      'ratio': 0.5,
+      'first': {
+        'orientation': 'vertical',
+        'ratio': 0.5,
+        'first': {'pane': 0},
+        'second': {'pane': 1},
+      },
+      'second': {
+        'orientation': 'vertical',
+        'ratio': 0.5,
+        'first': {'pane': 2},
+        'second': {'pane': 3},
+      },
+    },
     panes: [
-      const SavedTerminalPane(row: 0, column: 0, profileId: 'primary'),
-      const SavedTerminalPane(row: 0, column: 1, profileId: 'primary'),
-      const SavedTerminalPane(row: 1, column: 0, profileId: 'primary'),
+      const SavedTerminalPane(profileId: 'primary'),
+      const SavedTerminalPane(profileId: 'primary'),
+      const SavedTerminalPane(profileId: 'primary'),
       SavedTerminalPane(
-        row: 1,
-        column: 1,
         profileId: 'primary',
         workingDirectory: '/tmp',
         draft: 'git status',

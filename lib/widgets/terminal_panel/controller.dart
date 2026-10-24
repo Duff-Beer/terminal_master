@@ -5,8 +5,6 @@ enum TerminalSplitOrientation { vertical, horizontal }
 class TerminalPaneData {
   final String id;
   final ShellProfile profile;
-  final int row;
-  final int column;
   final TextEditingController commandController = TextEditingController();
   final List<SavedTerminalCommand> savedCommands;
   TerminalSession session;
@@ -15,8 +13,6 @@ class TerminalPaneData {
   TerminalPaneData({
     required this.id,
     required this.profile,
-    required this.row,
-    required this.column,
     required this.session,
     List<SavedTerminalCommand> savedCommands = const [],
   }) : savedCommands = List.of(savedCommands);
@@ -27,12 +23,48 @@ class TerminalPaneData {
   }
 }
 
+sealed class TerminalLayoutNode {
+  const TerminalLayoutNode();
+
+  Iterable<String> get paneIds;
+}
+
+class TerminalLayoutPane extends TerminalLayoutNode {
+  final String paneId;
+
+  const TerminalLayoutPane(this.paneId);
+
+  @override
+  Iterable<String> get paneIds sync* {
+    yield paneId;
+  }
+}
+
+class TerminalLayoutSplit extends TerminalLayoutNode {
+  final TerminalSplitOrientation orientation;
+  final TerminalLayoutNode first;
+  final TerminalLayoutNode second;
+  final double ratio;
+
+  const TerminalLayoutSplit({
+    required this.orientation,
+    required this.first,
+    required this.second,
+    this.ratio = 0.5,
+  });
+
+  @override
+  Iterable<String> get paneIds sync* {
+    yield* first.paneIds;
+    yield* second.paneIds;
+  }
+}
+
 class TerminalTab {
   final String id;
   final List<TerminalPaneData> panes;
   late String focusedPaneId;
-  bool isVerticallySplit = false;
-  bool isHorizontallySplit = false;
+  late TerminalLayoutNode layout;
   String? maximizedPaneId;
   String? customName;
   String? snapshotId;
@@ -41,16 +73,11 @@ class TerminalTab {
 
   TerminalTab({required this.id, required TerminalPaneData pane})
     : panes = [pane],
-      focusedPaneId = pane.id;
+      focusedPaneId = pane.id,
+      layout = TerminalLayoutPane(pane.id);
 
   TerminalPaneData get primaryPane => panes.first;
-  List<TerminalPaneData> get visiblePanes => panes
-      .where(
-        (pane) =>
-            (pane.column == 0 || isVerticallySplit) &&
-            (pane.row == 0 || isHorizontallySplit),
-      )
-      .toList(growable: false);
+  List<TerminalPaneData> get visiblePanes => panes;
   List<TerminalPaneData> get displayedPanes {
     final maximizedId = maximizedPaneId;
     if (maximizedId == null) return visiblePanes;
@@ -70,17 +97,20 @@ class TerminalTab {
       activePane.session.title ??
       activePane.profile.name;
 
-  bool hasSplit(TerminalSplitOrientation orientation) => switch (orientation) {
-    TerminalSplitOrientation.vertical => isVerticallySplit,
-    TerminalSplitOrientation.horizontal => isHorizontallySplit,
-  };
+  bool hasSplit(TerminalSplitOrientation orientation) =>
+      _containsOrientation(layout, orientation);
 
-  TerminalPaneData? paneAt({required int row, required int column}) {
-    for (final pane in panes) {
-      if (pane.row == row && pane.column == column) return pane;
-    }
-    return null;
-  }
+  bool get isVerticallySplit => hasSplit(TerminalSplitOrientation.vertical);
+  bool get isHorizontallySplit => hasSplit(TerminalSplitOrientation.horizontal);
+
+  bool _containsOrientation(
+    TerminalLayoutNode node,
+    TerminalSplitOrientation orientation,
+  ) =>
+      node is TerminalLayoutSplit &&
+      (node.orientation == orientation ||
+          _containsOrientation(node.first, orientation) ||
+          _containsOrientation(node.second, orientation));
 
   void dispose() {
     for (final pane in panes) {
@@ -316,21 +346,17 @@ class TerminalPanelController extends ChangeNotifier {
       name: normalizedName,
       createdAt: existing?.createdAt ?? now,
       updatedAt: now,
-      verticalSplit: tab.isVerticallySplit,
-      horizontalSplit: tab.isHorizontallySplit,
-      focusedRow: tab.activePane.row,
-      focusedColumn: tab.activePane.column,
-      panes: tab.panes.map((pane) {
-        SavedTerminalPane? existingPane;
-        for (final candidate
-            in existing?.panes ?? const <SavedTerminalPane>[]) {
-          if (candidate.row == pane.row && candidate.column == pane.column) {
-            existingPane = candidate;
-            break;
-          }
-        }
-        return _savedPane(pane, existingPane?.commands ?? const []);
-      }).toList(),
+      focusedPaneIndex: tab.panes.indexOf(tab.activePane),
+      layout: _encodeLayout(tab.layout, tab.panes),
+      panes: [
+        for (var index = 0; index < tab.panes.length; index++)
+          _savedPane(
+            tab.panes[index],
+            existing != null && index < existing.panes.length
+                ? existing.panes[index].commands
+                : const [],
+          ),
+      ],
     );
     final updated = List<SavedTerminalTab>.of(_savedTabs);
     if (existingIndex < 0) {
@@ -356,34 +382,19 @@ class TerminalPanelController extends ChangeNotifier {
     await _savedTabsLoad;
     if (_savedTabsError case final error?) throw error;
     final snapshot = _savedTabs.firstWhere((tab) => tab.id == snapshotId);
-    final sortedPanes = List<SavedTerminalPane>.of(snapshot.panes)
-      ..sort((left, right) {
-        final row = left.row.compareTo(right.row);
-        return row != 0 ? row : left.column.compareTo(right.column);
-      });
-    final primarySnapshot = sortedPanes.firstWhere(
-      (pane) => pane.row == 0 && pane.column == 0,
-    );
-    final primaryPane = _paneFromSnapshot(primarySnapshot);
+    final snapshots = snapshot.panes;
+    final primaryPane = _paneFromSnapshot(snapshots.first);
     final tab =
         TerminalTab(id: 'terminal-tab-${_nextTabId++}', pane: primaryPane)
           ..snapshotId = snapshot.id
           ..snapshotName = snapshot.name
           ..customName = snapshot.name
-          ..snapshotUpdatedAt = snapshot.updatedAt
-          ..isVerticallySplit = snapshot.verticalSplit
-          ..isHorizontallySplit = snapshot.horizontalSplit;
-    for (final paneSnapshot in sortedPanes) {
-      if (identical(paneSnapshot, primarySnapshot)) continue;
+          ..snapshotUpdatedAt = snapshot.updatedAt;
+    for (final paneSnapshot in snapshots.skip(1)) {
       tab.panes.add(_paneFromSnapshot(paneSnapshot));
     }
-    final focused = tab.paneAt(
-      row: snapshot.focusedRow,
-      column: snapshot.focusedColumn,
-    );
-    if (focused != null && tab.visiblePanes.contains(focused)) {
-      tab.focusedPaneId = focused.id;
-    }
+    tab.layout = _decodeLayout(snapshot.layout, tab.panes);
+    tab.focusedPaneId = tab.panes[snapshot.focusedPaneIndex].id;
     _tabs.add(tab);
     _activeTabId = tab.id;
     notifyListeners();
@@ -449,6 +460,47 @@ class TerminalPanelController extends ChangeNotifier {
     notifyListeners();
   }
 
+  void resizeSplit(String firstPaneId, String secondPaneId, double delta) {
+    final tab = activeTab;
+    tab.layout = _resizeLayoutSplit(
+      tab.layout,
+      firstPaneId,
+      secondPaneId,
+      delta,
+    );
+    notifyListeners();
+  }
+
+  TerminalLayoutNode _resizeLayoutSplit(
+    TerminalLayoutNode node,
+    String firstPaneId,
+    String secondPaneId,
+    double delta,
+  ) {
+    if (node is TerminalLayoutPane) return node;
+    final split = node as TerminalLayoutSplit;
+    if (split.first.paneIds.contains(firstPaneId) &&
+        split.second.paneIds.contains(secondPaneId)) {
+      return TerminalLayoutSplit(
+        orientation: split.orientation,
+        first: split.first,
+        second: split.second,
+        ratio: (split.ratio + delta).clamp(0.15, 0.85),
+      );
+    }
+    return TerminalLayoutSplit(
+      orientation: split.orientation,
+      first: _resizeLayoutSplit(split.first, firstPaneId, secondPaneId, delta),
+      second: _resizeLayoutSplit(
+        split.second,
+        firstPaneId,
+        secondPaneId,
+        delta,
+      ),
+      ratio: split.ratio,
+    );
+  }
+
   void togglePaneMaximized(String paneId) {
     final tab = activeTab;
     if (!isSplit || !tab.visiblePanes.any((pane) => pane.id == paneId)) return;
@@ -457,39 +509,93 @@ class TerminalPanelController extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> toggleSplit(TerminalSplitOrientation orientation) async {
+  Future<void> toggleSplit(
+    TerminalSplitOrientation orientation, [
+    String? paneId,
+  ]) async {
     final tab = activeTab;
-    final enable = !tab.hasSplit(orientation);
-    switch (orientation) {
-      case TerminalSplitOrientation.vertical:
-        tab.isVerticallySplit = enable;
-      case TerminalSplitOrientation.horizontal:
-        tab.isHorizontallySplit = enable;
-    }
-    if (enable) {
-      if (tab.isVerticallySplit) {
-        _ensurePane(tab, row: 0, column: 1);
-      }
-      if (tab.isHorizontallySplit) {
-        _ensurePane(tab, row: 1, column: 0);
-      }
-      if (tab.isVerticallySplit && tab.isHorizontallySplit) {
-        _ensurePane(tab, row: 1, column: 1);
-      }
-    }
-    if (!tab.visiblePanes.any((pane) => pane.id == tab.focusedPaneId)) {
-      tab.focusedPaneId = tab.primaryPane.id;
-    }
-    final maximizedPaneId = tab.maximizedPaneId;
-    if (!isSplit ||
-        (maximizedPaneId != null &&
-            !tab.visiblePanes.any((pane) => pane.id == maximizedPaneId))) {
-      tab.maximizedPaneId = null;
-    }
+    final targetId = paneId ?? tab.focusedPaneId;
+    final target = tab.panes.firstWhere((pane) => pane.id == targetId);
+    final newPane = _newPane(target.profile);
+    tab.panes.add(newPane);
+    tab.layout = _replaceLayoutPane(
+      tab.layout,
+      targetId,
+      TerminalLayoutSplit(
+        orientation: orientation,
+        first: TerminalLayoutPane(targetId),
+        second: TerminalLayoutPane(newPane.id),
+      ),
+    );
+    tab.focusedPaneId = newPane.id;
+    tab.maximizedPaneId = null;
     notifyListeners();
-    if (_isAttached) {
-      await Future.wait(tab.visiblePanes.map(_startForDisplay));
+    if (_isAttached) await _startForDisplay(newPane);
+  }
+
+  Future<bool> closePane(String paneId) async {
+    final tab = activeTab;
+    final pane = tab.panes.firstWhere((candidate) => candidate.id == paneId);
+    if (pane.session.isRunning) await pane.session.stop();
+    if (!tab.panes.contains(pane)) return false;
+    pane.session.removeListener(_handleSessionUpdate);
+    if (tab.panes.length == 1) {
+      pane.dispose();
+      final replacement = _newPane(pane.profile);
+      tab.panes[0] = replacement;
+      tab.layout = TerminalLayoutPane(replacement.id);
+      tab.focusedPaneId = replacement.id;
+    } else {
+      tab.layout = _removeLayoutPane(tab.layout, paneId);
+      tab.panes.remove(pane);
+      pane.dispose();
+      if (tab.focusedPaneId == paneId) {
+        tab.focusedPaneId = tab.panes.first.id;
+      }
     }
+    if (tab.maximizedPaneId == paneId) tab.maximizedPaneId = null;
+    notifyListeners();
+    final replacement = tab.panes.firstWhere(
+      (candidate) => candidate.id == tab.focusedPaneId,
+    );
+    if (_isAttached) await _startForDisplay(replacement);
+    return true;
+  }
+
+  TerminalLayoutNode _replaceLayoutPane(
+    TerminalLayoutNode node,
+    String paneId,
+    TerminalLayoutNode replacement,
+  ) {
+    if (node is TerminalLayoutPane) {
+      return node.paneId == paneId ? replacement : node;
+    }
+    final split = node as TerminalLayoutSplit;
+    return TerminalLayoutSplit(
+      orientation: split.orientation,
+      first: _replaceLayoutPane(split.first, paneId, replacement),
+      second: _replaceLayoutPane(split.second, paneId, replacement),
+      ratio: split.ratio,
+    );
+  }
+
+  TerminalLayoutNode _removeLayoutPane(TerminalLayoutNode node, String paneId) {
+    if (node is TerminalLayoutPane) return node;
+    final split = node as TerminalLayoutSplit;
+    if (split.first is TerminalLayoutPane &&
+        (split.first as TerminalLayoutPane).paneId == paneId) {
+      return split.second;
+    }
+    if (split.second is TerminalLayoutPane &&
+        (split.second as TerminalLayoutPane).paneId == paneId) {
+      return split.first;
+    }
+    return TerminalLayoutSplit(
+      orientation: split.orientation,
+      first: _removeLayoutPane(split.first, paneId),
+      second: _removeLayoutPane(split.second, paneId),
+      ratio: split.ratio,
+    );
   }
 
   Future<void> closeTab(String tabId) async {
@@ -635,25 +741,14 @@ class TerminalPanelController extends ChangeNotifier {
   TerminalTab _newTab(ShellProfile profile) {
     return TerminalTab(
       id: 'terminal-tab-${_nextTabId++}',
-      pane: _newPane(profile, row: 0, column: 0),
+      pane: _newPane(profile),
     );
   }
 
-  void _ensurePane(TerminalTab tab, {required int row, required int column}) {
-    if (tab.paneAt(row: row, column: column) != null) return;
-    tab.panes.add(_newPane(tab.primaryPane.profile, row: row, column: column));
-  }
-
-  TerminalPaneData _newPane(
-    ShellProfile profile, {
-    required int row,
-    required int column,
-  }) {
+  TerminalPaneData _newPane(ShellProfile profile) {
     return TerminalPaneData(
       id: 'terminal-pane-${_nextPaneId++}',
       profile: profile,
-      row: row,
-      column: column,
       session: _newSession(profile),
     );
   }
@@ -683,13 +778,44 @@ class TerminalPanelController extends ChangeNotifier {
     final pane = TerminalPaneData(
       id: 'terminal-pane-${_nextPaneId++}',
       profile: profile,
-      row: snapshot.row,
-      column: snapshot.column,
       session: _newSession(profile),
       savedCommands: snapshot.commands,
     );
     pane.commandController.text = snapshot.draft;
     return pane;
+  }
+
+  Map<String, Object?> _encodeLayout(
+    TerminalLayoutNode node,
+    List<TerminalPaneData> panes,
+  ) {
+    if (node case TerminalLayoutPane(:final paneId)) {
+      return {'pane': panes.indexWhere((pane) => pane.id == paneId)};
+    }
+    final split = node as TerminalLayoutSplit;
+    return {
+      'orientation': split.orientation.name,
+      'ratio': split.ratio,
+      'first': _encodeLayout(split.first, panes),
+      'second': _encodeLayout(split.second, panes),
+    };
+  }
+
+  TerminalLayoutNode _decodeLayout(
+    Map<String, Object?> node,
+    List<TerminalPaneData> panes,
+  ) {
+    if (node['pane'] case final int paneIndex) {
+      return TerminalLayoutPane(panes[paneIndex].id);
+    }
+    return TerminalLayoutSplit(
+      orientation: node['orientation'] == 'vertical'
+          ? TerminalSplitOrientation.vertical
+          : TerminalSplitOrientation.horizontal,
+      ratio: (node['ratio'] as num).toDouble(),
+      first: _decodeLayout(node['first'] as Map<String, Object?>, panes),
+      second: _decodeLayout(node['second'] as Map<String, Object?>, panes),
+    );
   }
 
   SavedTerminalPane _savedPane(
@@ -722,8 +848,6 @@ class TerminalPanelController extends ChangeNotifier {
         ? commands.sublist(commands.length - 20)
         : commands;
     return SavedTerminalPane(
-      row: pane.row,
-      column: pane.column,
       profileId: pane.profile.id,
       workingDirectory: pane.session.restorableWorkingDirectory,
       draft: pane.commandController.text,

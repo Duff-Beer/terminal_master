@@ -614,18 +614,6 @@ abstract class AppLocalizations {
   /// **'Invalid pane topology.'**
   String get persistedInvalidPaneTopology;
 
-  /// No description provided for @persistedIncompleteSplitPanes.
-  ///
-  /// In en, this message translates to:
-  /// **'The split panes are incomplete.'**
-  String get persistedIncompleteSplitPanes;
-
-  /// No description provided for @persistedInvalidFocusedPane.
-  ///
-  /// In en, this message translates to:
-  /// **'The focused pane is invalid.'**
-  String get persistedInvalidFocusedPane;
-
   /// No description provided for @persistedInvalidSshAuthentication.
   ///
   /// In en, this message translates to:
@@ -1478,6 +1466,24 @@ abstract class AppLocalizations {
   /// **'{panes} terminal panes · {commands} saved commands'**
   String terminalSnapshotSummary(int panes, int commands);
 
+  /// No description provided for @terminalDeleteSavedTab.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete saved state'**
+  String get terminalDeleteSavedTab;
+
+  /// No description provided for @terminalDeleteSavedTabTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete saved state?'**
+  String get terminalDeleteSavedTabTitle;
+
+  /// No description provided for @terminalDeleteSavedTabMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'Are you sure you want to delete “{name}”? Already open terminal sessions will not be affected.'**
+  String terminalDeleteSavedTabMessage(Object name);
+
   /// No description provided for @terminalRunSavedCommands.
   ///
   /// In en, this message translates to:
@@ -1604,29 +1610,41 @@ abstract class AppLocalizations {
   /// **'Command blocks ({count})'**
   String terminalCommandBlocksCount(int count);
 
-  /// No description provided for @terminalCloseVerticalSplit.
+  /// No description provided for @terminalSplitLeftRight.
   ///
   /// In en, this message translates to:
-  /// **'Close vertical split'**
-  String get terminalCloseVerticalSplit;
+  /// **'Split window left/right'**
+  String get terminalSplitLeftRight;
 
-  /// No description provided for @terminalSplitVertically.
+  /// No description provided for @terminalSplitTopBottom.
   ///
   /// In en, this message translates to:
-  /// **'Split terminal vertically'**
-  String get terminalSplitVertically;
+  /// **'Split window top/bottom'**
+  String get terminalSplitTopBottom;
 
-  /// No description provided for @terminalCloseHorizontalSplit.
+  /// No description provided for @terminalClosePane.
   ///
   /// In en, this message translates to:
-  /// **'Close horizontal split'**
-  String get terminalCloseHorizontalSplit;
+  /// **'Close window'**
+  String get terminalClosePane;
 
-  /// No description provided for @terminalSplitHorizontally.
+  /// No description provided for @terminalCloseRunningPaneTitle.
   ///
   /// In en, this message translates to:
-  /// **'Split terminal horizontally'**
-  String get terminalSplitHorizontally;
+  /// **'Close running terminal?'**
+  String get terminalCloseRunningPaneTitle;
+
+  /// No description provided for @terminalCloseRunningPaneMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'The running session will be terminated.'**
+  String get terminalCloseRunningPaneMessage;
+
+  /// No description provided for @terminalCancel.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel'**
+  String get terminalCancel;
 
   /// No description provided for @terminalRestoreSplitView.
   ///

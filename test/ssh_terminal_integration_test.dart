@@ -71,13 +71,9 @@ void main() {
         name: 'Remote',
         createdAt: DateTime.utc(2026),
         updatedAt: DateTime.utc(2026),
-        verticalSplit: false,
-        horizontalSplit: false,
-        focusedRow: 0,
-        focusedColumn: 0,
-        panes: const [
-          SavedTerminalPane(row: 0, column: 0, profileId: 'ssh:missing'),
-        ],
+        focusedPaneIndex: 0,
+        layout: const {'pane': 0},
+        panes: const [SavedTerminalPane(profileId: 'ssh:missing')],
       ),
     ]);
     final controller = TerminalPanelController(

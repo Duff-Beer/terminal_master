@@ -209,43 +209,57 @@ class _TerminalPaneState extends State<TerminalPane> {
                     ),
                     _compactIconButton(
                       key: _paneKey('split-terminal-vertical'),
-                      tooltip:
-                          widget.panelController.hasSplit(
-                            TerminalSplitOrientation.vertical,
-                          )
-                          ? l10n.terminalCloseVerticalSplit
-                          : l10n.terminalSplitVertically,
+                      tooltip: l10n.terminalSplitLeftRight,
                       icon: Icons.vertical_split_outlined,
                       size: compactActionSize,
-                      color:
-                          widget.panelController.hasSplit(
-                            TerminalSplitOrientation.vertical,
-                          )
-                          ? TerminalMasterColors.yellow
-                          : null,
                       onPressed: () => widget.panelController.toggleSplit(
                         TerminalSplitOrientation.vertical,
+                        widget.pane.id,
                       ),
                     ),
                     _compactIconButton(
                       key: _paneKey('split-terminal-horizontal'),
-                      tooltip:
-                          widget.panelController.hasSplit(
-                            TerminalSplitOrientation.horizontal,
-                          )
-                          ? l10n.terminalCloseHorizontalSplit
-                          : l10n.terminalSplitHorizontally,
+                      tooltip: l10n.terminalSplitTopBottom,
                       icon: Icons.horizontal_split_outlined,
                       size: compactActionSize,
-                      color:
-                          widget.panelController.hasSplit(
-                            TerminalSplitOrientation.horizontal,
-                          )
-                          ? TerminalMasterColors.yellow
-                          : null,
                       onPressed: () => widget.panelController.toggleSplit(
                         TerminalSplitOrientation.horizontal,
+                        widget.pane.id,
                       ),
+                    ),
+                    _compactIconButton(
+                      key: _paneKey('close-terminal-pane'),
+                      tooltip: l10n.terminalClosePane,
+                      icon: Icons.close,
+                      size: compactActionSize,
+                      color: TerminalMasterColors.red,
+                      onPressed: () async {
+                        if (session.isRunning) {
+                          final shouldClose = await showDialog<bool>(
+                            context: context,
+                            builder: (dialogContext) => AlertDialog(
+                              title: Text(l10n.terminalCloseRunningPaneTitle),
+                              content: Text(
+                                l10n.terminalCloseRunningPaneMessage,
+                              ),
+                              actions: [
+                                TextButton(
+                                  onPressed: () =>
+                                      Navigator.pop(dialogContext, false),
+                                  child: Text(l10n.terminalCancel),
+                                ),
+                                TextButton(
+                                  onPressed: () =>
+                                      Navigator.pop(dialogContext, true),
+                                  child: Text(l10n.terminalClosePane),
+                                ),
+                              ],
+                            ),
+                          );
+                          if (shouldClose != true) return;
+                        }
+                        await widget.panelController.closePane(widget.pane.id);
+                      },
                     ),
                     if (widget.panelController.isSplit)
                       _compactIconButton(

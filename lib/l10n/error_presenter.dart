@@ -323,9 +323,6 @@ String _persistedProblem(
   PersistedDataProblem.invalidSavedPane => l10n.persistedInvalidSavedPane,
   PersistedDataProblem.invalidSavedTab => l10n.persistedInvalidSavedTab,
   PersistedDataProblem.invalidPaneTopology => l10n.persistedInvalidPaneTopology,
-  PersistedDataProblem.incompleteSplitPanes =>
-    l10n.persistedIncompleteSplitPanes,
-  PersistedDataProblem.invalidFocusedPane => l10n.persistedInvalidFocusedPane,
   PersistedDataProblem.invalidSshAuthentication =>
     l10n.persistedInvalidSshAuthentication,
   PersistedDataProblem.invalidSshProfile => l10n.persistedInvalidSshProfile,

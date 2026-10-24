@@ -8,8 +8,6 @@ enum PersistedDataProblem {
   invalidSavedPane,
   invalidSavedTab,
   invalidPaneTopology,
-  incompleteSplitPanes,
-  invalidFocusedPane,
   invalidSshAuthentication,
   invalidSshProfile,
   invalidSshHostKey,
@@ -27,9 +25,6 @@ class PersistedDataException implements Exception {
     PersistedDataProblem.invalidSavedPane => 'Invalid saved terminal pane.',
     PersistedDataProblem.invalidSavedTab => 'Invalid saved terminal tab.',
     PersistedDataProblem.invalidPaneTopology => 'Invalid pane topology.',
-    PersistedDataProblem.incompleteSplitPanes =>
-      'The split panes are incomplete.',
-    PersistedDataProblem.invalidFocusedPane => 'The focused pane is invalid.',
     PersistedDataProblem.invalidSshAuthentication =>
       'Invalid SSH authentication.',
     PersistedDataProblem.invalidSshProfile => 'Invalid SSH connection profile.',

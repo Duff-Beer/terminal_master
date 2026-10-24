@@ -170,8 +170,6 @@
   "persistedInvalidSavedPane": "Invalid saved terminal pane.",
   "persistedInvalidSavedTab": "Invalid saved terminal tab.",
   "persistedInvalidPaneTopology": "Invalid pane topology.",
-  "persistedIncompleteSplitPanes": "The split panes are incomplete.",
-  "persistedInvalidFocusedPane": "The focused pane is invalid.",
   "persistedInvalidSshAuthentication": "Invalid SSH authentication.",
   "persistedInvalidSshProfile": "Invalid SSH connection profile.",
   "persistedInvalidSshHostKey": "Invalid SSH host key.",
@@ -430,6 +428,10 @@
     "placeholders": { "name": { "type": "String" } }
   },
   "terminalSnapshotSummary": "{panes} terminal panes · {commands} saved commands",
+  "terminalDeleteSavedTab": "Delete saved state",
+  "terminalDeleteSavedTabTitle": "Delete saved state?",
+  "terminalDeleteSavedTabMessage": "Are you sure you want to delete “{name}”? Already open terminal sessions will not be affected.",
+  "@terminalDeleteSavedTabMessage": { "placeholders": { "name": {} } },
   "@terminalSnapshotSummary": {
     "placeholders": {
       "panes": { "type": "int" },
@@ -473,10 +475,12 @@
   "@terminalCommandBlocksCount": {
     "placeholders": { "count": { "type": "int" } }
   },
-  "terminalCloseVerticalSplit": "Close vertical split",
-  "terminalSplitVertically": "Split terminal vertically",
-  "terminalCloseHorizontalSplit": "Close horizontal split",
-  "terminalSplitHorizontally": "Split terminal horizontally",
+  "terminalSplitLeftRight": "Split window left/right",
+  "terminalSplitTopBottom": "Split window top/bottom",
+  "terminalClosePane": "Close window",
+  "terminalCloseRunningPaneTitle": "Close running terminal?",
+  "terminalCloseRunningPaneMessage": "The running session will be terminated.",
+  "terminalCancel": "Cancel",
   "terminalRestoreSplitView": "Restore split view",
   "terminalMaximizePane": "Maximize terminal pane",
   "terminalDecreaseFontSize": "Decrease",
