@@ -1,0 +1,83 @@
+schema_version: 2
+command: docker compose
+display_name: Docker Compose
+display_name.de: Docker Compose
+description: Manage multi-container applications with the Docker Compose plugin.
+description.de: Anwendungen mit mehreren Containern über das Docker-Compose-Plugin verwalten.
+parameters:
+  - name: action
+    type: options
+    flag: ""
+    required: true
+    description: Choose a Compose operation.
+    description.de: Compose-Aktion auswählen.
+    order: 10
+    options:
+      - value: ls
+        description: List Compose projects.
+        description.de: Compose-Projekte auflisten.
+      - value: ps --all
+        description: List containers for the current project, including stopped containers.
+        description.de: Container des aktuellen Projekts einschließlich gestoppter Container auflisten.
+      - value: images
+        description: List images used by the current project.
+        description.de: Vom aktuellen Projekt verwendete Images auflisten.
+      - value: config
+        description: Validate and display the resolved Compose configuration.
+        description.de: Aufgelöste Compose-Konfiguration prüfen und anzeigen.
+      - value: logs --follow
+        description: Follow logs from the current project. Interrupt with Ctrl+C.
+        description.de: Protokolle des aktuellen Projekts fortlaufend anzeigen. Mit Strg+C abbrechen.
+      - value: up --detach
+        description: Create and start project containers in the background.
+        description.de: Projektcontainer erstellen und im Hintergrund starten.
+      - value: start
+        description: Start existing project containers.
+        description.de: Vorhandene Projektcontainer starten.
+      - value: stop
+        description: Stop project containers without removing them.
+        description.de: Projektcontainer anhalten, ohne sie zu entfernen.
+      - value: restart
+        description: Restart project containers.
+        description.de: Projektcontainer neu starten.
+      - value: down
+        description: Stop and remove project containers and networks (volumes are retained unless requested separately).
+        description.de: Projektcontainer und Netzwerke anhalten und entfernen (Volumes bleiben erhalten, sofern nicht separat anders angegeben).
+
+  - name: compose_file
+    type: filepath
+    mode: file
+    flag: -f
+    description: Optional path to a Compose YAML file. Leave empty to use the default compose.yaml or docker-compose.yaml in the current directory.
+    description.de: Optionaler Pfad zu einer Compose-YAML-Datei. Leer lassen, um compose.yaml oder docker-compose.yaml im aktuellen Verzeichnis zu verwenden.
+    example: compose.yaml
+    order: 20
+
+  - name: project_name
+    type: text
+    flag: --project-name
+    description: Optional Compose project name.
+    description.de: Optionaler Name des Compose-Projekts.
+    example: my-app
+    order: 30
+
+help_text: |
+  This configuration uses the modern Docker Compose plugin (`docker compose`). It requires a Compose file in the current working directory unless a file is selected above.
+
+  Common usage:
+  - Inspect a project: `docker compose ps --all`
+  - Start in background: `docker compose up --detach`
+  - Stop without removing containers: `docker compose stop`
+  - Remove project containers and networks: `docker compose down`
+
+  `down` removes containers and networks. Do not add `--volumes` unless you intend to delete project data.
+help_text.de: |
+  Diese Konfiguration verwendet das moderne Docker-Compose-Plugin (`docker compose`). Eine Compose-Datei muss sich im aktuellen Arbeitsverzeichnis befinden, sofern oben keine Datei ausgewählt wird.
+
+  Typische Verwendung:
+  - Projekt prüfen: `docker compose ps --all`
+  - Im Hintergrund starten: `docker compose up --detach`
+  - Anhalten, ohne Container zu entfernen: `docker compose stop`
+  - Projektcontainer und Netzwerke entfernen: `docker compose down`
+
+  `down` entfernt Container und Netzwerke. `--volumes` nicht ergänzen, außer Projektdaten sollen gelöscht werden.

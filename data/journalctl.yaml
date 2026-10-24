@@ -1,0 +1,99 @@
+schema_version: 2
+command: journalctl
+display_name: journalctl
+display_name.de: journalctl
+description: Read and filter logs from the systemd journal.
+description.de: Protokolle aus dem systemd-Journal lesen und filtern.
+parameters:
+  - name: unit
+    type: text
+    flag: -u
+    description: Show entries for a systemd unit, for example ssh.service.
+    description.de: Einträge einer systemd-Unit anzeigen, zum Beispiel ssh.service.
+    example: ssh.service
+    order: 10
+
+  - name: boot
+    type: text
+    flag: -b
+    description: Select a boot, such as 0 for the current boot or -1 for the previous boot. Leave empty for all available entries.
+    description.de: Systemstart auswählen, zum Beispiel 0 für den aktuellen oder -1 für den vorherigen. Leer lassen für alle verfügbaren Einträge.
+    example: "0"
+    order: 20
+
+  - name: priority
+    type: options
+    flag: -p
+    description: Show entries at this priority or more severe.
+    description.de: Einträge dieser oder einer schwerwiegenderen Priorität anzeigen.
+    order: 30
+    options:
+      - value: emerg
+        description: Emergency
+        description.de: Notfall
+      - value: alert
+        description: Alert
+        description.de: Alarm
+      - value: crit
+        description: Critical
+        description.de: Kritisch
+      - value: err
+        description: Error
+        description.de: Fehler
+      - value: warning
+        description: Warning
+        description.de: Warnung
+      - value: notice
+        description: Notice
+        description.de: Hinweis
+      - value: info
+        description: Informational
+        description.de: Information
+      - value: debug
+        description: Debug
+        description.de: Debug
+
+  - name: lines
+    type: text
+    flag: -n
+    description: Limit output to the specified number of recent lines.
+    description.de: Ausgabe auf die angegebene Anzahl aktueller Zeilen begrenzen.
+    example: "100"
+    order: 40
+
+  - name: since
+    type: text
+    flag: --since
+    description: Show entries since a time such as today, yesterday, or 1 hour ago.
+    description.de: Einträge seit einem Zeitpunkt anzeigen, zum Beispiel today, yesterday oder 1 hour ago.
+    example: today
+    order: 50
+
+  - name: follow
+    type: boolean
+    flag: -f
+    description: Follow new entries continuously. The terminal remains attached until interrupted.
+    description.de: Neue Einträge fortlaufend anzeigen. Das Terminal bleibt aktiv, bis der Vorgang abgebrochen wird.
+    default: false
+    order: 60
+
+  - name: no_pager
+    type: boolean
+    flag: --no-pager
+    description: Print directly instead of opening a pager.
+    description.de: Ausgabe direkt anzeigen, statt einen Pager zu öffnen.
+    default: true
+    order: 70
+
+help_text: |
+  Read-only systemd journal viewer. Examples:
+  - Recent system messages: `journalctl -b -n 100 --no-pager`
+  - Logs for a service: `journalctl -u ssh.service`
+  - Warnings and more severe: `journalctl -p warning`
+  - Follow a service log: select the unit and enable Follow.
+help_text.de: |
+  Nur lesendes Werkzeug zum Anzeigen des systemd-Journals. Beispiele:
+  - Aktuelle Systemmeldungen: `journalctl -b -n 100 --no-pager`
+  - Protokoll eines Dienstes: `journalctl -u ssh.service`
+  - Warnungen und schwerwiegendere Meldungen: `journalctl -p warning`
+  - Dienstprotokoll live verfolgen: Unit auswählen und „Fortlaufend anzeigen“ aktivieren.

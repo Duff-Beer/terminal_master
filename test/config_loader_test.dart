@@ -17,7 +17,7 @@ void main() {
           )
           .toList();
 
-      expect(files, hasLength(15));
+      expect(files, hasLength(19));
       for (final file in files) {
         expect(
           () => ConfigLoader.loadConfig(file.path),

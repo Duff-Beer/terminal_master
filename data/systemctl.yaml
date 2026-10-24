@@ -1,0 +1,80 @@
+schema_version: 2
+command: systemctl
+display_name: systemctl
+display_name.de: systemctl
+description: Inspect and manage systemd services on Linux.
+description.de: Systemd-Dienste unter Linux anzeigen und verwalten.
+parameters:
+  - name: use_sudo
+    type: boolean
+    flag: sudo
+    placement: before_command
+    description: Run with elevated privileges when required.
+    description.de: Bei Bedarf mit erhöhten Rechten ausführen.
+    default: false
+    order: 0
+
+  - name: user_services
+    type: boolean
+    flag: --user
+    description: Manage services for the current user instead of system-wide services.
+    description.de: Dienste des aktuellen Benutzers statt systemweiter Dienste verwalten.
+    default: false
+    order: 1
+
+  - name: action
+    type: options
+    flag: ""
+    required: true
+    description: Choose the operation to perform on the specified service.
+    description.de: Aktion für den angegebenen Dienst auswählen.
+    order: 10
+    options:
+      - value: status
+        description: Show service status and recent log lines (read-only).
+        description.de: Dienststatus und letzte Protokollzeilen anzeigen (nur lesend).
+      - value: is-active
+        description: Check whether the service is active.
+        description.de: Prüfen, ob der Dienst aktiv ist.
+      - value: is-enabled
+        description: Check whether the service is enabled at startup.
+        description.de: Prüfen, ob der Dienst beim Systemstart aktiviert ist.
+      - value: start
+        description: Start the service.
+        description.de: Dienst starten.
+      - value: stop
+        description: Stop the service.
+        description.de: Dienst anhalten.
+      - value: restart
+        description: Restart the service.
+        description.de: Dienst neu starten.
+      - value: enable
+        description: Enable the service to start automatically at boot.
+        description.de: Dienst für den automatischen Start aktivieren.
+      - value: disable
+        description: Disable automatic startup of the service.
+        description.de: Automatischen Start des Dienstes deaktivieren.
+
+  - name: service
+    type: text
+    flag: ""
+    required: true
+    description: Service unit name, for example ssh or nginx.service.
+    description.de: Name der Service-Unit, zum Beispiel ssh oder nginx.service.
+    example: nginx.service
+    order: 20
+
+help_text: |
+  Linux systemd service manager. Examples:
+  - Inspect a service: `systemctl status nginx.service`
+  - Start a service: `sudo systemctl start nginx.service`
+  - For user services, enable the user services option.
+
+  Start, stop, restart, enable and disable change system state. Use them only when intended.
+help_text.de: |
+  Systemd-Dienstverwaltung für Linux. Beispiele:
+  - Dienststatus prüfen: `systemctl status nginx.service`
+  - Dienst starten: `sudo systemctl start nginx.service`
+  - Für Benutzerdienste die entsprechende Option aktivieren.
+
+  Starten, Anhalten, Neustarten, Aktivieren und Deaktivieren ändern den Systemzustand. Nur gezielt verwenden.

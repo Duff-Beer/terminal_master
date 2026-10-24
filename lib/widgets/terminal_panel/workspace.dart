@@ -782,26 +782,35 @@ class _TerminalPanelState extends State<TerminalPanel> {
         final secondPaneId = split.second.paneIds.first;
         return Flex(
           direction: isVertical ? Axis.horizontal : Axis.vertical,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Expanded(
               flex: (split.ratio * 1000).round().clamp(1, 999),
               child: _buildLayoutNode(tab, split.first),
             ),
-            GestureDetector(
-              key: Key('terminal-split-divider-$firstPaneId-$secondPaneId'),
-              behavior: HitTestBehavior.opaque,
-              onPanUpdate: extent.isFinite && extent > 0
-                  ? (details) => controller.resizeSplit(
-                      firstPaneId,
-                      secondPaneId,
-                      (isVertical ? details.delta.dx : details.delta.dy) /
-                          extent,
-                    )
-                  : null,
-              child: SizedBox(
-                width: isVertical ? 8 : null,
-                height: isVertical ? null : 8,
-                child: const ColoredBox(color: TerminalMasterColors.border),
+            MouseRegion(
+              key: Key(
+                'terminal-split-divider-cursor-$firstPaneId-$secondPaneId',
+              ),
+              cursor: isVertical
+                  ? SystemMouseCursors.resizeLeftRight
+                  : SystemMouseCursors.resizeUpDown,
+              child: GestureDetector(
+                key: Key('terminal-split-divider-$firstPaneId-$secondPaneId'),
+                behavior: HitTestBehavior.opaque,
+                onPanUpdate: extent.isFinite && extent > 0
+                    ? (details) => controller.resizeSplit(
+                        firstPaneId,
+                        secondPaneId,
+                        (isVertical ? details.delta.dx : details.delta.dy) /
+                            extent,
+                      )
+                    : null,
+                child: SizedBox(
+                  width: isVertical ? 8 : null,
+                  height: isVertical ? null : 8,
+                  child: const ColoredBox(color: TerminalMasterColors.border),
+                ),
               ),
             ),
             Expanded(

@@ -1072,8 +1072,42 @@ void main() {
     expect(firstPanePosition.dy, closeTo(secondPanePosition.dy, 0.1));
     expect(firstPanePosition.dx, lessThan(secondPanePosition.dx));
 
+    final verticalLayout = controller.activeTab.layout as TerminalLayoutSplit;
+    final firstPaneId = verticalLayout.first.paneIds.first;
+    final secondPaneId = verticalLayout.second.paneIds.first;
+    final divider = find.byKey(
+      Key('terminal-split-divider-$firstPaneId-$secondPaneId'),
+    );
+    expect(tester.getSize(divider).height, greaterThan(0));
+    final verticalCursorRegion = find.byKey(
+      Key('terminal-split-divider-cursor-$firstPaneId-$secondPaneId'),
+    );
+    expect(
+      tester.widget<MouseRegion>(verticalCursorRegion).cursor,
+      SystemMouseCursors.resizeLeftRight,
+    );
+    final firstPane = find.byKey(Key('terminal-pane-position-$firstPaneId'));
+    final secondPane = find.byKey(Key('terminal-pane-position-$secondPaneId'));
+    final initialFirstPaneWidth = tester.getSize(firstPane).width;
+    final initialSecondPaneWidth = tester.getSize(secondPane).width;
+    await tester.drag(divider, const Offset(64, 0));
+    await tester.pumpAndSettle();
+    expect(tester.getSize(firstPane).width, greaterThan(initialFirstPaneWidth));
+    expect(tester.getSize(secondPane).width, lessThan(initialSecondPaneWidth));
+
     await tester.tap(find.byKey(const Key('split-terminal-horizontal')));
     await tester.pumpAndSettle();
+    final rootLayout = controller.activeTab.layout as TerminalLayoutSplit;
+    final nestedLayout = rootLayout.second as TerminalLayoutSplit;
+    final horizontalCursorRegion = find.byKey(
+      Key(
+        'terminal-split-divider-cursor-${nestedLayout.first.paneIds.first}-${nestedLayout.second.paneIds.first}',
+      ),
+    );
+    expect(
+      tester.widget<MouseRegion>(horizontalCursorRegion).cursor,
+      SystemMouseCursors.resizeUpDown,
+    );
     expect(controller.hasSplit(TerminalSplitOrientation.vertical), isTrue);
     expect(controller.hasSplit(TerminalSplitOrientation.horizontal), isTrue);
     expect(controller.activeTab.panes, hasLength(3));
