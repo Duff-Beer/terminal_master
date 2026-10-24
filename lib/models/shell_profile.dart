@@ -57,8 +57,9 @@ class ShellProfile {
 
     final home = Platform.environment['HOME'];
     final configuredShell = Platform.environment['SHELL'] ?? '/bin/bash';
+    final configuredShellName = configuredShell.split('/').last;
     final candidates = <(String, String)>[
-      ('Login Shell', configuredShell),
+      (configuredShellName, configuredShell),
       ('Zsh', '/bin/zsh'),
       ('Bash', '/bin/bash'),
       ('Fish', '/usr/bin/fish'),
@@ -115,7 +116,7 @@ class ShellProfile {
     return [
       ShellProfile(
         id: 'login-shell',
-        name: 'Login Shell',
+        name: configuredShellName,
         executable: configuredShell,
         arguments: const ['-l'],
         workingDirectory: home,
