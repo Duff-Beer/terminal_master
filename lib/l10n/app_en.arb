@@ -734,6 +734,13 @@
   "settingsDefaultShellHelper": "Used for new terminal tabs.",
   "settingsDefaultShellSaved": "Default shell saved.",
   "settingsDefaultShellSaveFailed": "Could not save the default shell: {error}",
+  "settingsTerminalFontLabel": "Terminal font",
+  "settingsTerminalFontHelper": "Uses a font installed on your system.",
+  "settingsTerminalFontSaved": "Terminal font saved.",
+  "settingsTerminalFontSaveFailed": "Could not save the terminal font: {error}",
+  "@settingsTerminalFontSaveFailed": {
+    "placeholders": { "error": { "type": "String" } }
+  },
   "@settingsDefaultShellSaveFailed": {
     "placeholders": { "error": { "type": "String" } }
   },

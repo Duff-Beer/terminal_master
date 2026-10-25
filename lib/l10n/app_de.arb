@@ -431,6 +431,13 @@
   "settingsDefaultShellHelper": "Wird für neue Terminal-Tabs verwendet.",
   "settingsDefaultShellSaved": "Standard-Shell wurde gespeichert.",
   "settingsDefaultShellSaveFailed": "Standard-Shell konnte nicht gespeichert werden: {error}",
+  "settingsTerminalFontLabel": "Terminal-Schriftart",
+  "settingsTerminalFontHelper": "Verwendet eine auf dem System installierte Schriftart.",
+  "settingsTerminalFontSaved": "Terminal-Schriftart gespeichert.",
+  "settingsTerminalFontSaveFailed": "Terminal-Schriftart konnte nicht gespeichert werden: {error}",
+  "@settingsTerminalFontSaveFailed": {
+    "placeholders": { "error": { "type": "String" } }
+  },
   "settingsSectionCommandBuilder": "Command Builder",
   "settingsYamlDirectoryLabel": "Standard-YAML-Ordner",
   "settingsYamlDirectoryHelper": "Vorlagen werden aus diesem Ordner geladen.",

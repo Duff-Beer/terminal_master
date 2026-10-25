@@ -2526,6 +2526,30 @@ abstract class AppLocalizations {
   /// **'Could not save the default shell: {error}'**
   String settingsDefaultShellSaveFailed(String error);
 
+  /// No description provided for @settingsTerminalFontLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Terminal font'**
+  String get settingsTerminalFontLabel;
+
+  /// No description provided for @settingsTerminalFontHelper.
+  ///
+  /// In en, this message translates to:
+  /// **'Uses a font installed on your system.'**
+  String get settingsTerminalFontHelper;
+
+  /// No description provided for @settingsTerminalFontSaved.
+  ///
+  /// In en, this message translates to:
+  /// **'Terminal font saved.'**
+  String get settingsTerminalFontSaved;
+
+  /// No description provided for @settingsTerminalFontSaveFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not save the terminal font: {error}'**
+  String settingsTerminalFontSaveFailed(String error);
+
   /// No description provided for @settingsSectionCommandBuilder.
   ///
   /// In en, this message translates to:

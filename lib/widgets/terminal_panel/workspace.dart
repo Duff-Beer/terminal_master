@@ -87,6 +87,8 @@ class TerminalWorkspace extends StatefulWidget {
   final SavedTerminalTabStore? savedTabStore;
   final bool commandBarPinned;
   final Future<void> Function(bool pinned)? saveCommandBarPinned;
+  final String terminalFontFamily;
+  final Future<void> Function(String fontFamily)? saveTerminalFontFamily;
   final Widget? sshPanel;
   final Widget? settingsPanel;
   final Widget child;
@@ -99,6 +101,8 @@ class TerminalWorkspace extends StatefulWidget {
     this.savedTabStore,
     this.commandBarPinned = false,
     this.saveCommandBarPinned,
+    this.terminalFontFamily = 'monospace',
+    this.saveTerminalFontFamily,
     this.sshPanel,
     this.settingsPanel,
     required this.child,
@@ -123,6 +127,8 @@ class _TerminalWorkspaceState extends State<TerminalWorkspace> {
       savedTabStore: widget.savedTabStore ?? MemorySavedTerminalTabStore(),
       commandBarPinned: widget.commandBarPinned,
       saveCommandBarPinned: widget.saveCommandBarPinned,
+      terminalFontFamily: widget.terminalFontFamily,
+      saveTerminalFontFamily: widget.saveTerminalFontFamily,
     );
     _configurationController = ConfigurationPanelController()
       ..addListener(_handleConfigurationVisibility);

@@ -469,9 +469,26 @@ void main() {
             .fontSize,
         13,
       );
+      expect(
+        tester
+            .widget<TerminalView>(find.byType(TerminalView))
+            .textStyle
+            .fontFamily,
+        'monospace',
+      );
       expect(find.byKey(const Key('stop-terminal-session')), findsNothing);
       final controller = TerminalPanelScope.of(
         tester.element(find.byType(TerminalPanel)),
+      );
+      await controller.setTerminalFontFamily('Noto Sans Mono');
+      await tester.pump();
+      expect(controller.terminalFontFamily, 'Noto Sans Mono');
+      expect(
+        tester
+            .widget<TerminalView>(find.byType(TerminalView))
+            .textStyle
+            .fontFamily,
+        'Noto Sans Mono',
       );
       final activeTabFinder = find.byKey(
         Key('terminal-tab-${controller.activeTab.id}'),

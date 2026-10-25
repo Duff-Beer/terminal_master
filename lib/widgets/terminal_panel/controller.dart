@@ -175,6 +175,7 @@ class TerminalPanelController extends ChangeNotifier {
   final List<ShellProfile> profiles;
   final SavedTerminalTabStore savedTabStore;
   final Future<void> Function(bool pinned)? saveCommandBarPinned;
+  final Future<void> Function(String fontFamily)? saveTerminalFontFamily;
 
   TerminalPanelController({
     required this.backendFactory,
@@ -182,8 +183,11 @@ class TerminalPanelController extends ChangeNotifier {
     required this.savedTabStore,
     bool commandBarPinned = false,
     this.saveCommandBarPinned,
+    String terminalFontFamily = 'monospace',
+    this.saveTerminalFontFamily,
     List<ShellProfile>? profiles,
   }) : _commandBarPinned = commandBarPinned,
+       _terminalFontFamily = terminalFontFamily,
        profiles = List.unmodifiable(
          profiles == null || profiles.isEmpty
              ? ShellProfile.platformDefaults()
@@ -208,6 +212,7 @@ class TerminalPanelController extends ChangeNotifier {
   bool _isLoadingSavedTabs = true;
   TerminalTabException? _savedTabsError;
   double _fontSize = defaultFontSize;
+  String _terminalFontFamily;
   bool _disposed = false;
   bool _commandBarPinned;
 
@@ -233,6 +238,7 @@ class TerminalPanelController extends ChangeNotifier {
       activeTab.hasSplit(orientation);
   bool isPaneMaximized(String paneId) => activeTab.maximizedPaneId == paneId;
   double get fontSize => _fontSize;
+  String get terminalFontFamily => _terminalFontFamily;
   bool get commandBarPinned => _commandBarPinned;
 
   Future<void> setCommandBarPinned(bool pinned) async {
@@ -644,6 +650,20 @@ class TerminalPanelController extends ChangeNotifier {
     notifyListeners();
     if (_isAttached && _isVisiblePane(activeTab, paneId)) {
       await _startForDisplay(pane);
+    }
+  }
+
+  Future<void> setTerminalFontFamily(String fontFamily) async {
+    if (_terminalFontFamily == fontFamily) return;
+    final previous = _terminalFontFamily;
+    _terminalFontFamily = fontFamily;
+    notifyListeners();
+    try {
+      await saveTerminalFontFamily?.call(fontFamily);
+    } on Object {
+      _terminalFontFamily = previous;
+      notifyListeners();
+      rethrow;
     }
   }
 

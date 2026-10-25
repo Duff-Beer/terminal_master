@@ -32,6 +32,8 @@ class MyApp extends StatefulWidget {
   final Future<void> Function(String? code)? saveLanguage;
   final bool commandBarPinned;
   final Future<void> Function(bool pinned)? saveCommandBarPinned;
+  final String terminalFontFamily;
+  final Future<void> Function(String fontFamily)? saveTerminalFontFamily;
 
   const MyApp({
     super.key,
@@ -49,6 +51,8 @@ class MyApp extends StatefulWidget {
     this.saveLanguage,
     this.commandBarPinned = false,
     this.saveCommandBarPinned,
+    this.terminalFontFamily = 'monospace',
+    this.saveTerminalFontFamily,
   });
 
   @override
@@ -111,6 +115,8 @@ class _MyAppState extends State<MyApp> {
         ),
         commandBarPinned: widget.commandBarPinned,
         saveCommandBarPinned: widget.saveCommandBarPinned,
+        terminalFontFamily: widget.terminalFontFamily,
+        saveTerminalFontFamily: widget.saveTerminalFontFamily,
         sshPanel: SshConnectionsPage(
           profileStore: _sshProfileStore,
           credentialStore: _sshCredentialStore,

@@ -20,6 +20,16 @@ class SettingsLoader {
   /// `null` means "follow the operating system locale".
   static late String? languageCode;
   static late bool commandBarPinned;
+  static late String terminalFontFamily;
+
+  static const terminalFontFamilies = <String>[
+    'monospace',
+    'DejaVu Sans Mono',
+    'Liberation Mono',
+    'Noto Sans Mono',
+    'Ubuntu Mono',
+    'JetBrains Mono',
+  ];
 
   static Future<void> saveDefaultIntegratedTerminalProfile(
     String dirPath,
@@ -71,6 +81,24 @@ class SettingsLoader {
           lines[settingIndex] = setting;
         }
       });
+
+  static Future<void> saveTerminalFontFamily(
+    String dirPath,
+    String fontFamily,
+  ) => _updateSettings(dirPath, (lines) {
+    if (!terminalFontFamilies.contains(fontFamily)) {
+      throw ArgumentError.value(fontFamily, 'fontFamily', 'Unsupported font.');
+    }
+    final setting = 'terminal_font_family: ${jsonEncode(fontFamily)}';
+    final settingIndex = lines.indexWhere(
+      (line) => RegExp(r'^terminal_font_family\s*:').hasMatch(line),
+    );
+    if (settingIndex < 0) {
+      lines.add(setting);
+    } else {
+      lines[settingIndex] = setting;
+    }
+  });
 
   static Future<void> saveCommandBarPinned(String dirPath, bool pinned) =>
       _updateSettings(dirPath, (lines) {
@@ -142,12 +170,14 @@ class SettingsLoader {
       integratedTerminalProfiles = defaultProfiles;
       languageCode = null;
       commandBarPinned = false;
+      terminalFontFamily = 'monospace';
       return;
     }
 
     final doc = loadYaml(file.readAsStringSync());
     languageCode = _loadLanguage(doc['language']);
     commandBarPinned = doc['terminal_command_bar_pinned'] == true;
+    terminalFontFamily = _loadTerminalFontFamily(doc['terminal_font_family']);
     terminalCommand = doc['terminal']?.toString() ?? defaults['terminal']!;
     fileManagerCommand =
         doc['file_manager']?.toString() ?? defaults['file_manager']!;
@@ -162,6 +192,13 @@ class SettingsLoader {
 
   /// An unknown or absent value falls back to the operating system locale
   /// rather than failing startup — a stale language code must not brick the app.
+  static String _loadTerminalFontFamily(Object? configuration) {
+    final fontFamily = configuration?.toString().trim();
+    return terminalFontFamilies.contains(fontFamily)
+        ? fontFamily!
+        : 'monospace';
+  }
+
   static String? _loadLanguage(Object? configuration) {
     final code = configuration?.toString().trim();
     if (code == null || code.isEmpty || code == systemLanguage) return null;

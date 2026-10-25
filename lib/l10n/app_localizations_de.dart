@@ -1531,6 +1531,21 @@ class AppLocalizationsDe extends AppLocalizations {
   }
 
   @override
+  String get settingsTerminalFontLabel => 'Terminal-Schriftart';
+
+  @override
+  String get settingsTerminalFontHelper =>
+      'Verwendet eine auf dem System installierte Schriftart.';
+
+  @override
+  String get settingsTerminalFontSaved => 'Terminal-Schriftart gespeichert.';
+
+  @override
+  String settingsTerminalFontSaveFailed(String error) {
+    return 'Terminal-Schriftart konnte nicht gespeichert werden: $error';
+  }
+
+  @override
   String get settingsSectionCommandBuilder => 'Command Builder';
 
   @override

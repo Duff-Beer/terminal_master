@@ -84,6 +84,26 @@ class _SettingsPageState extends State<SettingsPage> {
     }
   }
 
+  Future<void> _selectTerminalFontFamily(String fontFamily) async {
+    final l10n = AppLocalizations.of(context);
+    final controller = TerminalPanelScope.of(context);
+    setState(() => _isSaving = true);
+    try {
+      await controller.setTerminalFontFamily(fontFamily);
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(l10n.settingsTerminalFontSaved)));
+    } on Object catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(l10n.settingsTerminalFontSaveFailed('$error'))),
+      );
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
+    }
+  }
+
   Future<void> _selectLanguage(String? code) async {
     final l10n = AppLocalizations.of(context);
     setState(() => _isSaving = true);
@@ -190,6 +210,34 @@ class _SettingsPageState extends State<SettingsPage> {
                 : (profileId) {
                     if (profileId != null) _selectProfile(profileId);
                   },
+          ),
+          const SizedBox(height: 16),
+          DropdownButtonFormField<String>(
+            key: const Key('terminal-font-family'),
+            initialValue: controller.terminalFontFamily,
+            decoration: InputDecoration(
+              labelText: l10n.settingsTerminalFontLabel,
+              helperText: l10n.settingsTerminalFontHelper,
+              border: const OutlineInputBorder(),
+            ),
+            items: [
+              for (final family in SettingsLoader.terminalFontFamilies)
+                DropdownMenuItem(value: family, child: Text(family)),
+            ],
+            onChanged: _isSaving
+                ? null
+                : (family) {
+                    if (family != null) _selectTerminalFontFamily(family);
+                  },
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Aa Bb 0123  [] {} ()',
+            key: const Key('terminal-font-preview'),
+            style: TextStyle(
+              fontFamily: controller.terminalFontFamily,
+              fontSize: 18,
+            ),
           ),
           const SizedBox(height: 28),
           const Divider(),

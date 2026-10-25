@@ -24,6 +24,12 @@ Future<void> main() async {
       commandBarPinned: SettingsLoader.commandBarPinned,
       saveCommandBarPinned: (pinned) =>
           SettingsLoader.saveCommandBarPinned(initData.configPath, pinned),
+      terminalFontFamily: SettingsLoader.terminalFontFamily,
+      saveTerminalFontFamily: (fontFamily) =>
+          SettingsLoader.saveTerminalFontFamily(
+            initData.configPath,
+            fontFamily,
+          ),
       sshProfileStore: FileSshConnectionProfileStore(
         Directory(initData.configPath),
       ),

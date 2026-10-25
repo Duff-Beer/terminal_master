@@ -188,6 +188,33 @@ integrated_terminal:
     expect(SettingsLoader.commandBarPinned, isFalse);
   });
 
+  test(
+    'round-trips the terminal font family and ignores unknown values',
+    () async {
+      final directory = Directory.systemTemp.createTempSync(
+        'terminal-master-settings-',
+      );
+      addTearDown(() => directory.deleteSync(recursive: true));
+      final file = File('${directory.path}/settings.yaml')
+        ..writeAsStringSync('terminal: Example Terminal\n');
+
+      SettingsLoader.initialize(directory.path);
+      expect(SettingsLoader.terminalFontFamily, 'monospace');
+
+      await SettingsLoader.saveTerminalFontFamily(
+        directory.path,
+        'Noto Sans Mono',
+      );
+      SettingsLoader.initialize(directory.path);
+      expect(SettingsLoader.terminalFontFamily, 'Noto Sans Mono');
+      expect(file.readAsStringSync(), contains('terminal_font_family:'));
+
+      file.writeAsStringSync('terminal_font_family: Unavailable Font\n');
+      SettingsLoader.initialize(directory.path);
+      expect(SettingsLoader.terminalFontFamily, 'monospace');
+    },
+  );
+
   test('falls back to the system locale for an unsupported language', () {
     final directory = Directory.systemTemp.createTempSync(
       'terminal-master-settings-',

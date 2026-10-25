@@ -1522,6 +1522,21 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get settingsTerminalFontLabel => 'Terminal font';
+
+  @override
+  String get settingsTerminalFontHelper =>
+      'Uses a font installed on your system.';
+
+  @override
+  String get settingsTerminalFontSaved => 'Terminal font saved.';
+
+  @override
+  String settingsTerminalFontSaveFailed(String error) {
+    return 'Could not save the terminal font: $error';
+  }
+
+  @override
   String get settingsSectionCommandBuilder => 'Command Builder';
 
   @override
