@@ -1,52 +1,28 @@
 # Terminal Master
 
-Terminal Master is a Flutter desktop application for building validated terminal
-commands from reusable YAML definitions. It keeps command options discoverable,
-checks conditional input requirements, and asks for explicit confirmation before
-returning commands marked as risky.
+**Terminal Master is a cross-platform desktop terminal and command-building workspace.** Build validated commands from reusable YAML definitions, review them before execution, and run them in persistent terminals with tabs and split panes. It also provides managed SSH connections with credentials stored in the operating system's secure store.
 
-Commands run in a persistent `xterm` workspace backed by a native pseudo
-terminal (`flutter_pty`). The terminal is the primary view; a slim tool rail
-opens the Command Builder, managed SSH connections, or settings in an overlay
-without resizing running terminal applications. The configured external
-terminal remains available as a fallback. The workspace provides font zoom,
-highlighted scrollback search, a visible scrollbar, and a shortcut back to the
-latest output.
+![Terminal Master showing a multi-pane terminal workspace](assets/screenshots/terminal-workspace.png)
 
-Generated commands are collected in the panel's editable command field without
-an execution confirmation. This allows commands from multiple YAML definitions
-to be reviewed or combined before explicitly sending them to the focused
-terminal pane. Search is available from the responsive bottom command bar.
-Restarting a session is available from the tab context menu and, on narrow
-windows, from the command bar's overflow menu. A running process is shut down
-gracefully before its pane restarts. Closing a tab uses the same controlled
-shutdown. Tabs can be renamed from their context menu; saving a tab persists
-its custom name and restores it when the snapshot is opened. Each tab owns an
-independent terminal workspace with its own PTY,
-scrollback, search state, and pending command draft. A tab can be split into
-side-by-side columns, stacked rows, or a combined 2x2 grid with up to four
-independent PTYs. An individual split pane can temporarily fill the complete
-terminal workspace while the other sessions continue running in the
-background; sessions in other tabs remain active as well.
+*Three interactive terminal sessions in a resizable split layout.*
 
-Terminal keyboard shortcuts use `Cmd` on macOS and `Ctrl` on Windows/Linux:
+## What it does
 
-- `Cmd/Ctrl+F`: search the scrollback
+- **Build commands from YAML:** searchable forms support options, dependencies, and conditional fields. Definitions can be edited in the app.
+- **Review before running:** generated commands are staged in an editable field; elevated or destructive commands require explicit confirmation.
+- **Work across persistent terminals:** use independent tabs and resizable split panes, search scrollback, and keep sessions running while navigating the app.
+- **Manage SSH connections:** verify server host keys, store passwords and key passphrases in the OS credential store, and create encrypted connection backups.
+- **Track and restore work:** inspect command results and save terminal-tab layouts for later sessions.
+
+The integrated terminal is backed by native pseudo-terminals and supports interactive terminal applications, ANSI colors, mouse reporting, and visible hyperlinks. Terminal Master runs on macOS, Windows, and Linux.
+
+## Keyboard shortcuts
+
+Shortcuts use `Cmd` on macOS and `Ctrl` on Windows/Linux:
+
+- `Cmd/Ctrl+F`: search terminal scrollback
 - `Cmd/Ctrl+B`: open or close the Command Builder
-- `Cmd/Ctrl++`, `Cmd/Ctrl+-`, `Cmd/Ctrl+0`: adjust or reset the font size
-
-The PTY advertises `xterm-256color` and `COLORTERM=truecolor`. The renderer
-supports ANSI styles, 16/256/24-bit colors, wide Unicode characters, and system
-monospace/emoji font fallbacks. Alternate-screen and mouse-reporting modes are
-shown in the terminal status bar. Interactive terminal applications receive
-click, wheel, drag, and pointer-move events while mouse reporting is active;
-normal scrollback behavior remains available when an application does not
-request wheel events.
-
-Visible HTTP(S), mail, and OSC-8 hyperlinks can be opened with `Cmd/Ctrl+Click`
-or from the context menu. The context menu also provides copy, paste, select
-all, search selection, and clear-output actions. The status bar tracks the
-shell, OSC-7 working directory, dynamic OSC title, process state, and exit code.
+- `Cmd/Ctrl++`, `Cmd/Ctrl+-`, `Cmd/Ctrl+0`: zoom in, zoom out, or reset the terminal font size
 
 ## Integrated Shell Profiles
 
