@@ -290,3 +290,9 @@ NixOS's `/run/wrappers/bin/sudo` available to the integrated terminal.
 Push a tag matching the semantic version in `pubspec.yaml`, for example `v1.0.0`,
 or run the Release workflow manually. The workflow creates a draft GitHub release
 so its artifacts can be checked before publication.
+
+## License
+
+Terminal Master is licensed under the Apache License 2.0. See [LICENSE](LICENSE)
+for the license text. Third-party dependencies remain under their respective
+licenses.
