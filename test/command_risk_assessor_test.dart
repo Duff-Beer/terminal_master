@@ -1,12 +1,16 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:terminal_master/models/command_config.dart';
 import 'package:terminal_master/services/command_risk_assessor.dart';
-import 'package:terminal_master/utils/config_loader.dart';
+import 'support/test_command_configs.dart';
 
 void main() {
   group('CommandRiskAssessor', () {
     test('classifies ordinary commands as standard', () {
-      final config = ConfigLoader.loadConfig('data/flutter.yaml');
+      final config = loadTestCommandConfig('''
+schema_version: 1
+command: flutter
+parameters: []
+''');
 
       final assessment = CommandRiskAssessor.assessConfig(config, {
         'action': 'doctor',
@@ -17,7 +21,16 @@ void main() {
     });
 
     test('classifies sudo commands as elevated', () {
-      final config = ConfigLoader.loadConfig('data/nmap.yaml');
+      final config = loadTestCommandConfig('''
+schema_version: 1
+command: nmap
+parameters:
+  - name: use_sudo
+    type: boolean
+    flag: sudo
+  - name: target
+    type: text
+''');
 
       final assessment = CommandRiskAssessor.assessConfig(config, {
         'target': '192.168.0.0/24',
@@ -32,8 +45,19 @@ void main() {
     });
 
     test('classifies dd and force options as destructive', () {
-      final dd = ConfigLoader.loadConfig('data/dd.yaml');
-      final gitPush = ConfigLoader.loadConfig('data/git_push.yaml');
+      final dd = loadTestCommandConfig('''
+schema_version: 1
+command: dd
+parameters: []
+''');
+      final gitPush = loadTestCommandConfig('''
+schema_version: 1
+command: git push
+parameters:
+  - name: force
+    type: boolean
+    flag: --force
+''');
 
       expect(
         CommandRiskAssessor.assessConfig(dd, const {}).level,

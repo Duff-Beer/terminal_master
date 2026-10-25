@@ -4,10 +4,12 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:terminal_master/services/command_builder.dart';
 import 'package:terminal_master/utils/config_loader.dart';
 
+import 'support/test_command_configs.dart';
+
 void main() {
   group('CommandBuilder', () {
     test('builds an SSH command from the host dropdown and options', () {
-      final config = ConfigLoader.loadConfig('data/ssh.yaml');
+      final config = sshCommandConfig();
       final command = CommandBuilder(
         config: config,
         values: {
@@ -38,7 +40,7 @@ void main() {
     });
 
     test('renders attached dd flags and defaults', () {
-      final config = ConfigLoader.loadConfig('data/dd.yaml');
+      final config = ddCommandConfig();
       final command = CommandBuilder(
         config: config,
         values: {
@@ -58,7 +60,7 @@ void main() {
     });
 
     test('quotes user input instead of interpreting shell syntax', () {
-      final config = ConfigLoader.loadConfig('data/git_clone.yaml');
+      final config = gitCloneCommandConfig();
       final command = CommandBuilder(
         config: config,
         values: {
@@ -73,7 +75,7 @@ void main() {
     });
 
     test('quotes PowerShell metacharacters and embedded apostrophes', () {
-      final config = ConfigLoader.loadConfig('data/git_clone.yaml');
+      final config = gitCloneCommandConfig();
       final command = CommandBuilder(
         config: config,
         values: {
@@ -91,7 +93,7 @@ void main() {
     });
 
     test('renders configured multi-token options', () {
-      final config = ConfigLoader.loadConfig('data/flutter.yaml');
+      final config = flutterCommandConfig();
       final command = CommandBuilder(
         config: config,
         values: {...config.defaultValues, 'action': 'pub get'},
@@ -102,7 +104,7 @@ void main() {
     });
 
     test('renders a combined Nmap scan with required option values', () {
-      final config = ConfigLoader.loadConfig('data/nmap.yaml');
+      final config = nmapCommandConfig();
       final command = CommandBuilder(
         config: config,
         values: {
@@ -136,7 +138,7 @@ void main() {
     });
 
     test('renders the basic Nmap defaults and selected common options', () {
-      final config = ConfigLoader.loadConfig('data/nmap_basic.yaml');
+      final config = nmapBasicCommandConfig();
       final command = CommandBuilder(
         config: config,
         values: {
@@ -253,7 +255,7 @@ parameters:
     });
 
     test('removes port scan options from basic Nmap host discovery', () {
-      final config = ConfigLoader.loadConfig('data/nmap_basic.yaml');
+      final config = nmapBasicCommandConfig();
       final command = CommandBuilder(
         config: config,
         values: {
@@ -273,7 +275,7 @@ parameters:
     });
 
     test('treats false values as inactive for conflicts', () {
-      final config = ConfigLoader.loadConfig('data/pishrink.yaml');
+      final config = pishrinkCommandConfig();
       final command = CommandBuilder(
         config: config,
         values: {
@@ -289,7 +291,7 @@ parameters:
     });
 
     test('rejects cmd expansion characters on Windows', () {
-      final config = ConfigLoader.loadConfig('data/git_clone.yaml');
+      final config = gitCloneCommandConfig();
 
       expect(
         () => CommandBuilder(
@@ -302,7 +304,7 @@ parameters:
     });
 
     test('escapes a trailing backslash in quoted Windows arguments', () {
-      final config = ConfigLoader.loadConfig('data/git_clone.yaml');
+      final config = gitCloneCommandConfig();
       final command = CommandBuilder(
         config: config,
         values: {'repository': 'C:\\Program Files\\'},
@@ -313,7 +315,7 @@ parameters:
     });
 
     test('validates required parameters', () {
-      final config = ConfigLoader.loadConfig('data/dd.yaml');
+      final config = ddCommandConfig();
 
       expect(
         () => CommandBuilder(
@@ -361,7 +363,7 @@ parameters:
       addTearDown(() => directory.deleteSync(recursive: true));
       final input = File('${directory.path}/input.img')..writeAsStringSync('x');
       final equivalentOutput = '${directory.path}/nested/../input.img';
-      final config = ConfigLoader.loadConfig('data/dd.yaml');
+      final config = ddCommandConfig();
 
       expect(
         () => CommandBuilder(
