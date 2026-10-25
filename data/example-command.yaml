@@ -1,0 +1,240 @@
+schema_version: 2
+command: echo
+display_name: Command Builder feature tour
+display_name.de: Funktionsübersicht des Befehlseditors
+description: A safe, generic example that demonstrates the command-template fields and controls.
+description.de: Ein sicheres, allgemeines Beispiel für Felder und Steuerelemente von Befehlvorlagen.
+help_text: >-
+  This template prints its arguments with echo; it does not read or modify the
+  selected paths. Try the conditional fields, conflicting switches, and path
+  validation, then review the generated command before sending it to a terminal.
+help_text.de: >-
+  Diese Vorlage gibt ihre Argumente mit echo aus und liest oder verändert die
+  ausgewählten Pfade nicht. Probiere bedingte Felder, einander ausschließende
+  Schalter und Pfadprüfungen aus und prüfe den erzeugten Befehl, bevor du ihn
+  an ein Terminal sendest.
+parameters:
+  - name: message
+    type: text
+    label: Message
+    label.de: Nachricht
+    description: Text passed to echo.
+    description.de: Text, der an echo übergeben wird.
+    example: Hello from Terminal Master
+    example.de: Hallo von Terminal Master
+    prefix: "["
+    suffix: "]"
+    placement: argument
+    note: This is a demonstration; the command only prints the supplied text.
+    note.de: Dies ist eine Demonstration; der Befehl gibt den angegebenen Text nur aus.
+    required: true
+    default: Hello from Terminal Master
+    order: 10
+
+  - name: tags
+    type: text_list
+    label: Repeated values
+    label.de: Wiederholte Werte
+    description: Add zero or more values; each becomes a separate argument.
+    description.de: Füge beliebig viele Werte hinzu; jeder wird ein eigenes Argument.
+    flag: --tag
+    join: separated
+    default: [demo, yaml]
+    order: 20
+
+  - name: style
+    type: options
+    label: Output style
+    label.de: Ausgabestil
+    description: A searchable selection with descriptions and a default.
+    description.de: Eine durchsuchbare Auswahl mit Beschreibungen und Standardwert.
+    flag: --style=
+    join: attached
+    default: plain
+    options:
+      - value: plain
+        description: A simple text value.
+        description.de: Ein einfacher Textwert.
+      - value: quoted
+        description: Demonstrates fields that appear for a selected option.
+        description.de: Zeigt Felder, die für eine bestimmte Auswahl erscheinen.
+      - value: compact
+        description: A short alternative value.
+        description.de: Ein kurzer alternativer Wert.
+    order: 30
+
+  - name: quote_character
+    type: text
+    label: Quote character
+    label.de: Anführungszeichen
+    description: Shown and required only when the quoted style is selected.
+    description.de: Wird nur beim Stil „quoted“ angezeigt und benötigt.
+    default: '"'
+    visible_when:
+      parameter: style
+      equals: quoted
+    required_when:
+      parameter: style
+      equals: quoted
+    order: 40
+
+  - name: uppercase
+    type: boolean
+    label: Uppercase marker
+    label.de: Großbuchstaben-Markierung
+    description: Demonstrates a boolean flag and a conflict with another option.
+    description.de: Zeigt einen booleschen Schalter und einen Konflikt mit einer anderen Option.
+    flag: --uppercase
+    default: false
+    conflicts_with: [lowercase]
+    order: 50
+
+  - name: lowercase
+    type: boolean
+    label: Lowercase marker
+    label.de: Kleinbuchstaben-Markierung
+    description: This marker cannot be selected together with uppercase.
+    description.de: Diese Markierung kann nicht zusammen mit Großbuchstaben gewählt werden.
+    flag: --lowercase
+    default: false
+    conflicts_with: [uppercase]
+    order: 60
+
+  - name: use_paths
+    type: boolean
+    label: Include path arguments
+    label.de: Pfadangaben hinzufügen
+    description: Reveal the input and output path controls.
+    description.de: Blendet die Felder für Eingabe- und Ausgabepfade ein.
+    flag: --with-paths
+    default: false
+    order: 70
+
+  - name: source_path
+    type: filepath
+    mode: file
+    label: Source file
+    label.de: Quelldatei
+    description: Selecting this file only adds its path to the printed command.
+    description.de: Die Auswahl fügt den Dateipfad nur zum ausgegebenen Befehl hinzu.
+    flag: --source
+    depends_on: [use_paths]
+    visible_when:
+      parameter: use_paths
+      equals: true
+    required_when:
+      parameter: use_paths
+      equals: true
+    order: 80
+
+  - name: destination_path
+    type: filepath
+    mode: any
+    label: Destination path
+    label.de: Zielpfad
+    description: Must differ from the source path; no file operation is performed.
+    description.de: Muss sich vom Quellpfad unterscheiden; es wird keine Dateioperation ausgeführt.
+    flag: --destination
+    depends_on: [source_path]
+    must_differ: true
+    visible_when:
+      parameter: use_paths
+      equals: true
+    required_when:
+      parameter: use_paths
+      equals: true
+    order: 90
+
+  - name: output_directory
+    type: filepath
+    mode: directory
+    label: Optional directory
+    label.de: Optionales Verzeichnis
+    description: Demonstrates a directory picker, shown when directory mode is enabled.
+    description.de: Zeigt einen Verzeichnisauswahldialog, wenn der Verzeichnismodus aktiviert ist.
+    flag: --directory
+    visible_when:
+      all:
+        - parameter: use_directory
+          equals: true
+        - parameter: style
+          in: [plain, compact]
+    order: 100
+
+  - name: use_directory
+    type: boolean
+    label: Enable directory picker
+    label.de: Verzeichnisauswahl aktivieren
+    description: Reveal the optional directory field.
+    description.de: Blendet das optionale Verzeichnisfeld ein.
+    default: false
+    order: 95
+
+  - name: simple_mode_note
+    type: text
+    label: Basic-mode note
+    label.de: Hinweis im Basismodus
+    description: This field uses an inactive condition and disappears when uppercase is enabled.
+    description.de: Dieses Feld verwendet eine Inaktiv-Bedingung und wird bei aktivierter Großbuchstaben-Markierung ausgeblendet.
+    default: Optional demo note
+    visible_when:
+      parameter: uppercase
+      active: false
+    order: 105
+
+  - name: details
+    type: text
+    label: Conditional details
+    label.de: Bedingte Details
+    description: Required when either the compact style or a marker is selected.
+    description.de: Wird benötigt, wenn der kompakte Stil oder eine Markierung gewählt ist.
+    flag: --details
+    visible_when:
+      any:
+        - parameter: style
+          equals: compact
+        - parameter: uppercase
+          active: true
+        - parameter: lowercase
+          active: true
+    required_when:
+      any:
+        - parameter: style
+          equals: compact
+        - parameter: uppercase
+          active: true
+        - parameter: lowercase
+          active: true
+    order: 110
+
+  - name: prefix_command
+    type: boolean
+    label: Prefix with environment marker (POSIX)
+    label.de: Umgebungsmarkierung voranstellen (POSIX)
+    description: Demonstrates before_command placement. Intended for POSIX shells.
+    description.de: Zeigt die Platzierung vor dem Befehl. Für POSIX-Shells gedacht.
+    flag: env TM_DEMO=1
+    placement: before_command
+    default: false
+    order: 0
+
+  - name: sort_output
+    type: boolean
+    label: Pipe through sort
+    label.de: Ausgabe durch sort leiten
+    description: Demonstrates pipeline placement using the shell's sort command.
+    description.de: Zeigt eine Pipeline mit dem sort-Befehl der Shell.
+    flag: '| sort'
+    placement: pipeline
+    default: false
+    order: 120
+
+  - name: sample_action
+    type: button
+    label: Stage a sample action
+    label.de: Beispielaktion bereitstellen
+    description: Stages a harmless echo command in the terminal.
+    description.de: Stellt einen ungefährlichen echo-Befehl im Terminal bereit.
+    executable: echo
+    args: [Sample action from the YAML demo]
+    order: 130

@@ -1,0 +1,19 @@
+schema_version: 2
+commands:
+  - title: Print a greeting
+    title.de: Begrüßung ausgeben
+    description: A fixed, harmless command that prints a message.
+    description.de: Ein fester, ungefährlicher Befehl, der eine Nachricht ausgibt.
+    command: echo "Hello from the Terminal Master batch demo"
+
+  - title: Explain command staging
+    title.de: Bereitstellung von Befehlen erklären
+    description: Shows that selecting a batch item stages its command for review; it does not run it automatically.
+    description.de: Zeigt, dass ein Batch-Eintrag den Befehl zur Prüfung bereitstellt und nicht automatisch ausführt.
+    command: echo "Review a generated command before sending it to the terminal"
+
+  - title: Print a second line
+    title.de: Zweite Zeile ausgeben
+    description: Another safe sample for trying batch ordering and editing.
+    description.de: Ein weiteres sicheres Beispiel zum Ausprobieren der Batch-Reihenfolge und -Bearbeitung.
+    command: echo "Batch commands can be edited, reordered, copied, and removed"

@@ -17,7 +17,7 @@ void main() {
           )
           .toList();
 
-      expect(files, hasLength(19));
+      expect(files, hasLength(20));
       for (final file in files) {
         expect(
           () => ConfigLoader.loadConfig(file.path),
@@ -25,6 +25,22 @@ void main() {
           reason: file.path,
         );
       }
+    });
+
+    test('general example files cover command and batch features', () {
+      final config = ConfigLoader.loadConfig('data/example-command.yaml');
+      final batch = ConfigLoader.loadBatchConfig('data/-example-batch.yaml');
+      final parameterTypes = config.parameters
+          .map((parameter) => parameter.type)
+          .toSet();
+
+      expect(parameterTypes, containsAll(CommandParameterType.values));
+      expect(config.displayName, 'Command Builder feature tour');
+      expect(batch.commands, hasLength(3));
+      expect(
+        batch.commands.every((command) => command.command.startsWith('echo ')),
+        isTrue,
+      );
     });
 
     test('async directory loading matches the synchronous loader', () async {
