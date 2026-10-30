@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:yaml/yaml.dart';
 
 import '../models/shell_profile.dart';
+import 'terminal_fonts.dart';
 
 class SettingsLoader {
   /// Value stored in `settings.yaml` for "follow the operating system".
@@ -22,14 +23,7 @@ class SettingsLoader {
   static late bool commandBarPinned;
   static late String terminalFontFamily;
 
-  static const terminalFontFamilies = <String>[
-    'monospace',
-    'DejaVu Sans Mono',
-    'Liberation Mono',
-    'Noto Sans Mono',
-    'Ubuntu Mono',
-    'JetBrains Mono',
-  ];
+  static const terminalFontFamilies = TerminalFonts.families;
 
   static Future<void> saveDefaultIntegratedTerminalProfile(
     String dirPath,
@@ -170,7 +164,7 @@ class SettingsLoader {
       integratedTerminalProfiles = defaultProfiles;
       languageCode = null;
       commandBarPinned = false;
-      terminalFontFamily = 'monospace';
+      terminalFontFamily = TerminalFonts.defaultFamily;
       return;
     }
 
@@ -190,13 +184,13 @@ class SettingsLoader {
     );
   }
 
-  /// An unknown or absent value falls back to the operating system locale
-  /// rather than failing startup — a stale language code must not brick the app.
+  /// An unknown or absent value (e.g. a formerly supported system font) falls
+  /// back to the bundled default font rather than failing startup.
   static String _loadTerminalFontFamily(Object? configuration) {
     final fontFamily = configuration?.toString().trim();
     return terminalFontFamilies.contains(fontFamily)
         ? fontFamily!
-        : 'monospace';
+        : TerminalFonts.defaultFamily;
   }
 
   static String? _loadLanguage(Object? configuration) {

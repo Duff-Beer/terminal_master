@@ -272,3 +272,14 @@ so its artifacts can be checked before publication.
 Terminal Master is licensed under the Apache License 2.0. See [LICENSE](LICENSE)
 for the license text. Third-party dependencies remain under their respective
 licenses.
+
+Bundled third-party components:
+
+- `packages/xterm`: a vendored copy of [xterm.dart](https://github.com/TerminalStudio/xterm.dart)
+  4.0.0 with escape sequence parser fixes (MIT License, see
+  [packages/xterm/LICENSE](packages/xterm/LICENSE) and
+  [packages/xterm/CHANGELOG.md](packages/xterm/CHANGELOG.md)).
+- `assets/fonts`: the terminal fonts JetBrains Mono, Noto Sans Symbols,
+  Noto Sans Symbols 2, Noto Sans Math and Noto Emoji (SIL Open Font License 1.1)
+  and DejaVu Sans Mono (Bitstream Vera license, DejaVu changes in the public
+  domain). Each font's license is included next to its files.

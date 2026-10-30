@@ -9,6 +9,7 @@ import 'package:terminal_master/models/saved_terminal_tab.dart';
 import 'package:terminal_master/models/shell_profile.dart';
 import 'package:terminal_master/services/saved_terminal_tab_store.dart';
 import 'package:terminal_master/services/terminal_session.dart';
+import 'package:terminal_master/utils/terminal_fonts.dart';
 import 'package:terminal_master/widgets/terminal_panel.dart';
 import 'package:xterm/xterm.dart';
 
@@ -474,21 +475,28 @@ void main() {
             .widget<TerminalView>(find.byType(TerminalView))
             .textStyle
             .fontFamily,
-        'monospace',
+        'JetBrains Mono',
+      );
+      expect(
+        tester
+            .widget<TerminalView>(find.byType(TerminalView))
+            .textStyle
+            .fontFamilyFallback,
+        TerminalFonts.fallback,
       );
       expect(find.byKey(const Key('stop-terminal-session')), findsNothing);
       final controller = TerminalPanelScope.of(
         tester.element(find.byType(TerminalPanel)),
       );
-      await controller.setTerminalFontFamily('Noto Sans Mono');
+      await controller.setTerminalFontFamily('DejaVu Sans Mono');
       await tester.pump();
-      expect(controller.terminalFontFamily, 'Noto Sans Mono');
+      expect(controller.terminalFontFamily, 'DejaVu Sans Mono');
       expect(
         tester
             .widget<TerminalView>(find.byType(TerminalView))
             .textStyle
             .fontFamily,
-        'Noto Sans Mono',
+        'DejaVu Sans Mono',
       );
       final activeTabFinder = find.byKey(
         Key('terminal-tab-${controller.activeTab.id}'),

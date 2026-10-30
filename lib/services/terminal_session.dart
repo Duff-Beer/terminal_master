@@ -636,12 +636,20 @@ class TerminalSession extends ChangeNotifier {
 
   Map<String, String> get _environment {
     if (!Platform.isWindows) {
-      return {
+      final environment = {
         ...Platform.environment,
         ...profile.environment,
         _commandMarkerVariable: _commandEndMarker,
         ..._terminalEnvironment,
       };
+      // A locale configured in the profile is deliberate; leave it alone.
+      if (_localeVariables.any(profile.environment.containsKey)) {
+        return environment;
+      }
+      return withUtf8Locale(
+        environment,
+        fallbackLocale: Platform.isMacOS ? 'en_US.UTF-8' : 'C.UTF-8',
+      );
     }
 
     final home = Platform.environment['USERPROFILE'];
@@ -688,6 +696,35 @@ class TerminalSession extends ChangeNotifier {
   }
 
   bool _isAscii(String value) => value.codeUnits.every((unit) => unit <= 0x7f);
+
+  static const _localeVariables = ['LC_ALL', 'LC_CTYPE', 'LANG'];
+
+  /// Apps started from a desktop launcher often inherit no locale (or `C`),
+  /// which makes ncurses and other TUIs fall back to ASCII or emit characters
+  /// in a legacy encoding. The terminal always decodes UTF-8, so the character
+  /// type is forced to UTF-8 while the remaining locale categories are kept.
+  @visibleForTesting
+  static Map<String, String> withUtf8Locale(
+    Map<String, String> environment, {
+    required String fallbackLocale,
+  }) {
+    final effective = _localeVariables
+        .map((name) => environment[name])
+        .firstWhere(
+          (value) => value != null && value.isNotEmpty,
+          orElse: () => null,
+        );
+    if (effective != null &&
+        RegExp(r'utf-?8', caseSensitive: false).hasMatch(effective)) {
+      return environment;
+    }
+    final result = Map<String, String>.of(environment)
+      // A non-UTF-8 LC_ALL would override LC_CTYPE.
+      ..remove('LC_ALL')
+      ..['LC_CTYPE'] = fallbackLocale;
+    if (result['LANG']?.isNotEmpty != true) result['LANG'] = fallbackLocale;
+    return result;
+  }
 
   static TerminalTargetPlatform get _terminalTargetPlatform {
     if (Platform.isMacOS) return TerminalTargetPlatform.macos;

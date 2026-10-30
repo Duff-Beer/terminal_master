@@ -177,6 +177,61 @@ void main() {
     },
   );
 
+  group('withUtf8Locale', () {
+    Map<String, String> apply(Map<String, String> environment) =>
+        TerminalSession.withUtf8Locale(environment, fallbackLocale: 'C.UTF-8');
+
+    test('sets a UTF-8 locale when none is inherited', () {
+      expect(apply({'HOME': '/home/user'}), {
+        'HOME': '/home/user',
+        'LC_CTYPE': 'C.UTF-8',
+        'LANG': 'C.UTF-8',
+      });
+    });
+
+    test('keeps an existing UTF-8 locale untouched', () {
+      final environment = {'LANG': 'de_DE.utf8', 'LC_CTYPE': ''};
+      expect(apply(environment), same(environment));
+    });
+
+    test('forces UTF-8 character types but keeps the language', () {
+      expect(apply({'LANG': 'de_DE.ISO-8859-1'}), {
+        'LANG': 'de_DE.ISO-8859-1',
+        'LC_CTYPE': 'C.UTF-8',
+      });
+    });
+
+    test('drops a non-UTF-8 LC_ALL that would override LC_CTYPE', () {
+      expect(apply({'LC_ALL': 'C', 'LANG': 'en_US.UTF-8'}), {
+        'LANG': 'en_US.UTF-8',
+        'LC_CTYPE': 'C.UTF-8',
+      });
+    });
+  });
+
+  test('keeps a locale configured in the shell profile', () async {
+    if (Platform.isWindows) return;
+    final factory = RecordingTerminalBackendFactory();
+    const profile = ShellProfile(
+      id: 'latin1',
+      name: 'Latin-1 Shell',
+      executable: '/bin/sh',
+      environment: {'LANG': 'de_DE.ISO-8859-1'},
+      dialect: ShellDialect.posix,
+    );
+    final session = TerminalSession(
+      backendFactory: factory.create,
+      profile: profile,
+    );
+    addTearDown(session.dispose);
+
+    await session.start();
+
+    final environment = factory.options.single.environment!;
+    expect(environment['LANG'], 'de_DE.ISO-8859-1');
+    expect(environment['LC_CTYPE'], Platform.environment['LC_CTYPE']);
+  });
+
   test('tracks command output and exit codes across output chunks', () async {
     final factory = RecordingTerminalBackendFactory();
     final session = TerminalSession(

@@ -432,7 +432,7 @@
   "settingsDefaultShellSaved": "Standard-Shell wurde gespeichert.",
   "settingsDefaultShellSaveFailed": "Standard-Shell konnte nicht gespeichert werden: {error}",
   "settingsTerminalFontLabel": "Terminal-Schriftart",
-  "settingsTerminalFontHelper": "Verwendet eine auf dem System installierte Schriftart.",
+  "settingsTerminalFontHelper": "Wird mit der App ausgeliefert und sieht daher auf jedem Betriebssystem gleich aus.",
   "settingsTerminalFontSaved": "Terminal-Schriftart gespeichert.",
   "settingsTerminalFontSaveFailed": "Terminal-Schriftart konnte nicht gespeichert werden: {error}",
   "@settingsTerminalFontSaveFailed": {

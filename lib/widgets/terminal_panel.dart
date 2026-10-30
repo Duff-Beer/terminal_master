@@ -19,6 +19,7 @@ import '../services/external_url_launcher.dart';
 import '../services/saved_terminal_tab_store.dart';
 import '../services/terminal_session.dart';
 import '../theme.dart';
+import '../utils/terminal_fonts.dart';
 import 'command_confirmation_dialog.dart';
 import 'terminal_mouse_overlay.dart';
 

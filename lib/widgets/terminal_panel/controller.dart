@@ -183,7 +183,7 @@ class TerminalPanelController extends ChangeNotifier {
     required this.savedTabStore,
     bool commandBarPinned = false,
     this.saveCommandBarPinned,
-    String terminalFontFamily = 'monospace',
+    String terminalFontFamily = TerminalFonts.defaultFamily,
     this.saveTerminalFontFamily,
     List<ShellProfile>? profiles,
   }) : _commandBarPinned = commandBarPinned,

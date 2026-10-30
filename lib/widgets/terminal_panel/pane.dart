@@ -337,6 +337,7 @@ class _TerminalPaneState extends State<TerminalPane> {
                     textStyle: TerminalStyle(
                       fontSize: widget.panelController.fontSize,
                       fontFamily: widget.panelController.terminalFontFamily,
+                      fontFamilyFallback: TerminalFonts.fallback,
                     ),
                     padding: const EdgeInsets.all(10),
                     autofocus: false,
