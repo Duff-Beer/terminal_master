@@ -11,6 +11,10 @@ Vendored into Terminal Master with these fixes:
   movement instead of dropping them (`a\tb` was copied as `ab`). Empty cells
   at the end of the range and the second cell of wide characters are still
   left out.
+* Middle clicks are passed to the new `TerminalView.onTertiaryTapDown` and
+  `onTertiaryTapUp` callbacks. Previously they were wired to the secondary tap
+  callbacks, so a middle click opened the context menu, and the release was
+  reported to programs as the right button.
 
 The full diff against upstream 4.0.0 is in `terminal_master.patch`; reapply it
 when updating to a newer upstream release.

@@ -356,6 +356,7 @@ class _TerminalPaneState extends State<TerminalPane> {
                         alwaysShowCursor: true,
                         onTapUp: _handleTerminalTap,
                         onSecondaryTapDown: _handleSecondaryTap,
+                        onTertiaryTapDown: _handleMiddleClick,
                         onKeyEvent: _handleTerminalKey,
                       ),
                     ),
@@ -1065,8 +1066,7 @@ class _TerminalPaneState extends State<TerminalPane> {
         }
         break;
       case _TerminalMenuAction.paste:
-        final data = await Clipboard.getData('text/plain');
-        if (data?.text case final text?) await _paste(text);
+        await _pasteClipboard();
         break;
       case _TerminalMenuAction.selectAll:
         _selectAll();
@@ -1087,6 +1087,13 @@ class _TerminalPaneState extends State<TerminalPane> {
     if (!isShortcut) return;
     final link = _linkAt(offset);
     if (link != null) _openLink(link);
+  }
+
+  /// Pastes the clipboard on a middle click. While a program reports mouse
+  /// events, the overlay forwards the click to it instead.
+  void _handleMiddleClick(TapDownDetails details, CellOffset offset) {
+    _terminalViewKey.currentState?.requestKeyboard();
+    _pasteClipboard();
   }
 
   String? _selectedText() {
@@ -1190,9 +1197,7 @@ class _TerminalPaneState extends State<TerminalPane> {
       return KeyEventResult.handled;
     }
     if (isShortcut && key == LogicalKeyboardKey.keyV) {
-      Clipboard.getData('text/plain').then((data) {
-        if (data?.text case final text?) _paste(text);
-      });
+      _pasteClipboard();
       return KeyEventResult.handled;
     }
     return KeyEventResult.ignored;
@@ -1328,6 +1333,11 @@ class _TerminalPaneState extends State<TerminalPane> {
       highlight.dispose();
     }
     _searchHighlights.clear();
+  }
+
+  Future<void> _pasteClipboard() async {
+    final data = await Clipboard.getData(Clipboard.kTextPlain);
+    if (data?.text case final text?) await _paste(text);
   }
 
   Future<void> _paste(String text) async {

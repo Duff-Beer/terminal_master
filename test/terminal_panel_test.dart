@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'support/localized_app.dart';
@@ -682,6 +683,59 @@ void main() {
       findsNothing,
     );
   }, variant: TargetPlatformVariant.only(TargetPlatform.linux));
+
+  testWidgets('pastes the clipboard on a middle click', (tester) async {
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      SystemChannels.platform,
+      (call) async =>
+          call.method == 'Clipboard.getData' ? {'text': 'echo hi'} : null,
+    );
+    addTearDown(
+      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        null,
+      ),
+    );
+    final factory = RecordingTerminalBackendFactory();
+    final navigatorKey = GlobalKey<NavigatorState>();
+
+    await tester.pumpWidget(
+      localizedApp(
+        navigatorKey: navigatorKey,
+        home: TerminalWorkspace(
+          backendFactory: factory.create,
+          navigatorKey: navigatorKey,
+          child: const _FirstPage(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final backend = factory.backends.single;
+
+    await tester.tapAt(
+      tester.getCenter(find.byType(TerminalView)),
+      kind: PointerDeviceKind.mouse,
+      buttons: kMiddleMouseButton,
+    );
+    await tester.pumpAndSettle();
+
+    expect(backend.writes.map(utf8.decode), contains('echo hi'));
+    expect(find.text('Kopieren'), findsNothing);
+
+    // A program that reports mouse events gets the middle click instead.
+    backend.emit(utf8.encode('\x1b[?1000h'));
+    await tester.pumpAndSettle();
+    final writesBefore = backend.writes.length;
+    await tester.tapAt(
+      tester.getCenter(find.byType(TerminalView)),
+      kind: PointerDeviceKind.mouse,
+      buttons: kMiddleMouseButton,
+    );
+    await tester.pumpAndSettle();
+    final writes = backend.writes.skip(writesBefore).map(utf8.decode).toList();
+    expect(writes, isNotEmpty);
+    expect(writes, everyElement(startsWith('\x1b[M')));
+  });
 
   testWidgets('shows TUI state and forwards reported mouse clicks', (
     tester,
