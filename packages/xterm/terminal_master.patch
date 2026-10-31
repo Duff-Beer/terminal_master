@@ -176,3 +176,25 @@
    int finalByte;
    // final List<int> intermediates;
  
+--- a/lib/src/core/buffer/line.dart
++++ b/lib/src/core/buffer/line.dart
+@@ -332,10 +332,18 @@ class BufferLine with IndexedItem {
+     }
+ 
+     final builder = StringBuffer();
++    // Cells skipped by tabs or cursor movement are empty. They read as spaces
++    // between text, but are dropped at the end of the range.
++    var pendingSpaces = 0;
+     for (var i = from; i < to; i++) {
+       final codePoint = getCodePoint(i);
+       final width = getWidth(i);
+-      if (codePoint != 0 && i + width <= to) {
++      if (codePoint == 0) {
++        // The second cell of a wide character is empty as well.
++        if (i == 0 || getWidth(i - 1) != 2) pendingSpaces++;
++      } else if (i + width <= to) {
++        builder.write(' ' * pendingSpaces);
++        pendingSpaces = 0;
+         builder.writeCharCode(codePoint);
+       }
+     }

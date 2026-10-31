@@ -7,6 +7,10 @@ Vendored into Terminal Master with these fixes:
 * Colon separated SGR sub-parameters are parsed instead of being merged into
   the preceding number (`4:3` became `43`, a yellow background). Supported:
   underline styles `4:n`, `38`/`48` with `:5:n` and `:2:[cs:]r:g:b`.
+* Copied text keeps the spaces of cells that were skipped by tabs or cursor
+  movement instead of dropping them (`a\tb` was copied as `ab`). Empty cells
+  at the end of the range and the second cell of wide characters are still
+  left out.
 
 The full diff against upstream 4.0.0 is in `terminal_master.patch`; reapply it
 when updating to a newer upstream release.
