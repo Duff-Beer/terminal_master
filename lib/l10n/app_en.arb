@@ -543,6 +543,38 @@
   },
   "terminalDropHint": "Drop to insert path",
   "terminalDropSshLocalPath": "Inserted a local path. It may not exist on the SSH host.",
+  "terminalUploadTitle": "Upload to SSH host?",
+  "terminalUploadAction": "Upload",
+  "terminalUploadInsertLocalPath": "Insert local path",
+  "terminalUploadProgressTitle": "Uploading …",
+  "terminalUploadPreparing": "Preparing upload …",
+  "terminalUploadFailed": "Upload failed: {error}",
+  "@terminalUploadFailed": {
+    "placeholders": { "error": { "type": "String" } }
+  },
+  "terminalUploadConflictTitle": "Already exists",
+  "terminalUploadConflictMessage": "\"{path}\" already exists on the SSH host.",
+  "@terminalUploadConflictMessage": {
+    "placeholders": { "path": { "type": "String" } }
+  },
+  "terminalUploadConflictMergeHint": "Overwriting merges into the existing directory; conflicts inside it are asked separately.",
+  "terminalUploadApplyToAll": "Apply to all further conflicts",
+  "terminalUploadOverwrite": "Overwrite",
+  "terminalUploadRename": "Rename",
+  "terminalUploadSkip": "Skip",
+  "terminalUploadTargetLabel": "Target directory on the SSH host",
+  "terminalUploadBrowse": "Choose directory",
+  "terminalUploadSelectDirectory": "Select",
+  "terminalUploadDirectoryMissing": "This directory does not exist on the SSH host.",
+  "terminalUploadDirectoryUnreadable": "The directory cannot be read.",
+  "terminalUploadDone": "{count, plural, =1{1 item uploaded to {directory}} other{{count} items uploaded to {directory}}}",
+  "@terminalUploadDone": {
+    "placeholders": {
+      "count": { "type": "int" },
+      "directory": { "type": "String" }
+    }
+  },
+  "terminalUploadInsertPath": "Insert path",
   "terminalPasteMultilineTitle": "Paste multiline text?",
   "terminalPasteMultilineMessage": "Line breaks can execute commands immediately. Check the content before pasting.",
   "terminalStatusReady": "Ready",

@@ -406,17 +406,128 @@ class _TerminalPaneState extends State<TerminalPane> {
     );
   }
 
-  void _handleDrop(DropDoneDetails details) {
+  Future<void> _handleDrop(DropDoneDetails details) async {
     setState(() => _isDropHovering = false);
-    final input = droppedPathsInput(
-      details.files.map((file) => file.path),
-      widget.pane.profile.dialect,
-    );
-    if (input.isEmpty) return;
+    final localPaths = details.files.map((file) => file.path).toList();
+    if (droppedPathsInput(localPaths, widget.pane.profile.dialect).isEmpty) {
+      return;
+    }
     widget.panelController.focusPane(widget.pane.id);
+
+    final transfer = session.remoteFileTransfer;
+    final dialogContext = widget.navigatorKey.currentContext;
+    if (!widget.pane.profile.isSsh ||
+        transfer == null ||
+        dialogContext == null) {
+      _insertDroppedPaths(
+        localPaths,
+        isLocalOnRemote: widget.pane.profile.isSsh,
+      );
+      return;
+    }
+
+    RemoteFileSystem? fileSystem;
+    try {
+      fileSystem = await transfer.openFileSystem();
+      final shellDirectory = await session.resolveRemoteWorkingDirectory();
+      final initialDirectory =
+          shellDirectory ?? await fileSystem.homeDirectory();
+      if (!mounted || !dialogContext.mounted) return;
+      final choice = await showSshDropDialog(
+        dialogContext,
+        localPaths: localPaths,
+        fileSystem: fileSystem,
+        initialDirectory: initialDirectory,
+      );
+      if (!mounted || choice == null) return;
+      final remoteDirectory = choice.remoteDirectory;
+      if (remoteDirectory == null) {
+        _insertDroppedPaths(localPaths, isLocalOnRemote: true);
+        return;
+      }
+
+      final uploadContext = widget.navigatorKey.currentContext;
+      if (uploadContext == null || !uploadContext.mounted) return;
+      final result = await showRemoteUploadDialog(
+        uploadContext,
+        fileSystem: fileSystem,
+        localPaths: localPaths,
+        remoteDirectory: remoteDirectory,
+      );
+      if (!mounted) return;
+      if (result.error case final error?) {
+        _showUploadError(error);
+      } else if (result.remotePaths.isNotEmpty) {
+        _showUploadDone(result.remotePaths, remoteDirectory);
+        _listUploadDirectory(
+          remoteDirectory,
+          isShellDirectory: remoteDirectory == shellDirectory,
+        );
+      }
+    } on Object catch (error) {
+      if (mounted) _showUploadError(error);
+    } finally {
+      await fileSystem?.close().catchError((_) {});
+    }
+  }
+
+  void _showUploadError(Object error) {
+    final l10n = AppLocalizations.of(context);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(l10n.terminalUploadFailed(localizeError(l10n, error))),
+      ),
+    );
+  }
+
+  /// Runs `ls` in the shell so the uploaded files show up right away. Skipped
+  /// while a full-screen program such as vim owns the terminal, where the
+  /// keystrokes would end up as input to that program.
+  void _listUploadDirectory(
+    String remoteDirectory, {
+    required bool isShellDirectory,
+  }) {
+    if (!session.isRunning ||
+        session.terminal.isUsingAltBuffer ||
+        RegExp(r'[\r\n\u0000]').hasMatch(remoteDirectory)) {
+      return;
+    }
+    session.sendCommand(
+      isShellDirectory
+          ? 'ls -la'
+          : 'ls -la ${quoteForShell(remoteDirectory, widget.pane.profile.dialect)}',
+    );
+    _terminalViewKey.currentState?.requestKeyboard();
+  }
+
+  void _showUploadDone(List<String> remotePaths, String remoteDirectory) {
+    final l10n = AppLocalizations.of(context);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          l10n.terminalUploadDone(remotePaths.length, remoteDirectory),
+        ),
+        action: SnackBarAction(
+          label: l10n.terminalUploadInsertPath,
+          onPressed: () {
+            if (mounted) {
+              _insertDroppedPaths(remotePaths, isLocalOnRemote: false);
+            }
+          },
+        ),
+      ),
+    );
+  }
+
+  void _insertDroppedPaths(
+    List<String> paths, {
+    required bool isLocalOnRemote,
+  }) {
+    final input = droppedPathsInput(paths, widget.pane.profile.dialect);
+    if (input.isEmpty) return;
     session.terminal.paste(input);
     _terminalViewKey.currentState?.requestKeyboard();
-    if (widget.pane.profile.isSsh) {
+    if (isLocalOnRemote) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(AppLocalizations.of(context).terminalDropSshLocalPath),

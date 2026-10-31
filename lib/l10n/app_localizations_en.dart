@@ -1137,6 +1137,81 @@ class AppLocalizationsEn extends AppLocalizations {
       'Inserted a local path. It may not exist on the SSH host.';
 
   @override
+  String get terminalUploadTitle => 'Upload to SSH host?';
+
+  @override
+  String get terminalUploadAction => 'Upload';
+
+  @override
+  String get terminalUploadInsertLocalPath => 'Insert local path';
+
+  @override
+  String get terminalUploadProgressTitle => 'Uploading …';
+
+  @override
+  String get terminalUploadPreparing => 'Preparing upload …';
+
+  @override
+  String terminalUploadFailed(String error) {
+    return 'Upload failed: $error';
+  }
+
+  @override
+  String get terminalUploadConflictTitle => 'Already exists';
+
+  @override
+  String terminalUploadConflictMessage(String path) {
+    return '\"$path\" already exists on the SSH host.';
+  }
+
+  @override
+  String get terminalUploadConflictMergeHint =>
+      'Overwriting merges into the existing directory; conflicts inside it are asked separately.';
+
+  @override
+  String get terminalUploadApplyToAll => 'Apply to all further conflicts';
+
+  @override
+  String get terminalUploadOverwrite => 'Overwrite';
+
+  @override
+  String get terminalUploadRename => 'Rename';
+
+  @override
+  String get terminalUploadSkip => 'Skip';
+
+  @override
+  String get terminalUploadTargetLabel => 'Target directory on the SSH host';
+
+  @override
+  String get terminalUploadBrowse => 'Choose directory';
+
+  @override
+  String get terminalUploadSelectDirectory => 'Select';
+
+  @override
+  String get terminalUploadDirectoryMissing =>
+      'This directory does not exist on the SSH host.';
+
+  @override
+  String get terminalUploadDirectoryUnreadable =>
+      'The directory cannot be read.';
+
+  @override
+  String terminalUploadDone(int count, String directory) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count items uploaded to $directory',
+      one: '1 item uploaded to $directory',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get terminalUploadInsertPath => 'Insert path';
+
+  @override
   String get terminalPasteMultilineTitle => 'Paste multiline text?';
 
   @override

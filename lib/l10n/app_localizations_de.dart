@@ -1142,6 +1142,82 @@ class AppLocalizationsDe extends AppLocalizations {
       'Lokaler Pfad eingefügt. Er existiert auf dem SSH-Host möglicherweise nicht.';
 
   @override
+  String get terminalUploadTitle => 'Auf SSH-Host hochladen?';
+
+  @override
+  String get terminalUploadAction => 'Hochladen';
+
+  @override
+  String get terminalUploadInsertLocalPath => 'Lokalen Pfad einfügen';
+
+  @override
+  String get terminalUploadProgressTitle => 'Wird hochgeladen …';
+
+  @override
+  String get terminalUploadPreparing => 'Upload wird vorbereitet …';
+
+  @override
+  String terminalUploadFailed(String error) {
+    return 'Hochladen fehlgeschlagen: $error';
+  }
+
+  @override
+  String get terminalUploadConflictTitle => 'Bereits vorhanden';
+
+  @override
+  String terminalUploadConflictMessage(String path) {
+    return '„$path“ existiert bereits auf dem SSH-Host.';
+  }
+
+  @override
+  String get terminalUploadConflictMergeHint =>
+      'Überschreiben führt die Inhalte mit dem vorhandenen Verzeichnis zusammen; Konflikte darin werden einzeln abgefragt.';
+
+  @override
+  String get terminalUploadApplyToAll =>
+      'Für alle weiteren Konflikte übernehmen';
+
+  @override
+  String get terminalUploadOverwrite => 'Überschreiben';
+
+  @override
+  String get terminalUploadRename => 'Umbenennen';
+
+  @override
+  String get terminalUploadSkip => 'Überspringen';
+
+  @override
+  String get terminalUploadTargetLabel => 'Zielverzeichnis auf dem SSH-Host';
+
+  @override
+  String get terminalUploadBrowse => 'Verzeichnis auswählen';
+
+  @override
+  String get terminalUploadSelectDirectory => 'Auswählen';
+
+  @override
+  String get terminalUploadDirectoryMissing =>
+      'Dieses Verzeichnis existiert auf dem SSH-Host nicht.';
+
+  @override
+  String get terminalUploadDirectoryUnreadable =>
+      'Das Verzeichnis kann nicht gelesen werden.';
+
+  @override
+  String terminalUploadDone(int count, String directory) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count Elemente nach $directory hochgeladen',
+      one: '1 Element nach $directory hochgeladen',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get terminalUploadInsertPath => 'Pfad einfügen';
+
+  @override
   String get terminalPasteMultilineTitle => 'Mehrzeiligen Text einfügen?';
 
   @override

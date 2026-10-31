@@ -5,11 +5,12 @@ import 'dart:typed_data';
 import 'package:dartssh2/dartssh2.dart';
 
 import '../models/ssh_connection_profile.dart';
+import 'remote_file_upload.dart';
 import 'ssh_authentication.dart';
 import 'ssh_host_key_verifier.dart';
 import 'terminal_backend.dart';
 
-class SshTerminalBackend implements TerminalBackend {
+class SshTerminalBackend implements TerminalBackend, RemoteFileTransfer {
   final SSHSocket _socket;
   final SSHClient _client;
   final SSHSession _session;
@@ -110,15 +111,16 @@ class SshTerminalBackend implements TerminalBackend {
             : null,
         onAuthenticated: () => pendingPassword = null,
       );
-      final session = await client
-          .shell(
-            pty: SSHPtyConfig(
-              type: 'xterm-256color',
-              width: columns,
-              height: rows,
-            ),
-          )
-          .timeout(const Duration(seconds: 15));
+      final pty = SSHPtyConfig(
+        type: 'xterm-256color',
+        width: columns,
+        height: rows,
+      );
+      final session =
+          await (await _isUnixHost(client)
+                  ? client.execute(_pidReportingShellCommand, pty: pty)
+                  : client.shell(pty: pty))
+              .timeout(const Duration(seconds: 15));
       pendingPassword = null;
       return SshTerminalBackend._(
         socket,
@@ -134,6 +136,36 @@ class SshTerminalBackend implements TerminalBackend {
     }
   }
 
+  /// Starts the user's login shell like a plain shell request, but first
+  /// reports its process ID (kept across `exec`) via [remoteShellPidOscKey],
+  /// so the working directory can be looked up without touching the prompt.
+  /// `sh -c` keeps `$$` working when the login shell is fish or csh.
+  static const _pidReportingShellCommand =
+      "exec sh -c 'printf \"\\033]1337;$remoteShellPidOscKey=%s\\007\" \$\$; "
+      'exec "\${SHELL:-/bin/sh}" -l\'';
+
+  static const _unixKernels = {
+    'Linux',
+    'Darwin',
+    'FreeBSD',
+    'OpenBSD',
+    'NetBSD',
+  };
+
+  /// Whether the host runs a Unix shell. Windows OpenSSH starts cmd.exe, where
+  /// the wrapper command would end the session right away.
+  static Future<bool> _isUnixHost(SSHClient client) async {
+    try {
+      final result = await client
+          .runWithResult('uname -s', stderr: false)
+          .timeout(const Duration(seconds: 5));
+      return result.exitCode == 0 &&
+          _unixKernels.contains(utf8.decode(result.stdout).trim());
+    } on Object {
+      return false;
+    }
+  }
+
   @override
   Stream<Uint8List> get output => _outputController.stream;
 
@@ -145,6 +177,23 @@ class SshTerminalBackend implements TerminalBackend {
 
   @override
   void resize(int rows, int columns) => _session.resizeTerminal(columns, rows);
+
+  @override
+  Future<RemoteFileSystem> openFileSystem() async =>
+      SftpRemoteFileSystem(await _client.sftp());
+
+  @override
+  Future<String?> workingDirectoryOfProcess(int pid) async {
+    final result = await _client
+        .runWithResult(
+          "sh -c 'readlink /proc/$pid/cwd 2>/dev/null || "
+          'lsof -a -p $pid -d cwd -Fn 2>/dev/null | sed -n "s/^n//p"\'',
+          stderr: false,
+        )
+        .timeout(const Duration(seconds: 5));
+    final directory = utf8.decode(result.stdout, allowMalformed: true).trim();
+    return directory.startsWith('/') ? directory : null;
+  }
 
   @override
   bool kill() {
