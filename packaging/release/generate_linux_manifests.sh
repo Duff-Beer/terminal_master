@@ -100,6 +100,13 @@ cat > "$asset_dir/flake.nix" <<EOF
         sourceRoot = "terminal-master";
         dontBuild = true;
 
+        # flutter_pty loads libflutter_pty.so via dlopen by bare name
+        preFixup = ''
+          gappsWrapperArgs+=(
+            --prefix LD_LIBRARY_PATH : "\$out/lib/terminal-master/lib"
+          )
+        '';
+
         installPhase = ''
           runHook preInstall
 
