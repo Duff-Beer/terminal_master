@@ -10,6 +10,7 @@ import 'services/ssh_credential_store.dart';
 import 'services/ssh_host_key_verifier.dart';
 import 'services/terminal_backend.dart';
 import 'theme.dart';
+import 'utils/terminal_fonts.dart';
 import 'pages/main_page.dart';
 import 'pages/ssh_connections_page.dart';
 import 'pages/settings_page.dart';
@@ -51,7 +52,7 @@ class MyApp extends StatefulWidget {
     this.saveLanguage,
     this.commandBarPinned = false,
     this.saveCommandBarPinned,
-    this.terminalFontFamily = 'monospace',
+    this.terminalFontFamily = TerminalFonts.defaultFamily,
     this.saveTerminalFontFamily,
   });
 

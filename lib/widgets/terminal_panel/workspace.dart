@@ -101,7 +101,7 @@ class TerminalWorkspace extends StatefulWidget {
     this.savedTabStore,
     this.commandBarPinned = false,
     this.saveCommandBarPinned,
-    this.terminalFontFamily = 'monospace',
+    this.terminalFontFamily = TerminalFonts.defaultFamily,
     this.saveTerminalFontFamily,
     this.sshPanel,
     this.settingsPanel,

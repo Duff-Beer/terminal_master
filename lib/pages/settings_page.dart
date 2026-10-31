@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import '../l10n/app_localizations.dart';
 import '../theme.dart';
 import '../utils/settings_loader.dart';
+import '../utils/terminal_fonts.dart';
 import '../widgets/terminal_panel.dart';
 
 /// Native-language label for each supported code. Language names are shown in
@@ -232,10 +233,11 @@ class _SettingsPageState extends State<SettingsPage> {
           ),
           const SizedBox(height: 8),
           Text(
-            'Aa Bb 0123  [] {} ()',
+            'Aa Bb 0123  [] {} ()  ╭─╮ ⠋ ⏺ ⎿ ✓',
             key: const Key('terminal-font-preview'),
             style: TextStyle(
               fontFamily: controller.terminalFontFamily,
+              fontFamilyFallback: TerminalFonts.fallback,
               fontSize: 18,
             ),
           ),

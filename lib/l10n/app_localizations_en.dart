@@ -1526,7 +1526,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get settingsTerminalFontHelper =>
-      'Uses a font installed on your system.';
+      'Bundled with the app, so it looks the same on every operating system.';
 
   @override
   String get settingsTerminalFontSaved => 'Terminal font saved.';

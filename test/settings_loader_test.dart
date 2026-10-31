@@ -199,19 +199,19 @@ integrated_terminal:
         ..writeAsStringSync('terminal: Example Terminal\n');
 
       SettingsLoader.initialize(directory.path);
-      expect(SettingsLoader.terminalFontFamily, 'monospace');
+      expect(SettingsLoader.terminalFontFamily, 'JetBrains Mono');
 
       await SettingsLoader.saveTerminalFontFamily(
         directory.path,
-        'Noto Sans Mono',
+        'DejaVu Sans Mono',
       );
       SettingsLoader.initialize(directory.path);
-      expect(SettingsLoader.terminalFontFamily, 'Noto Sans Mono');
+      expect(SettingsLoader.terminalFontFamily, 'DejaVu Sans Mono');
       expect(file.readAsStringSync(), contains('terminal_font_family:'));
 
-      file.writeAsStringSync('terminal_font_family: Unavailable Font\n');
+      file.writeAsStringSync('terminal_font_family: Ubuntu Mono\n');
       SettingsLoader.initialize(directory.path);
-      expect(SettingsLoader.terminalFontFamily, 'monospace');
+      expect(SettingsLoader.terminalFontFamily, 'JetBrains Mono');
     },
   );
 

@@ -2535,7 +2535,7 @@ abstract class AppLocalizations {
   /// No description provided for @settingsTerminalFontHelper.
   ///
   /// In en, this message translates to:
-  /// **'Uses a font installed on your system.'**
+  /// **'Bundled with the app, so it looks the same on every operating system.'**
   String get settingsTerminalFontHelper;
 
   /// No description provided for @settingsTerminalFontSaved.

@@ -1,0 +1,178 @@
+--- a/lib/src/core/escape/parser.dart
++++ b/lib/src/core/escape/parser.dart
+@@ -193,7 +193,8 @@
+     final consumed = _consumeCsi();
+     if (!consumed) return false;
+ 
+-    final csiHandler = _csiHandlers[_csi.finalByte];
++    final csiHandler =
++        _isSupportedCsiVariant() ? _csiHandlers[_csi.finalByte] : null;
+ 
+     if (csiHandler == null) {
+       handler.unknownCSI(_csi.finalByte);
+@@ -208,6 +209,28 @@
+   /// object allocations.
+   final _csi = _Csi(finalByte: 0, params: []);
+ 
++  /// A private prefix or an intermediate byte turns a CSI into a different
++  /// function than its plain counterpart, e.g. `CSI > 4 ; 2 m` sets the
++  /// modifyOtherKeys level (XTMODKEYS) and is not SGR, and `CSI ? Pm r`
++  /// restores DEC private modes (XTRESTORE) and does not set margins. Only
++  /// variants the handlers actually distinguish are dispatched.
++  bool _isSupportedCsiVariant() {
++    if (_csi.hasIntermediates) return false;
++
++    switch (_csi.prefix) {
++      case null:
++        return true;
++      case Ascii.questionMark:
++        return const [Ascii.h, Ascii.l, Ascii.J, Ascii.K, Ascii.n]
++            .contains(_csi.finalByte);
++      case Ascii.greaterThan:
++      case Ascii.equal:
++        return _csi.finalByte == Ascii.c;
++      default:
++        return false;
++    }
++  }
++
+   /// Parse a CSI from the head of the queue. Return false if the CSI isn't
+   /// complete. After a CSI is successfully parsed, [_csi] is updated.
+   bool _consumeCsi() {
+@@ -216,6 +239,8 @@
+     }
+ 
+     _csi.params.clear();
++    _csi.subParams.clear();
++    _csi.hasIntermediates = false;
+ 
+     // test whether the csi is a `CSI ? Ps ...` or `CSI Ps ...`
+     final prefix = _queue.peek();
+@@ -228,6 +253,17 @@
+ 
+     var param = 0;
+     var hasParam = false;
++    List<int>? subParams;
++
++    void finishParam() {
++      if (subParams != null) {
++        _csi.subParams[_csi.params.length - 1] = subParams!..add(param);
++        subParams = null;
++      } else if (hasParam) {
++        _csi.params.add(param);
++      }
++    }
++
+     while (true) {
+       // The sequence isn't completed, just ignore it.
+       if (_queue.isEmpty) {
+@@ -237,9 +273,22 @@
+       final char = _queue.consume();
+ 
+       if (char == Ascii.semicolon) {
+-        if (hasParam) {
++        finishParam();
++        param = 0;
++        continue;
++      }
++
++      // ITU T.416 sub-parameters, e.g. `4:3` (curly underline) or
++      // `38:2::255:0:0` (RGB color). They belong to the preceding parameter
++      // and must not be merged into it.
++      if (char == Ascii.colon) {
++        if (subParams == null) {
+           _csi.params.add(param);
++          subParams = [];
++        } else {
++          subParams!.add(param);
+         }
++        hasParam = true;
+         param = 0;
+         continue;
+       }
+@@ -252,14 +301,12 @@
+       }
+ 
+       if (char > Ascii.NULL && char < Ascii.num0) {
+-        // intermediates.add(char);
++        if (char >= Ascii.space) _csi.hasIntermediates = true;
+         continue;
+       }
+ 
+       if (char >= Ascii.atSign && char <= Ascii.tilde) {
+-        if (hasParam) {
+-          _csi.params.add(param);
+-        }
++        finishParam();
+ 
+         _csi.finalByte = char;
+         return true;
+@@ -418,6 +465,13 @@
+     // ignore: dead_code
+     for (var i = 0; i < _csi.params.length; i++) {
+       final param = params[i];
++
++      final subParams = _csi.subParams[i];
++      if (subParams != null) {
++        _sgrHandleSubParams(param, subParams);
++        continue;
++      }
++
+       switch (param) {
+         case 0:
+           handler.resetCursorStyle();
+@@ -619,6 +673,41 @@
+     }
+   }
+ 
++  /// SGR attribute written with colon separated sub-parameters.
++  void _sgrHandleSubParams(int param, List<int> subParams) {
++    switch (param) {
++      case 4:
++        // Underline styles (double, curly, dotted, ...) are drawn as a
++        // single underline; `4:0` turns the underline off.
++        if (subParams.isNotEmpty && subParams[0] == 0) {
++          return handler.unsetCursorUnderline();
++        }
++        return handler.setCursorUnderline();
++      case 38:
++      case 48:
++        final isForeground = param == 38;
++        if (subParams.length >= 2 && subParams[0] == 5) {
++          return isForeground
++              ? handler.setForegroundColor256(subParams[1])
++              : handler.setBackgroundColor256(subParams[1]);
++        }
++        if (subParams.length >= 4 && subParams[0] == 2) {
++          // `2:r:g:b` or `2:<color space>:r:g:b[:...]`.
++          final offset = subParams.length == 4 ? 1 : 2;
++          final r = subParams[offset];
++          final g = subParams[offset + 1];
++          final b = subParams[offset + 2];
++          return isForeground
++              ? handler.setForegroundColorRgb(r, g, b)
++              : handler.setBackgroundColorRgb(r, g, b);
++        }
++        return handler.unsupportedStyle(param);
++      default:
++        // E.g. `58:...` (underline color), which is not supported.
++        return handler.unsupportedStyle(param);
++    }
++  }
++
+   /// `ESC [ Ps n` Device Status Report [Dispatch] (DSR)
+   ///
+   /// https://terminalguide.namepad.de/seq/csi_sn/
+@@ -1136,6 +1225,12 @@
+ 
+   List<int> params;
+ 
++  /// Colon separated sub-parameters, keyed by the index of the parameter in
++  /// [params] they belong to.
++  final Map<int, List<int>> subParams = {};
++
++  bool hasIntermediates = false;
++
+   int finalByte;
+   // final List<int> intermediates;
+ 

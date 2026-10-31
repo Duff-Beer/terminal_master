@@ -1535,7 +1535,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get settingsTerminalFontHelper =>
-      'Verwendet eine auf dem System installierte Schriftart.';
+      'Wird mit der App ausgeliefert und sieht daher auf jedem Betriebssystem gleich aus.';
 
   @override
   String get settingsTerminalFontSaved => 'Terminal-Schriftart gespeichert.';

@@ -735,7 +735,7 @@
   "settingsDefaultShellSaved": "Default shell saved.",
   "settingsDefaultShellSaveFailed": "Could not save the default shell: {error}",
   "settingsTerminalFontLabel": "Terminal font",
-  "settingsTerminalFontHelper": "Uses a font installed on your system.",
+  "settingsTerminalFontHelper": "Bundled with the app, so it looks the same on every operating system.",
   "settingsTerminalFontSaved": "Terminal font saved.",
   "settingsTerminalFontSaveFailed": "Could not save the terminal font: {error}",
   "@settingsTerminalFontSaveFailed": {

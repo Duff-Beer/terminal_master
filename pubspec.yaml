@@ -48,7 +48,10 @@ dependencies:
   path_provider: ^2.1.5
   pointycastle: ^4.0.0
   process_run: ^1.2.2+1
-  xterm: ^4.0.0
+  # Vendored xterm 4.0.0 with escape sequence parser fixes, see
+  # packages/xterm/CHANGELOG.md.
+  xterm:
+    path: packages/xterm
   flutter_pty:
     git:
       url: https://github.com/LarryHsiao/flutter_pty.git
@@ -83,6 +86,42 @@ flutter:
 
   assets:
     - data/
+
+  # Bundled so the integrated terminal renders identically on every operating
+  # system. Keep in sync with lib/utils/terminal_fonts.dart.
+  fonts:
+    - family: JetBrains Mono
+      fonts:
+        - asset: assets/fonts/jetbrains_mono/JetBrainsMono-Regular.ttf
+        - asset: assets/fonts/jetbrains_mono/JetBrainsMono-Bold.ttf
+          weight: 700
+        - asset: assets/fonts/jetbrains_mono/JetBrainsMono-Italic.ttf
+          style: italic
+        - asset: assets/fonts/jetbrains_mono/JetBrainsMono-BoldItalic.ttf
+          weight: 700
+          style: italic
+    - family: DejaVu Sans Mono
+      fonts:
+        - asset: assets/fonts/dejavu_sans_mono/DejaVuSansMono.ttf
+        - asset: assets/fonts/dejavu_sans_mono/DejaVuSansMono-Bold.ttf
+          weight: 700
+        - asset: assets/fonts/dejavu_sans_mono/DejaVuSansMono-Oblique.ttf
+          style: italic
+        - asset: assets/fonts/dejavu_sans_mono/DejaVuSansMono-BoldOblique.ttf
+          weight: 700
+          style: italic
+    - family: Noto Sans Symbols
+      fonts:
+        - asset: assets/fonts/noto/NotoSansSymbols-Regular.ttf
+    - family: Noto Sans Symbols 2
+      fonts:
+        - asset: assets/fonts/noto/NotoSansSymbols2-Regular.ttf
+    - family: Noto Sans Math
+      fonts:
+        - asset: assets/fonts/noto/NotoSansMath-Regular.ttf
+    - family: Noto Emoji
+      fonts:
+        - asset: assets/fonts/noto/NotoEmoji-Regular.ttf
 
   # To add assets to your application, add an assets section, like this:
   # assets:
