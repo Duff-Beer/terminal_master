@@ -176,3 +176,99 @@
    int finalByte;
    // final List<int> intermediates;
  
+--- a/lib/src/core/buffer/line.dart
++++ b/lib/src/core/buffer/line.dart
+@@ -332,10 +332,18 @@ class BufferLine with IndexedItem {
+     }
+ 
+     final builder = StringBuffer();
++    // Cells skipped by tabs or cursor movement are empty. They read as spaces
++    // between text, but are dropped at the end of the range.
++    var pendingSpaces = 0;
+     for (var i = from; i < to; i++) {
+       final codePoint = getCodePoint(i);
+       final width = getWidth(i);
+-      if (codePoint != 0 && i + width <= to) {
++      if (codePoint == 0) {
++        // The second cell of a wide character is empty as well.
++        if (i == 0 || getWidth(i - 1) != 2) pendingSpaces++;
++      } else if (i + width <= to) {
++        builder.write(' ' * pendingSpaces);
++        pendingSpaces = 0;
+         builder.writeCharCode(codePoint);
+       }
+     }
+--- a/lib/src/terminal_view.dart
++++ b/lib/src/terminal_view.dart
+@@ -38,6 +38,8 @@ class TerminalView extends StatefulWidget {
+     this.onTapUp,
+     this.onSecondaryTapDown,
+     this.onSecondaryTapUp,
++    this.onTertiaryTapDown,
++    this.onTertiaryTapUp,
+     this.mouseCursor = SystemMouseCursors.text,
+     this.keyboardType = TextInputType.emailAddress,
+     this.keyboardAppearance = Brightness.dark,
+@@ -95,6 +97,13 @@ class TerminalView extends StatefulWidget {
+   /// Function called when the user stops holding down a secondary button.
+   final void Function(TapUpDetails, CellOffset)? onSecondaryTapUp;
+ 
++  /// Function called when the user taps on the terminal with a tertiary
++  /// (middle) button.
++  final void Function(TapDownDetails, CellOffset)? onTertiaryTapDown;
++
++  /// Function called when the user stops holding down a tertiary button.
++  final void Function(TapUpDetails, CellOffset)? onTertiaryTapUp;
++
+   /// The mouse cursor for mouse pointers that are hovering over the terminal.
+   /// [SystemMouseCursors.text] by default.
+   final MouseCursor mouseCursor;
+@@ -305,6 +314,9 @@ class TerminalViewState extends State<TerminalView> {
+           widget.onSecondaryTapDown != null ? _onSecondaryTapDown : null,
+       onSecondaryTapUp:
+           widget.onSecondaryTapUp != null ? _onSecondaryTapUp : null,
++      onTertiaryTapDown:
++          widget.onTertiaryTapDown != null ? _onTertiaryTapDown : null,
++      onTertiaryTapUp: widget.onTertiaryTapUp != null ? _onTertiaryTapUp : null,
+       readOnly: widget.readOnly,
+       child: child,
+     );
+@@ -367,6 +379,16 @@ class TerminalViewState extends State<TerminalView> {
+     widget.onSecondaryTapUp?.call(details, offset);
+   }
+ 
++  void _onTertiaryTapDown(TapDownDetails details) {
++    final offset = renderTerminal.getCellOffset(details.localPosition);
++    widget.onTertiaryTapDown?.call(details, offset);
++  }
++
++  void _onTertiaryTapUp(TapUpDetails details) {
++    final offset = renderTerminal.getCellOffset(details.localPosition);
++    widget.onTertiaryTapUp?.call(details, offset);
++  }
++
+   bool get hasInputConnection {
+     return _customTextEditKey.currentState?.hasInputConnection == true;
+   }
+--- a/lib/src/ui/gesture/gesture_handler.dart
++++ b/lib/src/ui/gesture/gesture_handler.dart
+@@ -68,8 +68,8 @@ class _TerminalGestureHandlerState extends State<TerminalGestureHandler> {
+       onTapDown: onTapDown,
+       onSecondaryTapDown: onSecondaryTapDown,
+       onSecondaryTapUp: onSecondaryTapUp,
+-      onTertiaryTapDown: onSecondaryTapDown,
+-      onTertiaryTapUp: onSecondaryTapUp,
++      onTertiaryTapDown: onTertiaryTapDown,
++      onTertiaryTapUp: onTertiaryTapUp,
+       onLongPressStart: onLongPressStart,
+       onLongPressMoveUpdate: onLongPressMoveUpdate,
+       // onLongPressUp: onLongPressUp,
+@@ -153,7 +153,7 @@ class _TerminalGestureHandlerState extends State<TerminalGestureHandler> {
+   }
+ 
+   void onTertiaryTapUp(TapUpDetails details) {
+-    _tapUp(widget.onTertiaryTapUp, details, TerminalMouseButton.right);
++    _tapUp(widget.onTertiaryTapUp, details, TerminalMouseButton.middle);
+   }
+ 
+   void onDoubleTapDown(TapDownDetails details) {

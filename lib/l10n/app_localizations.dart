@@ -1868,6 +1868,138 @@ abstract class AppLocalizations {
   /// **'Could not open the link: {error}'**
   String terminalOpenLinkFailed(String error);
 
+  /// No description provided for @terminalDropHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Drop to insert path'**
+  String get terminalDropHint;
+
+  /// No description provided for @terminalDropSshLocalPath.
+  ///
+  /// In en, this message translates to:
+  /// **'Inserted a local path. It may not exist on the SSH host.'**
+  String get terminalDropSshLocalPath;
+
+  /// No description provided for @terminalUploadTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Upload to SSH host?'**
+  String get terminalUploadTitle;
+
+  /// No description provided for @terminalUploadAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Upload'**
+  String get terminalUploadAction;
+
+  /// No description provided for @terminalUploadInsertLocalPath.
+  ///
+  /// In en, this message translates to:
+  /// **'Insert local path'**
+  String get terminalUploadInsertLocalPath;
+
+  /// No description provided for @terminalUploadProgressTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Uploading …'**
+  String get terminalUploadProgressTitle;
+
+  /// No description provided for @terminalUploadPreparing.
+  ///
+  /// In en, this message translates to:
+  /// **'Preparing upload …'**
+  String get terminalUploadPreparing;
+
+  /// No description provided for @terminalUploadFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Upload failed: {error}'**
+  String terminalUploadFailed(String error);
+
+  /// No description provided for @terminalUploadConflictTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Already exists'**
+  String get terminalUploadConflictTitle;
+
+  /// No description provided for @terminalUploadConflictMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'\"{path}\" already exists on the SSH host.'**
+  String terminalUploadConflictMessage(String path);
+
+  /// No description provided for @terminalUploadConflictMergeHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Overwriting merges into the existing directory; conflicts inside it are asked separately.'**
+  String get terminalUploadConflictMergeHint;
+
+  /// No description provided for @terminalUploadApplyToAll.
+  ///
+  /// In en, this message translates to:
+  /// **'Apply to all further conflicts'**
+  String get terminalUploadApplyToAll;
+
+  /// No description provided for @terminalUploadOverwrite.
+  ///
+  /// In en, this message translates to:
+  /// **'Overwrite'**
+  String get terminalUploadOverwrite;
+
+  /// No description provided for @terminalUploadRename.
+  ///
+  /// In en, this message translates to:
+  /// **'Rename'**
+  String get terminalUploadRename;
+
+  /// No description provided for @terminalUploadSkip.
+  ///
+  /// In en, this message translates to:
+  /// **'Skip'**
+  String get terminalUploadSkip;
+
+  /// No description provided for @terminalUploadTargetLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Target directory on the SSH host'**
+  String get terminalUploadTargetLabel;
+
+  /// No description provided for @terminalUploadBrowse.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose directory'**
+  String get terminalUploadBrowse;
+
+  /// No description provided for @terminalUploadSelectDirectory.
+  ///
+  /// In en, this message translates to:
+  /// **'Select'**
+  String get terminalUploadSelectDirectory;
+
+  /// No description provided for @terminalUploadDirectoryMissing.
+  ///
+  /// In en, this message translates to:
+  /// **'This directory does not exist on the SSH host.'**
+  String get terminalUploadDirectoryMissing;
+
+  /// No description provided for @terminalUploadDirectoryUnreadable.
+  ///
+  /// In en, this message translates to:
+  /// **'The directory cannot be read.'**
+  String get terminalUploadDirectoryUnreadable;
+
+  /// No description provided for @terminalUploadDone.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 item uploaded to {directory}} other{{count} items uploaded to {directory}}}'**
+  String terminalUploadDone(int count, String directory);
+
+  /// No description provided for @terminalUploadInsertPath.
+  ///
+  /// In en, this message translates to:
+  /// **'Insert path'**
+  String get terminalUploadInsertPath;
+
   /// No description provided for @terminalPasteMultilineTitle.
   ///
   /// In en, this message translates to:

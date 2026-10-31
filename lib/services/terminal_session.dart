@@ -7,6 +7,7 @@ import 'package:xterm/xterm.dart';
 
 import '../models/shell_profile.dart';
 import '../models/terminal_command_block.dart';
+import 'remote_file_upload.dart';
 import 'terminal_backend.dart';
 
 enum TerminalSessionStatus { idle, starting, running, exited, failed }
@@ -90,6 +91,8 @@ class TerminalSession extends ChangeNotifier {
   String? _title;
   String? _workingDirectory;
   bool _workingDirectoryIsRemote = false;
+  bool _workingDirectoryReported = false;
+  int? _remoteShellPid;
   int? _exitCode;
   CellAnchor? _pendingLinkStart;
   Uri? _pendingLinkUri;
@@ -116,6 +119,31 @@ class TerminalSession extends ChangeNotifier {
   String get shellName => profile.name;
 
   String? get workingDirectory => _workingDirectory;
+
+  /// The directory the remote shell last reported via OSC 7, if any.
+  String? get remoteWorkingDirectory =>
+      profile.isSsh && _workingDirectoryReported ? _workingDirectory : null;
+
+  /// The remote shell's current directory: the one it reported via OSC 7, or
+  /// else the one the host reports for the shell process. Null when neither
+  /// is known.
+  Future<String?> resolveRemoteWorkingDirectory() async {
+    if (remoteWorkingDirectory case final directory?) return directory;
+    final transfer = remoteFileTransfer;
+    final pid = _remoteShellPid;
+    if (transfer == null || pid == null) return null;
+    try {
+      return await transfer.workingDirectoryOfProcess(pid);
+    } on Object {
+      return null;
+    }
+  }
+
+  /// File access on the remote host, when the running backend offers it.
+  RemoteFileTransfer? get remoteFileTransfer => switch (_backend) {
+    final RemoteFileTransfer transfer when isRunning => transfer,
+    _ => null,
+  };
 
   String? get restorableWorkingDirectory =>
       _workingDirectoryIsRemote ? profile.workingDirectory : _workingDirectory;
@@ -536,6 +564,17 @@ class TerminalSession extends ChangeNotifier {
   }
 
   void _handlePrivateOsc(String code, List<String> arguments) {
+    if (code == '1337' && arguments.isNotEmpty) {
+      // Only the first report counts: it comes from the wrapper that starts
+      // the shell, before any program could print a forged one.
+      final match = RegExp(
+        '^$remoteShellPidOscKey=(\\d+)\$',
+      ).firstMatch(arguments.first);
+      if (match != null && profile.isSsh && _remoteShellPid == null) {
+        _remoteShellPid = int.parse(match.group(1)!);
+      }
+      return;
+    }
     if (code == '7' && arguments.isNotEmpty) {
       _updateWorkingDirectory(arguments.join(';'));
       return;
@@ -587,6 +626,7 @@ class TerminalSession extends ChangeNotifier {
       path = path.substring(1).replaceAll('/', '\\');
     }
     _workingDirectory = path;
+    _workingDirectoryReported = true;
     _notify();
   }
 

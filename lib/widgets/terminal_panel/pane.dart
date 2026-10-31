@@ -29,6 +29,7 @@ class _TerminalPaneState extends State<TerminalPane> {
   bool _wasSearchOpen = false;
   bool _searchRefreshScheduled = false;
   bool _showCommandHistory = false;
+  bool _isDropHovering = false;
 
   TerminalSession get session => widget.pane.session;
 
@@ -322,58 +323,226 @@ class _TerminalPaneState extends State<TerminalPane> {
         if (isSearchOpen) _buildSearchBar(),
         if (_showCommandHistory) _buildCommandHistory(),
         Expanded(
-          child: Stack(
-            children: [
-              Positioned.fill(
-                child: Scrollbar(
-                  controller: _scrollController,
-                  thumbVisibility: true,
-                  child: TerminalView(
-                    session.terminal,
-                    key: _terminalViewKey,
-                    controller: _terminalController,
-                    scrollController: _scrollController,
-                    theme: _terminalTheme,
-                    textStyle: TerminalStyle(
-                      fontSize: widget.panelController.fontSize,
-                      fontFamily: widget.panelController.terminalFontFamily,
-                      fontFamilyFallback: TerminalFonts.fallback,
-                    ),
-                    padding: const EdgeInsets.all(10),
-                    autofocus: false,
-                    alwaysShowCursor: true,
-                    onTapUp: _handleTerminalTap,
-                    onSecondaryTapDown: _handleSecondaryTap,
-                    onKeyEvent: _handleTerminalKey,
-                  ),
-                ),
-              ),
-              if (session.terminal.mouseMode != MouseMode.none)
+          child: DropTarget(
+            onDragEntered: (_) => setState(() => _isDropHovering = true),
+            onDragExited: (_) => setState(() => _isDropHovering = false),
+            onDragDone: _handleDrop,
+            child: Stack(
+              children: [
                 Positioned.fill(
-                  child: TerminalMouseOverlay(
-                    overlayKey: _paneKey('terminal-mouse-overlay'),
-                    terminal: session.terminal,
-                    terminalViewKey: _terminalViewKey,
-                    scrollController: _scrollController,
-                    sendInput: session.sendInput,
+                  child: Scrollbar(
+                    controller: _scrollController,
+                    thumbVisibility: true,
+                    // Desktop scroll behaviors add their own scrollbar to the
+                    // terminal's Scrollable, which would show up as a second
+                    // one while scrolling.
+                    child: ScrollConfiguration(
+                      behavior: ScrollConfiguration.of(
+                        context,
+                      ).copyWith(scrollbars: false),
+                      child: TerminalView(
+                        session.terminal,
+                        key: _terminalViewKey,
+                        controller: _terminalController,
+                        scrollController: _scrollController,
+                        theme: _terminalTheme,
+                        textStyle: TerminalStyle(
+                          fontSize: widget.panelController.fontSize,
+                          fontFamily: widget.panelController.terminalFontFamily,
+                          fontFamilyFallback: TerminalFonts.fallback,
+                        ),
+                        padding: const EdgeInsets.all(10),
+                        autofocus: false,
+                        alwaysShowCursor: true,
+                        onTapUp: _handleTerminalTap,
+                        onSecondaryTapDown: _handleSecondaryTap,
+                        onTertiaryTapDown: _handleMiddleClick,
+                        onKeyEvent: _handleTerminalKey,
+                      ),
+                    ),
                   ),
                 ),
-              if (!_isAtBottom)
-                Positioned(
-                  right: 18,
-                  bottom: 12,
-                  child: FloatingActionButton.small(
-                    key: _paneKey('terminal-scroll-to-bottom'),
-                    tooltip: l10n.terminalJumpToOutput,
-                    onPressed: _scrollToBottom,
-                    child: const Icon(Icons.keyboard_arrow_down),
+                if (session.terminal.mouseMode != MouseMode.none)
+                  Positioned.fill(
+                    child: TerminalMouseOverlay(
+                      overlayKey: _paneKey('terminal-mouse-overlay'),
+                      terminal: session.terminal,
+                      terminalViewKey: _terminalViewKey,
+                      scrollController: _scrollController,
+                      sendInput: session.sendInput,
+                    ),
                   ),
-                ),
-            ],
+                if (!_isAtBottom)
+                  Positioned(
+                    right: 18,
+                    bottom: 12,
+                    child: FloatingActionButton.small(
+                      key: _paneKey('terminal-scroll-to-bottom'),
+                      tooltip: l10n.terminalJumpToOutput,
+                      onPressed: _scrollToBottom,
+                      child: const Icon(Icons.keyboard_arrow_down),
+                    ),
+                  ),
+                if (_isDropHovering) _buildDropOverlay(),
+              ],
+            ),
           ),
         ),
       ],
     );
+  }
+
+  Widget _buildDropOverlay() {
+    return Positioned.fill(
+      child: IgnorePointer(
+        child: Container(
+          key: _paneKey('terminal-drop-overlay'),
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: TerminalMasterColors.background.withValues(alpha: 0.7),
+            border: Border.all(color: TerminalMasterColors.green, width: 2),
+          ),
+          child: Text(
+            AppLocalizations.of(context).terminalDropHint,
+            style: const TextStyle(
+              color: TerminalMasterColors.green,
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _handleDrop(DropDoneDetails details) async {
+    setState(() => _isDropHovering = false);
+    final localPaths = details.files.map((file) => file.path).toList();
+    if (droppedPathsInput(localPaths, widget.pane.profile.dialect).isEmpty) {
+      return;
+    }
+    widget.panelController.focusPane(widget.pane.id);
+
+    final transfer = session.remoteFileTransfer;
+    final dialogContext = widget.navigatorKey.currentContext;
+    if (!widget.pane.profile.isSsh ||
+        transfer == null ||
+        dialogContext == null) {
+      _insertDroppedPaths(
+        localPaths,
+        isLocalOnRemote: widget.pane.profile.isSsh,
+      );
+      return;
+    }
+
+    RemoteFileSystem? fileSystem;
+    try {
+      fileSystem = await transfer.openFileSystem();
+      final shellDirectory = await session.resolveRemoteWorkingDirectory();
+      final initialDirectory =
+          shellDirectory ?? await fileSystem.homeDirectory();
+      if (!mounted || !dialogContext.mounted) return;
+      final choice = await showSshDropDialog(
+        dialogContext,
+        localPaths: localPaths,
+        fileSystem: fileSystem,
+        initialDirectory: initialDirectory,
+      );
+      if (!mounted || choice == null) return;
+      final remoteDirectory = choice.remoteDirectory;
+      if (remoteDirectory == null) {
+        _insertDroppedPaths(localPaths, isLocalOnRemote: true);
+        return;
+      }
+
+      final uploadContext = widget.navigatorKey.currentContext;
+      if (uploadContext == null || !uploadContext.mounted) return;
+      final result = await showRemoteUploadDialog(
+        uploadContext,
+        fileSystem: fileSystem,
+        localPaths: localPaths,
+        remoteDirectory: remoteDirectory,
+      );
+      if (!mounted) return;
+      if (result.error case final error?) {
+        _showUploadError(error);
+      } else if (result.remotePaths.isNotEmpty) {
+        _showUploadDone(result.remotePaths, remoteDirectory);
+        _listUploadDirectory(
+          remoteDirectory,
+          isShellDirectory: remoteDirectory == shellDirectory,
+        );
+      }
+    } on Object catch (error) {
+      if (mounted) _showUploadError(error);
+    } finally {
+      await fileSystem?.close().catchError((_) {});
+    }
+  }
+
+  void _showUploadError(Object error) {
+    final l10n = AppLocalizations.of(context);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(l10n.terminalUploadFailed(localizeError(l10n, error))),
+      ),
+    );
+  }
+
+  /// Runs `ls` in the shell so the uploaded files show up right away. Skipped
+  /// while a full-screen program such as vim owns the terminal, where the
+  /// keystrokes would end up as input to that program.
+  void _listUploadDirectory(
+    String remoteDirectory, {
+    required bool isShellDirectory,
+  }) {
+    if (!session.isRunning ||
+        session.terminal.isUsingAltBuffer ||
+        RegExp(r'[\r\n\u0000]').hasMatch(remoteDirectory)) {
+      return;
+    }
+    session.sendCommand(
+      isShellDirectory
+          ? 'ls -la'
+          : 'ls -la ${quoteForShell(remoteDirectory, widget.pane.profile.dialect)}',
+    );
+    _terminalViewKey.currentState?.requestKeyboard();
+  }
+
+  void _showUploadDone(List<String> remotePaths, String remoteDirectory) {
+    final l10n = AppLocalizations.of(context);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          l10n.terminalUploadDone(remotePaths.length, remoteDirectory),
+        ),
+        action: SnackBarAction(
+          label: l10n.terminalUploadInsertPath,
+          onPressed: () {
+            if (mounted) {
+              _insertDroppedPaths(remotePaths, isLocalOnRemote: false);
+            }
+          },
+        ),
+      ),
+    );
+  }
+
+  void _insertDroppedPaths(
+    List<String> paths, {
+    required bool isLocalOnRemote,
+  }) {
+    final input = droppedPathsInput(paths, widget.pane.profile.dialect);
+    if (input.isEmpty) return;
+    session.terminal.paste(input);
+    _terminalViewKey.currentState?.requestKeyboard();
+    if (isLocalOnRemote) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(AppLocalizations.of(context).terminalDropSshLocalPath),
+        ),
+      );
+    }
   }
 
   Widget _compactIconButton({
@@ -897,8 +1066,7 @@ class _TerminalPaneState extends State<TerminalPane> {
         }
         break;
       case _TerminalMenuAction.paste:
-        final data = await Clipboard.getData('text/plain');
-        if (data?.text case final text?) await _paste(text);
+        await _pasteClipboard();
         break;
       case _TerminalMenuAction.selectAll:
         _selectAll();
@@ -919,6 +1087,13 @@ class _TerminalPaneState extends State<TerminalPane> {
     if (!isShortcut) return;
     final link = _linkAt(offset);
     if (link != null) _openLink(link);
+  }
+
+  /// Pastes the clipboard on a middle click. While a program reports mouse
+  /// events, the overlay forwards the click to it instead.
+  void _handleMiddleClick(TapDownDetails details, CellOffset offset) {
+    _terminalViewKey.currentState?.requestKeyboard();
+    _pasteClipboard();
   }
 
   String? _selectedText() {
@@ -1022,9 +1197,7 @@ class _TerminalPaneState extends State<TerminalPane> {
       return KeyEventResult.handled;
     }
     if (isShortcut && key == LogicalKeyboardKey.keyV) {
-      Clipboard.getData('text/plain').then((data) {
-        if (data?.text case final text?) _paste(text);
-      });
+      _pasteClipboard();
       return KeyEventResult.handled;
     }
     return KeyEventResult.ignored;
@@ -1160,6 +1333,11 @@ class _TerminalPaneState extends State<TerminalPane> {
       highlight.dispose();
     }
     _searchHighlights.clear();
+  }
+
+  Future<void> _pasteClipboard() async {
+    final data = await Clipboard.getData(Clipboard.kTextPlain);
+    if (data?.text case final text?) await _paste(text);
   }
 
   Future<void> _paste(String text) async {
