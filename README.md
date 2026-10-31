@@ -12,6 +12,7 @@
 - **Review before running:** generated commands are staged in an editable field; elevated or destructive commands require explicit confirmation.
 - **Work across persistent terminals:** use independent tabs and resizable split panes, search scrollback, and keep sessions running while navigating the app.
 - **Manage SSH connections:** verify server host keys, store passwords and key passphrases in the OS credential store, and create encrypted connection backups.
+- **Drop files onto a terminal:** insert their quoted paths, or upload them via SFTP into the current directory of an SSH session.
 - **Track and restore work:** inspect command results and save terminal-tab layouts for later sessions.
 
 The integrated terminal is backed by native pseudo-terminals and supports interactive terminal applications, ANSI colors, mouse reporting, and visible hyperlinks. Terminal Master runs on macOS, Windows, and Linux.
@@ -21,6 +22,9 @@ The integrated terminal is backed by native pseudo-terminals and supports intera
 Shortcuts use `Cmd` on macOS and `Ctrl` on Windows/Linux:
 
 - `Cmd/Ctrl+F`: search terminal scrollback
+- `Cmd/Ctrl+V` or a middle click: paste the clipboard into the terminal;
+  multi-line text asks for confirmation first. While a program such as vim or
+  htop reports mouse events, the middle click is passed to it instead.
 - `Cmd/Ctrl+B`: open or close the Command Builder
 - `Cmd/Ctrl++`, `Cmd/Ctrl+-`, `Cmd/Ctrl+0`: zoom in, zoom out, or reset the terminal font size
 
@@ -106,6 +110,30 @@ skip and can explicitly be replaced or imported as a copy. Host-key differences
 are highlighted, and a compare-and-swap update prevents the import from
 overwriting profiles changed while the preview was open. Backup passwords cannot
 be recovered by Terminal Master.
+
+## Dropping Files onto a Terminal
+
+Files and folders dropped onto a local terminal insert their paths at the
+prompt, quoted for the profile's dialect and followed by a space. Paths that
+contain line breaks are skipped, because pasting them could run a command.
+
+Dropping onto a session from the SSH connections page opens a dialog that
+uploads the files via SFTP or inserts the local paths instead. The target
+defaults to the shell's current directory and can be edited or browsed on the
+server. Terminal Master learns that directory from OSC 7 when the shell reports
+it; otherwise sessions on Linux, macOS and BSD hosts report the login shell's
+process ID when they start, and the directory is read from `/proc/<pid>/cwd` or
+`lsof`. Without either, the upload falls back to the remote home directory.
+Nested shells such as `sudo -s` or a further `ssh` are not followed.
+
+Folders are uploaded recursively; symbolic links inside them are skipped. When
+an entry already exists, the upload asks whether to overwrite it (folders are
+merged), keep both with a numbered name such as `report (1).txt`, or skip it,
+optionally for all remaining conflicts. A cancelled upload removes the
+partially written file. Afterwards a notification offers to insert the remote
+path, and `ls -la` lists the target directory unless a full-screen program is
+running. SSH profiles from `settings.yaml` that start a local `ssh` executable
+only insert local paths.
 
 ## SSH Command Generator
 
@@ -276,7 +304,8 @@ licenses.
 Bundled third-party components:
 
 - `packages/xterm`: a vendored copy of [xterm.dart](https://github.com/TerminalStudio/xterm.dart)
-  4.0.0 with escape sequence parser fixes (MIT License, see
+  4.0.0 with fixes for escape sequence parsing, copying text and middle
+  clicks (MIT License, see
   [packages/xterm/LICENSE](packages/xterm/LICENSE) and
   [packages/xterm/CHANGELOG.md](packages/xterm/CHANGELOG.md)).
 - `assets/fonts`: the terminal fonts JetBrains Mono, Noto Sans Symbols,
