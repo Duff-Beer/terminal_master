@@ -316,6 +316,8 @@
   "terminalSearchSelection": "Auswahl suchen",
   "terminalClearOutput": "Ausgabe leeren",
   "terminalOpenLinkFailed": "Link konnte nicht geöffnet werden: {error}",
+  "terminalDropHint": "Loslassen, um den Pfad einzufügen",
+  "terminalDropSshLocalPath": "Lokaler Pfad eingefügt. Er existiert auf dem SSH-Host möglicherweise nicht.",
   "terminalPasteMultilineTitle": "Mehrzeiligen Text einfügen?",
   "terminalPasteMultilineMessage": "Zeilenumbrüche können Befehle unmittelbar ausführen. Prüfe den Inhalt vor dem Einfügen.",
   "terminalStatusReady": "Bereit",

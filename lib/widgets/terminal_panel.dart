@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:desktop_drop/desktop_drop.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -19,6 +20,7 @@ import '../services/external_url_launcher.dart';
 import '../services/saved_terminal_tab_store.dart';
 import '../services/terminal_session.dart';
 import '../theme.dart';
+import '../utils/shell_quoting.dart';
 import '../utils/terminal_fonts.dart';
 import 'command_confirmation_dialog.dart';
 import 'terminal_mouse_overlay.dart';

@@ -4,6 +4,7 @@ import 'package:path/path.dart' as path;
 import 'package:process_run/shell.dart' show stringToArguments;
 
 import '../models/command_config.dart';
+import '../utils/shell_quoting.dart';
 
 enum CommandShell { posix, windowsCmd, powerShell }
 
@@ -318,16 +319,10 @@ class CommandBuilder {
       );
     }
     return switch (shell) {
-      CommandShell.posix => _quotePosix(value),
+      CommandShell.posix => quotePosix(value),
       CommandShell.windowsCmd => _quoteWindows(value),
-      CommandShell.powerShell => _quotePowerShell(value),
+      CommandShell.powerShell => quotePowerShell(value),
     };
-  }
-
-  String _quotePosix(String value) {
-    if (value.isEmpty) return "''";
-    if (RegExp(r'^[A-Za-z0-9_@%+=:,./-]+$').hasMatch(value)) return value;
-    return "'${value.replaceAll("'", "'\"'\"'")}'";
   }
 
   String _quoteWindows(String value) {
@@ -336,19 +331,7 @@ class CommandBuilder {
         CommandBuildFailure.unsafeWindowsCharacter,
       );
     }
-    if (value.isEmpty) return '""';
-    if (RegExp(r'^[A-Za-z0-9_@+=:,./\\-]+$').hasMatch(value)) return value;
-    final trailingBackslashes = RegExp(r'\\+$').firstMatch(value)?.group(0);
-    if (trailingBackslashes != null) {
-      value = '$value$trailingBackslashes';
-    }
-    return '"$value"';
-  }
-
-  String _quotePowerShell(String value) {
-    if (value.isEmpty) return "''";
-    if (RegExp(r'^[A-Za-z0-9_@%+=:,./\\-]+$').hasMatch(value)) return value;
-    return "'${value.replaceAll("'", "''")}'";
+    return quoteWindowsCmd(value);
   }
 
   bool _isActive(Object? value) => isCommandValueActive(value);

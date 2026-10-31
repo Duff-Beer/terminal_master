@@ -1135,6 +1135,13 @@ class AppLocalizationsDe extends AppLocalizations {
   }
 
   @override
+  String get terminalDropHint => 'Loslassen, um den Pfad einzufügen';
+
+  @override
+  String get terminalDropSshLocalPath =>
+      'Lokaler Pfad eingefügt. Er existiert auf dem SSH-Host möglicherweise nicht.';
+
+  @override
   String get terminalPasteMultilineTitle => 'Mehrzeiligen Text einfügen?';
 
   @override

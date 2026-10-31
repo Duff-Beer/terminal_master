@@ -39,6 +39,10 @@ dependencies:
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
   dartssh2: ^2.13.0
+  # Pinned below 0.8.1: newer releases prefer the XDG file transfer portal on
+  # Linux, which fails for unsandboxed apps (KDE: "Invalid transfer") and would
+  # only yield /run/user/.../doc paths instead of the real file path.
+  desktop_drop: 0.8.0
   file_picker: ^8.1.4
   flutter_secure_storage: ^9.2.4
   yaml: ^3.1.2

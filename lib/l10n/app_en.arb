@@ -541,6 +541,8 @@
   "@terminalOpenLinkFailed": {
     "placeholders": { "error": { "type": "String" } }
   },
+  "terminalDropHint": "Drop to insert path",
+  "terminalDropSshLocalPath": "Inserted a local path. It may not exist on the SSH host.",
   "terminalPasteMultilineTitle": "Paste multiline text?",
   "terminalPasteMultilineMessage": "Line breaks can execute commands immediately. Check the content before pasting.",
   "terminalStatusReady": "Ready",

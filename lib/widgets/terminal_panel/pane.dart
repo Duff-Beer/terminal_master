@@ -29,6 +29,7 @@ class _TerminalPaneState extends State<TerminalPane> {
   bool _wasSearchOpen = false;
   bool _searchRefreshScheduled = false;
   bool _showCommandHistory = false;
+  bool _isDropHovering = false;
 
   TerminalSession get session => widget.pane.session;
 
@@ -322,58 +323,106 @@ class _TerminalPaneState extends State<TerminalPane> {
         if (isSearchOpen) _buildSearchBar(),
         if (_showCommandHistory) _buildCommandHistory(),
         Expanded(
-          child: Stack(
-            children: [
-              Positioned.fill(
-                child: Scrollbar(
-                  controller: _scrollController,
-                  thumbVisibility: true,
-                  child: TerminalView(
-                    session.terminal,
-                    key: _terminalViewKey,
-                    controller: _terminalController,
-                    scrollController: _scrollController,
-                    theme: _terminalTheme,
-                    textStyle: TerminalStyle(
-                      fontSize: widget.panelController.fontSize,
-                      fontFamily: widget.panelController.terminalFontFamily,
-                      fontFamilyFallback: TerminalFonts.fallback,
-                    ),
-                    padding: const EdgeInsets.all(10),
-                    autofocus: false,
-                    alwaysShowCursor: true,
-                    onTapUp: _handleTerminalTap,
-                    onSecondaryTapDown: _handleSecondaryTap,
-                    onKeyEvent: _handleTerminalKey,
-                  ),
-                ),
-              ),
-              if (session.terminal.mouseMode != MouseMode.none)
+          child: DropTarget(
+            onDragEntered: (_) => setState(() => _isDropHovering = true),
+            onDragExited: (_) => setState(() => _isDropHovering = false),
+            onDragDone: _handleDrop,
+            child: Stack(
+              children: [
                 Positioned.fill(
-                  child: TerminalMouseOverlay(
-                    overlayKey: _paneKey('terminal-mouse-overlay'),
-                    terminal: session.terminal,
-                    terminalViewKey: _terminalViewKey,
-                    scrollController: _scrollController,
-                    sendInput: session.sendInput,
+                  child: Scrollbar(
+                    controller: _scrollController,
+                    thumbVisibility: true,
+                    child: TerminalView(
+                      session.terminal,
+                      key: _terminalViewKey,
+                      controller: _terminalController,
+                      scrollController: _scrollController,
+                      theme: _terminalTheme,
+                      textStyle: TerminalStyle(
+                        fontSize: widget.panelController.fontSize,
+                        fontFamily: widget.panelController.terminalFontFamily,
+                        fontFamilyFallback: TerminalFonts.fallback,
+                      ),
+                      padding: const EdgeInsets.all(10),
+                      autofocus: false,
+                      alwaysShowCursor: true,
+                      onTapUp: _handleTerminalTap,
+                      onSecondaryTapDown: _handleSecondaryTap,
+                      onKeyEvent: _handleTerminalKey,
+                    ),
                   ),
                 ),
-              if (!_isAtBottom)
-                Positioned(
-                  right: 18,
-                  bottom: 12,
-                  child: FloatingActionButton.small(
-                    key: _paneKey('terminal-scroll-to-bottom'),
-                    tooltip: l10n.terminalJumpToOutput,
-                    onPressed: _scrollToBottom,
-                    child: const Icon(Icons.keyboard_arrow_down),
+                if (session.terminal.mouseMode != MouseMode.none)
+                  Positioned.fill(
+                    child: TerminalMouseOverlay(
+                      overlayKey: _paneKey('terminal-mouse-overlay'),
+                      terminal: session.terminal,
+                      terminalViewKey: _terminalViewKey,
+                      scrollController: _scrollController,
+                      sendInput: session.sendInput,
+                    ),
                   ),
-                ),
-            ],
+                if (!_isAtBottom)
+                  Positioned(
+                    right: 18,
+                    bottom: 12,
+                    child: FloatingActionButton.small(
+                      key: _paneKey('terminal-scroll-to-bottom'),
+                      tooltip: l10n.terminalJumpToOutput,
+                      onPressed: _scrollToBottom,
+                      child: const Icon(Icons.keyboard_arrow_down),
+                    ),
+                  ),
+                if (_isDropHovering) _buildDropOverlay(),
+              ],
+            ),
           ),
         ),
       ],
     );
+  }
+
+  Widget _buildDropOverlay() {
+    return Positioned.fill(
+      child: IgnorePointer(
+        child: Container(
+          key: _paneKey('terminal-drop-overlay'),
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: TerminalMasterColors.background.withValues(alpha: 0.7),
+            border: Border.all(color: TerminalMasterColors.green, width: 2),
+          ),
+          child: Text(
+            AppLocalizations.of(context).terminalDropHint,
+            style: const TextStyle(
+              color: TerminalMasterColors.green,
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _handleDrop(DropDoneDetails details) {
+    setState(() => _isDropHovering = false);
+    final input = droppedPathsInput(
+      details.files.map((file) => file.path),
+      widget.pane.profile.dialect,
+    );
+    if (input.isEmpty) return;
+    widget.panelController.focusPane(widget.pane.id);
+    session.terminal.paste(input);
+    _terminalViewKey.currentState?.requestKeyboard();
+    if (widget.pane.profile.isSsh) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(AppLocalizations.of(context).terminalDropSshLocalPath),
+        ),
+      );
+    }
   }
 
   Widget _compactIconButton({

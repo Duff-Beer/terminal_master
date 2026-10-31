@@ -1130,6 +1130,13 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get terminalDropHint => 'Drop to insert path';
+
+  @override
+  String get terminalDropSshLocalPath =>
+      'Inserted a local path. It may not exist on the SSH host.';
+
+  @override
   String get terminalPasteMultilineTitle => 'Paste multiline text?';
 
   @override

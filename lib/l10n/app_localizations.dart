@@ -1868,6 +1868,18 @@ abstract class AppLocalizations {
   /// **'Could not open the link: {error}'**
   String terminalOpenLinkFailed(String error);
 
+  /// No description provided for @terminalDropHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Drop to insert path'**
+  String get terminalDropHint;
+
+  /// No description provided for @terminalDropSshLocalPath.
+  ///
+  /// In en, this message translates to:
+  /// **'Inserted a local path. It may not exist on the SSH host.'**
+  String get terminalDropSshLocalPath;
+
   /// No description provided for @terminalPasteMultilineTitle.
   ///
   /// In en, this message translates to:
