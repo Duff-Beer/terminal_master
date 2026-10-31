@@ -651,6 +651,38 @@ void main() {
     expect(find.byKey(const Key('terminal-scroll-to-bottom')), findsNothing);
   });
 
+  testWidgets('shows a single scrollbar on desktop', (tester) async {
+    final factory = RecordingTerminalBackendFactory();
+    final navigatorKey = GlobalKey<NavigatorState>();
+
+    await tester.pumpWidget(
+      localizedApp(
+        navigatorKey: navigatorKey,
+        home: TerminalWorkspace(
+          backendFactory: factory.create,
+          navigatorKey: navigatorKey,
+          child: const _FirstPage(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.ancestor(
+        of: find.byType(TerminalView),
+        matching: find.byType(Scrollbar),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: find.byType(TerminalView),
+        matching: find.byType(Scrollbar),
+      ),
+      findsNothing,
+    );
+  }, variant: TargetPlatformVariant.only(TargetPlatform.linux));
+
   testWidgets('shows TUI state and forwards reported mouse clicks', (
     tester,
   ) async {

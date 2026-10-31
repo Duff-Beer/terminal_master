@@ -333,23 +333,31 @@ class _TerminalPaneState extends State<TerminalPane> {
                   child: Scrollbar(
                     controller: _scrollController,
                     thumbVisibility: true,
-                    child: TerminalView(
-                      session.terminal,
-                      key: _terminalViewKey,
-                      controller: _terminalController,
-                      scrollController: _scrollController,
-                      theme: _terminalTheme,
-                      textStyle: TerminalStyle(
-                        fontSize: widget.panelController.fontSize,
-                        fontFamily: widget.panelController.terminalFontFamily,
-                        fontFamilyFallback: TerminalFonts.fallback,
+                    // Desktop scroll behaviors add their own scrollbar to the
+                    // terminal's Scrollable, which would show up as a second
+                    // one while scrolling.
+                    child: ScrollConfiguration(
+                      behavior: ScrollConfiguration.of(
+                        context,
+                      ).copyWith(scrollbars: false),
+                      child: TerminalView(
+                        session.terminal,
+                        key: _terminalViewKey,
+                        controller: _terminalController,
+                        scrollController: _scrollController,
+                        theme: _terminalTheme,
+                        textStyle: TerminalStyle(
+                          fontSize: widget.panelController.fontSize,
+                          fontFamily: widget.panelController.terminalFontFamily,
+                          fontFamilyFallback: TerminalFonts.fallback,
+                        ),
+                        padding: const EdgeInsets.all(10),
+                        autofocus: false,
+                        alwaysShowCursor: true,
+                        onTapUp: _handleTerminalTap,
+                        onSecondaryTapDown: _handleSecondaryTap,
+                        onKeyEvent: _handleTerminalKey,
                       ),
-                      padding: const EdgeInsets.all(10),
-                      autofocus: false,
-                      alwaysShowCursor: true,
-                      onTapUp: _handleTerminalTap,
-                      onSecondaryTapDown: _handleSecondaryTap,
-                      onKeyEvent: _handleTerminalKey,
                     ),
                   ),
                 ),
