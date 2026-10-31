@@ -39,11 +39,20 @@ endif()
 # Be cautious about adding new options here, as plugins use this function by
 # default. In most cases, you should add new options to specific targets instead
 # of modifying this function.
+# flutter_secure_storage_linux bundles a json.hpp that newer Clang rejects.
+# Older compilers do not know the warning and fail on the unknown option, so
+# it is only disabled where it exists. The positive flag is checked because
+# compilers may accept any unknown -Wno-* option without complaint.
+include(CheckCXXCompilerFlag)
+check_cxx_compiler_flag(-Wdeprecated-literal-operator
+  HAS_DEPRECATED_LITERAL_OPERATOR_WARNING)
+
 function(APPLY_STANDARD_SETTINGS TARGET)
   target_compile_features(${TARGET} PUBLIC cxx_std_14)
   target_compile_options(${TARGET} PRIVATE -Wall -Werror)
-  # flutter_secure_storage_linux bundles a json.hpp that newer Clang rejects.
-  target_compile_options(${TARGET} PRIVATE "$<$<CXX_COMPILER_ID:Clang>:-Wno-deprecated-literal-operator>")
+  if(HAS_DEPRECATED_LITERAL_OPERATOR_WARNING)
+    target_compile_options(${TARGET} PRIVATE -Wno-deprecated-literal-operator)
+  endif()
   target_compile_options(${TARGET} PRIVATE "$<$<NOT:$<CONFIG:Debug>>:-O3>")
   target_compile_definitions(${TARGET} PRIVATE "$<$<NOT:$<CONFIG:Debug>>:NDEBUG>")
 endfunction()
